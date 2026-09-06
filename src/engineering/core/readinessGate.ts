@@ -1,4 +1,5 @@
 import { SimulationRunInput } from './simulationRun';
+import { assessInputEvidence } from './inputProvenance';
 
 export type ReadinessStatus = 'READY' | 'PRELIMINARY' | 'BLOCKED';
 export type ReadinessSeverity = 'info' | 'warning' | 'blocking';
@@ -18,27 +19,13 @@ export interface EngineeringReadinessResult {
   method: 'tolue-engineering-readiness-gate-v1';
 }
 
-function finitePositive(value: number): boolean {
-  return Number.isFinite(value) && value > 0;
-}
+function finitePositive(value: number): boolean { return Number.isFinite(value) && value > 0; }
+function finiteNonNegative(value: number): boolean { return Number.isFinite(value) && value >= 0; }
 
-function finiteNonNegative(value: number): boolean {
-  return Number.isFinite(value) && value >= 0;
-}
-
-/**
- * Deterministic pre-simulation gate for the currently implemented model domain.
- * It does not infer missing data and does not introduce empirical thresholds.
- * BLOCKED means the current executable model cannot be run honestly.
- * PRELIMINARY means execution is possible but at least one supplied input has
- * assumption provenance that must remain visible in downstream reporting.
- */
 export function assessEngineeringReadiness(input: SimulationRunInput): EngineeringReadinessResult {
   const findings: ReadinessFinding[] = [];
-  const block = (id: string, field: string, message: string, ruleId: string) =>
-    findings.push({ id, severity: 'blocking' as const, field, message, ruleId });
-  const warn = (id: string, field: string, message: string, ruleId: string) =>
-    findings.push({ id, severity: 'warning' as const, field, message, ruleId });
+  const block = (id: string, field: string, message: string, ruleId: string) => findings.push({ id, severity: 'blocking' as const, field, message, ruleId });
+  const warn = (id: string, field: string, message: string, ruleId: string) => findings.push({ id, severity: 'warning' as const, field, message, ruleId });
 
   if (!input.runId.trim()) block('readiness.runId.missing', 'runId', 'runId is required.', 'RG-META-001');
   if (!input.engineVersion.trim()) block('readiness.engineVersion.missing', 'engineVersion', 'engineVersion is required.', 'RG-META-002');
@@ -49,12 +36,8 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   if (!finitePositive(p.densityKgM3)) block('readiness.density.invalid', 'pipeline.densityKgM3', 'Concrete density must be finite and > 0.', 'RG-PIPE-002');
   if (!finitePositive(p.lubricationLayerThicknessM)) block('readiness.llThickness.invalid', 'pipeline.lubricationLayerThicknessM', 'Lubrication-layer thickness must be explicitly supplied and > 0 for the current two-fluid model.', 'RG-LL-001');
 
-  if (!finiteNonNegative(p.bulk.yieldStressPa) || !finitePositive(p.bulk.plasticViscosityPaS)) {
-    block('readiness.bulkRheology.invalid', 'pipeline.bulk', 'Bulk Bingham yield stress must be >= 0 and plastic viscosity must be > 0.', 'RG-RHEO-001');
-  }
-  if (!finiteNonNegative(p.lubricationLayer.yieldStressPa) || !finitePositive(p.lubricationLayer.plasticViscosityPaS)) {
-    block('readiness.llRheology.invalid', 'pipeline.lubricationLayer', 'Lubrication-layer Bingham yield stress must be >= 0 and plastic viscosity must be > 0.', 'RG-RHEO-002');
-  }
+  if (!finiteNonNegative(p.bulk.yieldStressPa) || !finitePositive(p.bulk.plasticViscosityPaS)) block('readiness.bulkRheology.invalid', 'pipeline.bulk', 'Bulk Bingham yield stress must be >= 0 and plastic viscosity must be > 0.', 'RG-RHEO-001');
+  if (!finiteNonNegative(p.lubricationLayer.yieldStressPa) || !finitePositive(p.lubricationLayer.plasticViscosityPaS)) block('readiness.llRheology.invalid', 'pipeline.lubricationLayer', 'Lubrication-layer Bingham yield stress must be >= 0 and plastic viscosity must be > 0.', 'RG-RHEO-002');
 
   if (!Array.isArray(p.segments) || p.segments.length === 0) {
     block('readiness.pipeline.empty', 'pipeline.segments', 'At least one pipeline segment is required.', 'RG-ROUTE-001');
@@ -65,56 +48,45 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
       if (ids.has(segment.id)) block(`readiness.segment.duplicate.${segment.id}`, 'pipeline.segments', `Duplicate segment ID: ${segment.id}.`, 'RG-ROUTE-003');
       ids.add(segment.id);
       if (!Number.isFinite(segment.elevationChangeM)) block(`readiness.segment.elevation.${segment.id}`, `pipeline.segments.${segment.id}.elevationChangeM`, 'Segment elevation change must be finite.', 'RG-ROUTE-004');
-
       if (segment.kind === 'straight') {
         if (!finitePositive(segment.lengthM)) block(`readiness.segment.length.${segment.id}`, `pipeline.segments.${segment.id}.lengthM`, 'Straight-segment length must be finite and > 0.', 'RG-ROUTE-005');
         if (!finitePositive(segment.pipeRadiusM)) block(`readiness.segment.radius.${segment.id}`, `pipeline.segments.${segment.id}.pipeRadiusM`, 'Straight-segment radius must be finite and > 0.', 'RG-ROUTE-006');
-        if (finitePositive(segment.pipeRadiusM) && finitePositive(p.lubricationLayerThicknessM) && p.lubricationLayerThicknessM >= segment.pipeRadiusM) {
-          block(`readiness.llGeometry.${segment.id}`, 'pipeline.lubricationLayerThicknessM', 'Lubrication-layer thickness must be smaller than every straight-pipe radius.', 'RG-LL-002');
-        }
-      } else {
-        block(`readiness.unsupported.${segment.id}`, `pipeline.segments.${segment.id}`, `Friction model for segment kind '${segment.kind}' is not implemented; complete pressure demand cannot be computed.`, 'RG-MODEL-001');
-      }
+        if (finitePositive(segment.pipeRadiusM) && finitePositive(p.lubricationLayerThicknessM) && p.lubricationLayerThicknessM >= segment.pipeRadiusM) block(`readiness.llGeometry.${segment.id}`, 'pipeline.lubricationLayerThicknessM', 'Lubrication-layer thickness must be smaller than every straight-pipe radius.', 'RG-LL-002');
+      } else block(`readiness.unsupported.${segment.id}`, `pipeline.segments.${segment.id}`, `Friction model for segment kind '${segment.kind}' is not implemented; complete pressure demand cannot be computed.`, 'RG-MODEL-001');
     }
   }
 
   if (!input.pumpCapability) {
     block('readiness.pump.missing', 'pumpCapability', 'Pump capability data is required for a complete pumpability pressure assessment.', 'RG-PUMP-001');
+  } else if (!Array.isArray(input.pumpCapability.capabilityCurve) || input.pumpCapability.capabilityCurve.length === 0) {
+    block('readiness.pump.curveEmpty', 'pumpCapability.capabilityCurve', 'At least one verified pump capability point is required.', 'RG-PUMP-002');
   } else {
-    if (!Array.isArray(input.pumpCapability.capabilityCurve) || input.pumpCapability.capabilityCurve.length === 0) {
-      block('readiness.pump.curveEmpty', 'pumpCapability.capabilityCurve', 'At least one verified pump capability point is required.', 'RG-PUMP-002');
-    } else {
-      let previous = -Infinity;
-      for (const point of input.pumpCapability.capabilityCurve) {
-        if (!finiteNonNegative(point.flowRateM3s) || !finiteNonNegative(point.availableConcretePressurePa)) {
-          block('readiness.pump.curveInvalid', 'pumpCapability.capabilityCurve', 'Pump capability points must contain finite non-negative flow and pressure values.', 'RG-PUMP-003');
-          break;
-        }
-        if (point.flowRateM3s <= previous) {
-          block('readiness.pump.curveOrder', 'pumpCapability.capabilityCurve', 'Pump capability flow points must be strictly increasing.', 'RG-PUMP-004');
-          break;
-        }
-        previous = point.flowRateM3s;
-      }
-      const q = p.targetFlowRateM3s;
-      const first = input.pumpCapability.capabilityCurve[0];
-      const last = input.pumpCapability.capabilityCurve[input.pumpCapability.capabilityCurve.length - 1];
-      if (first && last && Number.isFinite(q) && (q < first.flowRateM3s || q > last.flowRateM3s)) {
-        block('readiness.pump.noExtrapolation', 'pipeline.targetFlowRateM3s', 'Target flow is outside the supplied pump capability curve; extrapolation is prohibited.', 'RG-PUMP-005');
-      }
+    let previous = -Infinity;
+    for (const point of input.pumpCapability.capabilityCurve) {
+      if (!finiteNonNegative(point.flowRateM3s) || !finiteNonNegative(point.availableConcretePressurePa)) { block('readiness.pump.curveInvalid', 'pumpCapability.capabilityCurve', 'Pump capability points must contain finite non-negative flow and pressure values.', 'RG-PUMP-003'); break; }
+      if (point.flowRateM3s <= previous) { block('readiness.pump.curveOrder', 'pumpCapability.capabilityCurve', 'Pump capability flow points must be strictly increasing.', 'RG-PUMP-004'); break; }
+      previous = point.flowRateM3s;
     }
+    const first = input.pumpCapability.capabilityCurve[0];
+    const last = input.pumpCapability.capabilityCurve[input.pumpCapability.capabilityCurve.length - 1];
+    if (first && last && Number.isFinite(p.targetFlowRateM3s) && (p.targetFlowRateM3s < first.flowRateM3s || p.targetFlowRateM3s > last.flowRateM3s)) block('readiness.pump.noExtrapolation', 'pipeline.targetFlowRateM3s', 'Target flow is outside the supplied pump capability curve; extrapolation is prohibited.', 'RG-PUMP-005');
   }
 
-  if ((input.assumptions ?? []).length > 0) {
-    warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
+  if (input.provenance) {
+    const evidence = assessInputEvidence(input.provenance);
+    evidence.findings.forEach((finding, index) => {
+      const id = `readiness.provenance.${finding.field}.${index}`;
+      const field = `provenance.${finding.field}`;
+      if (finding.severity === 'blocking') block(id, field, finding.message, finding.ruleId);
+      else warn(id, field, finding.message, finding.ruleId);
+    });
+  } else {
+    warn('readiness.provenance.missing', 'provenance', 'Structured input provenance is not supplied; execution may proceed only as PRELIMINARY.', 'RG-PROV-002');
   }
+
+  if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
   const blocked = findings.some(f => f.severity === 'blocking');
   const preliminary = !blocked && findings.some(f => f.severity === 'warning');
-  return {
-    status: blocked ? 'BLOCKED' : preliminary ? 'PRELIMINARY' : 'READY',
-    canExecute: !blocked,
-    findings,
-    method: 'tolue-engineering-readiness-gate-v1',
-  };
+  return { status: blocked ? 'BLOCKED' : preliminary ? 'PRELIMINARY' : 'READY', canExecute: !blocked, findings, method: 'tolue-engineering-readiness-gate-v1' };
 }
