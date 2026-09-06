@@ -91,7 +91,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.executionStatus).toBe('EXECUTED');
     expect(result.completeness).toBe('complete');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed pump-fail analysis');
-    expect(result.simulation.pumpCapability?.status).toBe('FAIL');
+    expect(result.simulation.pumpAssessment?.status).toBe('FAIL');
     expect(result.diagnostics.findings.some(f => f.kind === 'PUMP_PRESSURE_INSUFFICIENT' && f.severity === 'critical')).toBe(true);
   });
 
