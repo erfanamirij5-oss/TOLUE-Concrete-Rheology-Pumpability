@@ -37,8 +37,11 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
   validateRunMetadata(input);
   const warnings: string[] = [];
   const assumptions = [...(input.assumptions ?? [])];
+
+  // Single-source hydraulic execution: solve the pipeline exactly once, then
+  // derive every downstream pressure representation from this immutable result.
   const pipeline = analyzePipeline(input.pipeline);
-  const pressureProfile = buildPressureProfile(input.pipeline);
+  const pressureProfile = buildPressureProfile(input.pipeline, pipeline);
 
   if (pipeline.completeness === 'incomplete') {
     warnings.push('Pipeline contains pressure contributions that are not computed; required pressure is incomplete.');
