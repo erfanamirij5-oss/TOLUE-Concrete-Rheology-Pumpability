@@ -32,7 +32,7 @@ export function inputSnapshotFingerprint(value: unknown): string {
 export function buildEngineeringResultCenter(run: SimulationRunResult): EngineeringResultCenter {
   const hash = inputSnapshotFingerprint(run.inputSnapshot);
   const results: EngineeringResult[] = [];
-  const common = {
+  const physicalModelCommon = {
     resultClass: 'PHYSICAL_MODEL' as const,
     methodVersion: run.engineVersion,
     referenceIds: [] as string[],
@@ -44,15 +44,25 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
     sourceRunId: run.runId,
   };
 
-  results.push({ id: 'pipeline.requiredPressure', label: 'Required pipeline pressure', value: run.pipeline.requiredPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: run.pipeline.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...common });
-  results.push({ id: 'pipeline.elevationPressure', label: 'Elevation pressure contribution', value: run.pipeline.elevationPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: 'candidate', ...common });
-  results.push({ id: 'pressureProfile.peakRequiredPressure', label: 'Peak required pressure', value: run.pressureProfile.peakRequiredPressurePa, unit: 'Pa', methodId: run.pressureProfile.method, validationStatus: run.pressureProfile.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...common });
+  results.push({ id: 'pipeline.requiredPressure', label: 'Required pipeline pressure', value: run.pipeline.requiredPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: run.pipeline.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
+  results.push({ id: 'pipeline.elevationPressure', label: 'Elevation pressure contribution', value: run.pipeline.elevationPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: 'candidate', ...physicalModelCommon });
+  results.push({ id: 'pressureProfile.peakRequiredPressure', label: 'Peak required pressure', value: run.pressureProfile.peakRequiredPressurePa, unit: 'Pa', methodId: run.pressureProfile.method, validationStatus: run.pressureProfile.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
 
   if (run.pumpAssessment) {
     const status = run.pumpAssessment.status === 'INSUFFICIENT_DATA' ? 'insufficient_data' : 'candidate';
-    results.push({ id: 'pump.availablePressure', label: 'Available pump pressure at target flow', value: run.pumpAssessment.availablePressurePa, unit: 'Pa', methodId: run.pumpAssessment.method, validationStatus: status, ...common });
-    results.push({ id: 'pump.pressureMargin', label: 'Pump pressure margin', value: run.pumpAssessment.pressureMarginPa, unit: 'Pa', methodId: run.pumpAssessment.method, validationStatus: status, ...common });
-    results.push({ id: 'pump.pressureUtilization', label: 'Pump pressure utilization', value: run.pumpAssessment.pressureUtilization, unit: 'ratio', methodId: run.pumpAssessment.method, validationStatus: status, ...common });
+    const pumpCommon = {
+      methodVersion: run.engineVersion,
+      referenceIds: [] as string[],
+      standardEditionIds: [] as string[],
+      applicability: 'Supplied pump capability data at the target flow; interpolation only within the documented capability curve domain.',
+      assumptions: [...run.assumptions],
+      limitations: [...run.warnings],
+      inputSnapshotHash: hash,
+      sourceRunId: run.runId,
+    };
+    results.push({ id: 'pump.availablePressure', label: 'Available pump pressure at target flow', value: run.pumpAssessment.availablePressurePa, unit: 'Pa', resultClass: 'SOURCE_DATA', methodId: run.pumpAssessment.method, validationStatus: status, ...pumpCommon });
+    results.push({ id: 'pump.pressureMargin', label: 'Pump pressure margin', value: run.pumpAssessment.pressureMarginPa, unit: 'Pa', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, ...pumpCommon });
+    results.push({ id: 'pump.pressureUtilization', label: 'Pump pressure utilization', value: run.pumpAssessment.pressureUtilization, unit: '1', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, ...pumpCommon });
   }
 
   for (const result of results) validateEngineeringResult(result);
