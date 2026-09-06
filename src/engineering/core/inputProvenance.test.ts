@@ -60,7 +60,8 @@ describe('TOLUE input provenance v2', () => {
 
   it('does not call a measurement documented when uncertainty is absent', () => {
     const input = documented();
-    input.bulkRheology.evidence.uncertainty = undefined;
+    const { uncertainty: _omitted, ...evidenceWithoutUncertainty } = input.bulkRheology.evidence;
+    input.bulkRheology.evidence = evidenceWithoutUncertainty;
     const result = assessInputEvidence(input);
     expect(result.status).toBe('PRELIMINARY');
     expect(result.findings.some(f => f.ruleId === 'PROV-MEAS-003')).toBe(true);
