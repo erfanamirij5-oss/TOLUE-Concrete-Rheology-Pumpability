@@ -1,28 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { analyzePipeline } from './pipeline';
+import { analyzePipeline, PipelineAnalysisInput } from './pipeline';
 import { buildPressureProfile } from './pressureProfile';
 
 const material = { yieldStressPa: 0, plasticViscosityPaS: 1 };
 
-function baseInput() {
+function baseInput(): Omit<PipelineAnalysisInput, 'segments'> {
   return {
     targetFlowRateM3s: 0.001,
     densityKgM3: 2400,
     lubricationLayerThicknessM: 0,
     bulk: material,
     lubricationLayer: material,
-  } as const;
+  };
 }
 
 describe('TOLUE pressure profile', () => {
   it('uses outlet as zero gauge reference and inlet equals required route pressure', () => {
-    const input = {
+    const input: PipelineAnalysisInput = {
       ...baseInput(),
       segments: [
         { id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
         { id: 'S2', kind: 'straight', lengthM: 20, pipeRadiusM: 0.0625, elevationChangeM: 0 },
       ],
-    } as const;
+    };
     const pipeline = analyzePipeline(input);
     const result = buildPressureProfile(input, pipeline);
     expect(result.pipeline).toBe(pipeline);
@@ -35,10 +35,10 @@ describe('TOLUE pressure profile', () => {
   });
 
   it('isolates vertical head in the route profile', () => {
-    const input = {
+    const input: PipelineAnalysisInput = {
       ...baseInput(),
       segments: [{ id: 'UP', kind: 'straight', lengthM: 50, pipeRadiusM: 0.0625, elevationChangeM: 50 }],
-    } as const;
+    };
     const pipeline = analyzePipeline(input);
     const result = buildPressureProfile(input, pipeline);
     expect(result.points[1]!.elevationM).toBe(50);
@@ -47,14 +47,14 @@ describe('TOLUE pressure profile', () => {
   });
 
   it('does not bridge an unsupported local loss with a fake zero', () => {
-    const input = {
+    const input: PipelineAnalysisInput = {
       ...baseInput(),
       segments: [
         { id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
         { id: 'E1', kind: 'elbow', elevationChangeM: 0 },
         { id: 'S2', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
       ],
-    } as const;
+    };
     const pipeline = analyzePipeline(input);
     const result = buildPressureProfile(input, pipeline);
     expect(result.completeness).toBe('incomplete');
@@ -64,23 +64,23 @@ describe('TOLUE pressure profile', () => {
   });
 
   it('rejects route/result identity divergence instead of silently recomputing', () => {
-    const input = {
+    const input: PipelineAnalysisInput = {
       ...baseInput(),
       segments: [{ id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 }],
-    } as const;
+    };
     const pipeline = analyzePipeline(input);
-    const mismatchedInput = {
+    const mismatchedInput: PipelineAnalysisInput = {
       ...input,
-      segments: [{ ...input.segments[0], id: 'S2' }],
+      segments: [{ ...input.segments[0]!, id: 'S2' }],
     };
     expect(() => buildPressureProfile(mismatchedInput, pipeline)).toThrow(/identity mismatch/);
   });
 
   it('is deterministic for identical computed pipeline data', () => {
-    const input = {
+    const input: PipelineAnalysisInput = {
       ...baseInput(),
       segments: [{ id: 'S1', kind: 'straight', lengthM: 100, pipeRadiusM: 0.0625, elevationChangeM: 10 }],
-    } as const;
+    };
     const pipeline = analyzePipeline(input);
     const a = buildPressureProfile(input, pipeline);
     const b = buildPressureProfile(input, pipeline);
