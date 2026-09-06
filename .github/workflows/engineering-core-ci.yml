@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   engineering-core:
-    name: Typecheck and Golden Tests
+    name: Bootstrap Lockfile and Verify Engineering Core
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -26,17 +26,28 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: '20.x'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          package-manager-cache: false
 
-      - name: Verify committed lockfile exists
-        run: test -f package-lock.json
+      - name: Generate npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Install dependencies from lockfile
-        run: npm ci --no-audit --no-fund
+      - name: Verify generated lockfile
+        run: test -s package-lock.json
+
+      - name: Install dependencies from generated lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: TypeScript strict check
         run: npm run typecheck
 
       - name: Run engineering golden tests
         run: npm test
+
+      - name: Upload generated lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
