@@ -2,6 +2,8 @@ export type EngineeringResultClass =
   | 'STANDARD_REQUIREMENT'
   | 'PHYSICAL_MODEL'
   | 'EMPIRICAL_MODEL'
+  | 'SOURCE_DATA'
+  | 'DERIVED_METRIC'
   | 'TOLUE_ENGINEERING_INDEX'
   | 'AI_PREDICTION';
 
