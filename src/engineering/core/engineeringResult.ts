@@ -15,6 +15,17 @@ export type EngineeringValidationStatus =
   | 'insufficient_data'
   | 'blocked';
 
+/**
+ * Evidence/provenance completeness is intentionally independent from scientific
+ * model validation. DOCUMENTED means the supporting lineage is structurally
+ * documented; it does not mean the result is physically verified or fit for purpose.
+ */
+export type EngineeringEvidenceStatus =
+  | 'DOCUMENTED'
+  | 'PRELIMINARY'
+  | 'BLOCKED'
+  | 'NOT_ASSESSED';
+
 export interface EngineeringResult<T = number | string | boolean | null> {
   id: string;
   label: string;
@@ -29,6 +40,7 @@ export interface EngineeringResult<T = number | string | boolean | null> {
   assumptions: string[];
   limitations: string[];
   validationStatus: EngineeringValidationStatus;
+  evidenceStatus: EngineeringEvidenceStatus;
   inputSnapshotHash: string;
   sourceRunId: string;
 }
