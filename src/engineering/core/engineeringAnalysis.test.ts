@@ -1,6 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { executeEngineeringAnalysis } from './engineeringAnalysis';
 import { SimulationRunInput } from './simulationRun';
+import { EngineeringInputProvenanceRecord, SimulationInputProvenance } from './inputProvenance';
+
+function measuredRecord(entityId: string): EngineeringInputProvenanceRecord {
+  return {
+    evidence: {
+      entityId,
+      entityKind: 'measurement_result',
+      generatedByActivityId: `${entityId}-measurement`,
+      uncertainty: { expandedUncertainty: 1, coverageFactor: 2, unit: 'Pa', evaluationMethodId: 'test-uncertainty-evaluation' },
+    },
+    activities: [{
+      id: `${entityId}-measurement`,
+      kind: 'measurement',
+      methodId: 'test-measurement-method',
+      startedAtIso: '2026-09-06T00:00:00.000Z',
+      endedAtIso: '2026-09-06T00:05:00.000Z',
+      agentIds: ['TEST-INSTRUMENT'],
+      calibrationChain: [{ calibrationId: 'TEST-CAL-001', referenceId: 'TEST-REF-001', calibratedAtIso: '2026-08-01T00:00:00.000Z' }],
+    }],
+    agents: [{ id: 'TEST-INSTRUMENT', kind: 'equipment' }],
+  };
+}
+
+function documentedProvenance(): SimulationInputProvenance {
+  return {
+    bulkRheology: measuredRecord('bulk-rheology'),
+    lubricationLayerRheology: measuredRecord('ll-rheology'),
+    lubricationLayerThickness: {
+      evidence: { entityId: 'll-thickness', entityKind: 'derived_result', generatedByActivityId: 'll-derivation', sourceEntityIds: ['test-source-data'] },
+      activities: [{ id: 'll-derivation', kind: 'derivation', methodId: 'test-ll-method', agentIds: ['TOLUE-TEST'] }],
+      agents: [{ id: 'TOLUE-TEST', kind: 'software' }],
+    },
+    pumpCapability: {
+      evidence: { entityId: 'pump-curve', entityKind: 'manufacturer_data', generatedByActivityId: 'pump-declaration', sourceDocumentId: 'test-pump-datasheet' },
+      activities: [{ id: 'pump-declaration', kind: 'manufacturer_declaration', agentIds: ['TEST-PUMP-MFR'] }],
+      agents: [{ id: 'TEST-PUMP-MFR', kind: 'organization' }],
+    },
+  };
+}
 
 function fixture(): SimulationRunInput {
   return {
@@ -19,6 +58,7 @@ function fixture(): SimulationRunInput {
       provenance: 'manufacturer_rated_point',
       capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 2_000_000 }],
     },
+    provenance: documentedProvenance(),
   };
 }
 
@@ -48,6 +88,15 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.executionStatus).toBe('EXECUTED');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected preliminary execution');
     expect(result.simulation.assumptions).toEqual(input.assumptions);
+  });
+
+  it('executes provenance-missing legacy input as PRELIMINARY, not READY', () => {
+    const input = fixture();
+    delete input.provenance;
+    const result = executeEngineeringAnalysis(input);
+    expect(result.readiness.status).toBe('PRELIMINARY');
+    expect(result.executionStatus).toBe('EXECUTED');
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-PROV-002')).toBe(true);
   });
 
   it('hard-blocks unsupported pipeline fittings before any solver/downstream result exists', () => {
