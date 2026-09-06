@@ -1,15 +1,15 @@
 import { PipelineAnalysisInput, PipelineAnalysisResult, analyzePipeline } from './pipeline';
 import { PressureProfileResult, buildPressureProfile } from './pressureProfile';
-import { PumpAssessmentResult, PumpProfile, assessPumpCapability } from './pumpCapability';
+import { PumpCapabilityInput, PumpCapabilityResult, assessPumpCapability } from './pumpCapability';
 
-export type SimulationRunStatus = 'complete' | 'incomplete' | 'failed';
+export type SimulationRunStatus = 'complete' | 'incomplete';
 
 export interface SimulationRunInput {
   runId: string;
   engineVersion: string;
   createdAtIso: string;
   pipeline: PipelineAnalysisInput;
-  pump?: PumpProfile;
+  pumpCapability?: Omit<PumpCapabilityInput, 'targetFlowRateM3s' | 'requiredPressurePa' | 'pipelineCompleteness'>;
   assumptions?: string[];
 }
 
@@ -19,9 +19,9 @@ export interface SimulationRunResult {
   createdAtIso: string;
   status: SimulationRunStatus;
   inputSnapshot: SimulationRunInput;
-  pipeline: PipelineAnalysisResult | null;
-  pressureProfile: PressureProfileResult | null;
-  pumpAssessment: PumpAssessmentResult | null;
+  pipeline: PipelineAnalysisResult;
+  pressureProfile: PressureProfileResult;
+  pumpAssessment: PumpCapabilityResult | null;
   warnings: string[];
   assumptions: string[];
   methods: string[];
@@ -38,24 +38,26 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
   const warnings: string[] = [];
   const assumptions = [...(input.assumptions ?? [])];
   const pipeline = analyzePipeline(input.pipeline);
-  const pressureProfile = buildPressureProfile(input.pipeline, pipeline);
+  const pressureProfile = buildPressureProfile(input.pipeline);
 
   if (pipeline.completeness === 'incomplete') {
     warnings.push('Pipeline contains pressure contributions that are not computed; required pressure is incomplete.');
   }
 
-  let pumpAssessment: PumpAssessmentResult | null = null;
-  if (input.pump) {
+  let pumpAssessment: PumpCapabilityResult | null = null;
+  if (input.pumpCapability) {
     pumpAssessment = assessPumpCapability({
       targetFlowRateM3s: input.pipeline.targetFlowRateM3s,
       requiredPressurePa: pipeline.requiredPressurePa,
-      pump: input.pump,
+      pipelineCompleteness: pipeline.completeness,
+      capabilityCurve: input.pumpCapability.capabilityCurve,
+      provenance: input.pumpCapability.provenance,
     });
     if (pumpAssessment.status === 'INSUFFICIENT_DATA') {
       warnings.push('Pump capability cannot be assessed with the available pressure/flow data.');
     }
   } else {
-    warnings.push('Pump profile is unavailable; pressure margin was not assessed.');
+    warnings.push('Pump capability data is unavailable; pressure margin was not assessed.');
   }
 
   const status: SimulationRunStatus =
