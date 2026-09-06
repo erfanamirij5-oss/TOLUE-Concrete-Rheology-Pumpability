@@ -1,6 +1,7 @@
 import { PipelineAnalysisInput, PipelineAnalysisResult, analyzePipeline } from './pipeline';
 import { PressureProfileResult, buildPressureProfile } from './pressureProfile';
 import { PumpCapabilityInput, PumpCapabilityResult, assessPumpCapability } from './pumpCapability';
+import { HydraulicInvariantResult, verifyHydraulicInvariants } from './hydraulicInvariants';
 
 export type SimulationRunStatus = 'complete' | 'incomplete';
 
@@ -21,6 +22,7 @@ export interface SimulationRunResult {
   inputSnapshot: SimulationRunInput;
   pipeline: PipelineAnalysisResult;
   pressureProfile: PressureProfileResult;
+  hydraulicInvariants: HydraulicInvariantResult;
   pumpAssessment: PumpCapabilityResult | null;
   warnings: string[];
   assumptions: string[];
@@ -39,9 +41,10 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
   const assumptions = [...(input.assumptions ?? [])];
 
   // Single-source hydraulic execution: solve the pipeline exactly once, then
-  // derive every downstream pressure representation from this immutable result.
+  // derive and verify every downstream pressure representation from this result.
   const pipeline = analyzePipeline(input.pipeline);
   const pressureProfile = buildPressureProfile(input.pipeline, pipeline);
+  const hydraulicInvariants = verifyHydraulicInvariants(pipeline, pressureProfile);
 
   if (pipeline.completeness === 'incomplete') {
     warnings.push('Pipeline contains pressure contributions that are not computed; required pressure is incomplete.');
@@ -76,9 +79,15 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
     inputSnapshot: structuredClone(input),
     pipeline,
     pressureProfile,
+    hydraulicInvariants,
     pumpAssessment,
     warnings,
     assumptions,
-    methods: [pipeline.method, pressureProfile.method, ...(pumpAssessment ? [pumpAssessment.method] : [])],
+    methods: [
+      pipeline.method,
+      pressureProfile.method,
+      hydraulicInvariants.method,
+      ...(pumpAssessment ? [pumpAssessment.method] : []),
+    ],
   };
 }
