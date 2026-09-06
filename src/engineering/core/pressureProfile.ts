@@ -1,4 +1,4 @@
-import { PipelineAnalysisInput, PipelineAnalysisResult, analyzePipeline } from './pipeline';
+import { PipelineAnalysisInput, PipelineAnalysisResult } from './pipeline';
 
 export interface PressureProfilePoint {
   index: number;
@@ -22,7 +22,11 @@ export interface PressureProfileResult {
 }
 
 /**
- * Builds the pressure demand profile along the route.
+ * Builds the pressure demand profile from an already computed pipeline result.
+ *
+ * This function intentionally does not run hydraulic solvers. PipelineAnalysisResult
+ * is the single source of truth for segment pressure contributions; the original
+ * route input is used only for geometric station/elevation coordinates.
  *
  * Convention: outlet pressure is the zero-gauge reference. For a complete
  * route, remainingRequiredPressurePa at each boundary equals the pressure
@@ -30,11 +34,17 @@ export interface PressureProfileResult {
  * equals total required pump pressure for the modeled route.
  *
  * Unsupported local-loss components intentionally break the quantitative
- * profile: values downstream/upstream that depend on an unknown contribution
- * are reported as null rather than treating the missing loss as zero.
+ * profile: values that depend on an unknown contribution are reported as null
+ * rather than treating the missing loss as zero.
  */
-export function buildPressureProfile(input: PipelineAnalysisInput): PressureProfileResult {
-  const pipeline = analyzePipeline(input);
+export function buildPressureProfile(
+  input: PipelineAnalysisInput,
+  pipeline: PipelineAnalysisResult,
+): PressureProfileResult {
+  if (pipeline.segments.length !== input.segments.length) {
+    throw new Error('Pressure profile requires pipeline result and route input with identical segment counts');
+  }
+
   const n = pipeline.segments.length;
   const boundaryLosses: Array<number | null> = new Array(n);
   const cumulativeFromInlet: Array<number | null> = new Array(n + 1);
@@ -50,6 +60,10 @@ export function buildPressureProfile(input: PipelineAnalysisInput): PressureProf
   for (let i = 0; i < n; i++) {
     const source = input.segments[i]!;
     const result = pipeline.segments[i]!;
+    if (source.id !== result.id || source.kind !== result.kind) {
+      throw new Error(`Pressure profile segment identity mismatch at index ${i}`);
+    }
+
     boundaryLosses[i] = result.totalPressurePa;
     elevations[i + 1] = elevations[i]! + source.elevationChangeM;
 
