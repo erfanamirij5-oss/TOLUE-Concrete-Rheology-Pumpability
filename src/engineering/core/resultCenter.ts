@@ -1,4 +1,5 @@
-import { EngineeringResult, validateEngineeringResult } from './engineeringResult';
+import { EngineeringEvidenceStatus, EngineeringResult, validateEngineeringResult } from './engineeringResult';
+import { InputEvidenceField, assessInputEvidence } from './inputProvenance';
 import { SimulationRunResult } from './simulationRun';
 
 export interface EngineeringResultCenter {
@@ -29,9 +30,24 @@ export function inputSnapshotFingerprint(value: unknown): string {
   return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
 
+function evidenceStatusFor(run: SimulationRunResult, fields: InputEvidenceField[]): EngineeringEvidenceStatus {
+  const provenance = run.inputSnapshot.provenance;
+  if (!provenance) return 'NOT_ASSESSED';
+
+  const assessment = assessInputEvidence(provenance);
+  const relevant = assessment.findings.filter(finding => fields.includes(finding.field));
+  if (relevant.some(finding => finding.severity === 'blocking')) return 'BLOCKED';
+  if (relevant.some(finding => finding.severity === 'warning')) return 'PRELIMINARY';
+  return 'DOCUMENTED';
+}
+
 export function buildEngineeringResultCenter(run: SimulationRunResult): EngineeringResultCenter {
   const hash = inputSnapshotFingerprint(run.inputSnapshot);
   const results: EngineeringResult[] = [];
+  const hydraulicEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness']);
+  const pumpEvidenceStatus = evidenceStatusFor(run, ['pumpCapability']);
+  const combinedEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness', 'pumpCapability']);
+
   const physicalModelCommon = {
     resultClass: 'PHYSICAL_MODEL' as const,
     methodVersion: run.engineVersion,
@@ -40,6 +56,7 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
     applicability: 'Current validated/candidate model domain and supplied input data.',
     assumptions: [...run.assumptions],
     limitations: [...run.warnings],
+    evidenceStatus: hydraulicEvidenceStatus,
     inputSnapshotHash: hash,
     sourceRunId: run.runId,
   };
@@ -60,9 +77,9 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
       inputSnapshotHash: hash,
       sourceRunId: run.runId,
     };
-    results.push({ id: 'pump.availablePressure', label: 'Available pump pressure at target flow', value: run.pumpAssessment.availablePressurePa, unit: 'Pa', resultClass: 'SOURCE_DATA', methodId: run.pumpAssessment.method, validationStatus: status, ...pumpCommon });
-    results.push({ id: 'pump.pressureMargin', label: 'Pump pressure margin', value: run.pumpAssessment.pressureMarginPa, unit: 'Pa', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, ...pumpCommon });
-    results.push({ id: 'pump.pressureUtilization', label: 'Pump pressure utilization', value: run.pumpAssessment.pressureUtilization, unit: '1', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, ...pumpCommon });
+    results.push({ id: 'pump.availablePressure', label: 'Available pump pressure at target flow', value: run.pumpAssessment.availablePressurePa, unit: 'Pa', resultClass: 'SOURCE_DATA', methodId: run.pumpAssessment.method, validationStatus: status, evidenceStatus: pumpEvidenceStatus, ...pumpCommon });
+    results.push({ id: 'pump.pressureMargin', label: 'Pump pressure margin', value: run.pumpAssessment.pressureMarginPa, unit: 'Pa', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, evidenceStatus: combinedEvidenceStatus, ...pumpCommon });
+    results.push({ id: 'pump.pressureUtilization', label: 'Pump pressure utilization', value: run.pumpAssessment.pressureUtilization, unit: '1', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, evidenceStatus: combinedEvidenceStatus, ...pumpCommon });
   }
 
   for (const result of results) validateEngineeringResult(result);
