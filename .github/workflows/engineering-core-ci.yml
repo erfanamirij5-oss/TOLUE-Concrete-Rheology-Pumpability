@@ -10,47 +10,29 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   engineering-core:
-    name: Bootstrap Lockfile and Verify Engineering Core
+    name: Typecheck and Golden Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: '20.x'
-          package-manager-cache: false
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-      - name: Generate canonical npm lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-      - name: Verify generated lockfile
+      - name: Verify committed lockfile exists
         run: test -s package-lock.json
 
-      - name: Commit canonical lockfile when changed
-        if: github.event_name == 'push' && github.ref_name == 'stage-0-scientific-reference-matrix'
-        shell: bash
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock.json is already canonical."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "build: commit canonical npm lockfile"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
-
-      - name: Install dependencies from lockfile
+      - name: Install dependencies from committed lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: TypeScript strict check
