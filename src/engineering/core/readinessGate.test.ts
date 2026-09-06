@@ -1,6 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { assessEngineeringReadiness } from './readinessGate';
 import { SimulationRunInput } from './simulationRun';
+import { EngineeringInputProvenanceRecord, SimulationInputProvenance } from './inputProvenance';
+
+function measuredRecord(entityId: string, unit: string): EngineeringInputProvenanceRecord {
+  return {
+    evidence: {
+      entityId,
+      entityKind: 'measurement_result',
+      generatedByActivityId: `${entityId}-measurement`,
+      uncertainty: { expandedUncertainty: 1, coverageFactor: 2, unit, evaluationMethodId: 'test-uncertainty-evaluation' },
+    },
+    activities: [{
+      id: `${entityId}-measurement`,
+      kind: 'measurement',
+      methodId: 'test-measurement-method',
+      startedAtIso: '2026-09-06T00:00:00.000Z',
+      endedAtIso: '2026-09-06T00:05:00.000Z',
+      agentIds: ['TEST-INSTRUMENT'],
+      calibrationChain: [{ calibrationId: 'TEST-CAL-001', referenceId: 'TEST-REF-001', calibratedAtIso: '2026-08-01T00:00:00.000Z' }],
+    }],
+    agents: [{ id: 'TEST-INSTRUMENT', kind: 'equipment' }],
+  };
+}
+
+function documentedProvenance(): SimulationInputProvenance {
+  return {
+    bulkRheology: measuredRecord('bulk-rheology', 'Pa'),
+    lubricationLayerRheology: measuredRecord('ll-rheology', 'Pa'),
+    lubricationLayerThickness: {
+      evidence: { entityId: 'll-thickness', entityKind: 'derived_result', generatedByActivityId: 'll-thickness-derivation', sourceEntityIds: ['test-source-data'] },
+      activities: [{ id: 'll-thickness-derivation', kind: 'derivation', methodId: 'test-ll-method', agentIds: ['TOLUE-TEST'] }],
+      agents: [{ id: 'TOLUE-TEST', kind: 'software' }],
+    },
+    pumpCapability: {
+      evidence: { entityId: 'pump-curve', entityKind: 'manufacturer_data', generatedByActivityId: 'pump-declaration', sourceDocumentId: 'test-pump-datasheet' },
+      activities: [{ id: 'pump-declaration', kind: 'manufacturer_declaration', agentIds: ['TEST-PUMP-MFR'] }],
+      agents: [{ id: 'TEST-PUMP-MFR', kind: 'organization' }],
+    },
+  };
+}
 
 function fixture(): SimulationRunInput {
   return {
@@ -22,11 +61,12 @@ function fixture(): SimulationRunInput {
         { flowRateM3s: 0.0015, availableConcretePressurePa: 2_000_000 },
       ],
     },
+    provenance: documentedProvenance(),
   };
 }
 
 describe('assessEngineeringReadiness', () => {
-  it('returns READY for complete supported explicit inputs', () => {
+  it('returns READY only when complete supported inputs also have documented provenance', () => {
     const result = assessEngineeringReadiness(fixture());
     expect(result.status).toBe('READY');
     expect(result.canExecute).toBe(true);
@@ -40,6 +80,14 @@ describe('assessEngineeringReadiness', () => {
     expect(result.status).toBe('PRELIMINARY');
     expect(result.canExecute).toBe(true);
     expect(result.findings.some(f => f.ruleId === 'RG-PROV-001')).toBe(true);
+  });
+
+  it('returns PRELIMINARY when structured provenance is absent', () => {
+    const input = fixture();
+    delete input.provenance;
+    const result = assessEngineeringReadiness(input);
+    expect(result.status).toBe('PRELIMINARY');
+    expect(result.findings.some(f => f.ruleId === 'RG-PROV-002')).toBe(true);
   });
 
   it('blocks unsupported fitting friction instead of assuming zero loss', () => {
