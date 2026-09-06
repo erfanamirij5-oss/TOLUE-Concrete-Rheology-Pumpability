@@ -1,0 +1,79 @@
+import { PipelineAnalysisInput, PipelineAnalysisResult, analyzePipeline } from './pipeline';
+import { PressureProfileResult, buildPressureProfile } from './pressureProfile';
+import { PumpAssessmentResult, PumpProfile, assessPumpCapability } from './pumpCapability';
+
+export type SimulationRunStatus = 'complete' | 'incomplete' | 'failed';
+
+export interface SimulationRunInput {
+  runId: string;
+  engineVersion: string;
+  createdAtIso: string;
+  pipeline: PipelineAnalysisInput;
+  pump?: PumpProfile;
+  assumptions?: string[];
+}
+
+export interface SimulationRunResult {
+  runId: string;
+  engineVersion: string;
+  createdAtIso: string;
+  status: SimulationRunStatus;
+  inputSnapshot: SimulationRunInput;
+  pipeline: PipelineAnalysisResult | null;
+  pressureProfile: PressureProfileResult | null;
+  pumpAssessment: PumpAssessmentResult | null;
+  warnings: string[];
+  assumptions: string[];
+  methods: string[];
+}
+
+function validateRunMetadata(input: SimulationRunInput): void {
+  if (!input.runId.trim()) throw new Error('runId must not be empty');
+  if (!input.engineVersion.trim()) throw new Error('engineVersion must not be empty');
+  if (!Number.isFinite(Date.parse(input.createdAtIso))) throw new Error('createdAtIso must be a valid ISO date/time');
+}
+
+export function executeSimulationRun(input: SimulationRunInput): SimulationRunResult {
+  validateRunMetadata(input);
+  const warnings: string[] = [];
+  const assumptions = [...(input.assumptions ?? [])];
+  const pipeline = analyzePipeline(input.pipeline);
+  const pressureProfile = buildPressureProfile(input.pipeline, pipeline);
+
+  if (pipeline.completeness === 'incomplete') {
+    warnings.push('Pipeline contains pressure contributions that are not computed; required pressure is incomplete.');
+  }
+
+  let pumpAssessment: PumpAssessmentResult | null = null;
+  if (input.pump) {
+    pumpAssessment = assessPumpCapability({
+      targetFlowRateM3s: input.pipeline.targetFlowRateM3s,
+      requiredPressurePa: pipeline.requiredPressurePa,
+      pump: input.pump,
+    });
+    if (pumpAssessment.status === 'INSUFFICIENT_DATA') {
+      warnings.push('Pump capability cannot be assessed with the available pressure/flow data.');
+    }
+  } else {
+    warnings.push('Pump profile is unavailable; pressure margin was not assessed.');
+  }
+
+  const status: SimulationRunStatus =
+    pipeline.completeness === 'complete' && pumpAssessment !== null && pumpAssessment.status !== 'INSUFFICIENT_DATA'
+      ? 'complete'
+      : 'incomplete';
+
+  return {
+    runId: input.runId,
+    engineVersion: input.engineVersion,
+    createdAtIso: input.createdAtIso,
+    status,
+    inputSnapshot: structuredClone(input),
+    pipeline,
+    pressureProfile,
+    pumpAssessment,
+    warnings,
+    assumptions,
+    methods: [pipeline.method, pressureProfile.method, ...(pumpAssessment ? [pumpAssessment.method] : [])],
+  };
+}
