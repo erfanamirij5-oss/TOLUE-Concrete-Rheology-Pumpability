@@ -2,6 +2,7 @@ import { PipelineAnalysisInput, PipelineAnalysisResult, analyzePipeline } from '
 import { PressureProfileResult, buildPressureProfile } from './pressureProfile';
 import { PumpCapabilityInput, PumpCapabilityResult, assessPumpCapability } from './pumpCapability';
 import { HydraulicInvariantResult, verifyHydraulicInvariants } from './hydraulicInvariants';
+import { SimulationInputProvenance } from './inputProvenance';
 
 export type SimulationRunStatus = 'complete' | 'incomplete';
 
@@ -11,6 +12,7 @@ export interface SimulationRunInput {
   createdAtIso: string;
   pipeline: PipelineAnalysisInput;
   pumpCapability?: Omit<PumpCapabilityInput, 'targetFlowRateM3s' | 'requiredPressurePa' | 'pipelineCompleteness'>;
+  provenance?: SimulationInputProvenance;
   assumptions?: string[];
 }
 
@@ -40,8 +42,6 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
   const warnings: string[] = [];
   const assumptions = [...(input.assumptions ?? [])];
 
-  // Single-source hydraulic execution: solve the pipeline exactly once, then
-  // derive and verify every downstream pressure representation from this result.
   const pipeline = analyzePipeline(input.pipeline);
   const pressureProfile = buildPressureProfile(input.pipeline, pipeline);
   const hydraulicInvariants = verifyHydraulicInvariants(pipeline, pressureProfile);
