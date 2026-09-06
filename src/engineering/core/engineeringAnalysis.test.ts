@@ -79,6 +79,37 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v2');
   });
 
+  it('executes a hydraulically complete run when pump pressure is insufficient and emits a critical diagnostic', () => {
+    const input = fixture();
+    input.pumpCapability = {
+      provenance: 'manufacturer_rated_point',
+      capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 1_000 }],
+    };
+    const result = executeEngineeringAnalysis(input);
+
+    expect(result.readiness.status).toBe('READY');
+    expect(result.executionStatus).toBe('EXECUTED');
+    expect(result.completeness).toBe('complete');
+    if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed pump-fail analysis');
+    expect(result.simulation.pumpCapability?.status).toBe('FAIL');
+    expect(result.diagnostics.findings.some(f => f.kind === 'PUMP_PRESSURE_INSUFFICIENT' && f.severity === 'critical')).toBe(true);
+  });
+
+  it('blocks missing pump capability before solver/downstream outputs are created', () => {
+    const input = fixture();
+    delete input.pumpCapability;
+    const result = executeEngineeringAnalysis(input);
+
+    expect(result.readiness.status).toBe('BLOCKED');
+    expect(result.executionStatus).toBe('BLOCKED');
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-PUMP-001')).toBe(true);
+    expect(result.inputSnapshotHash).toBeNull();
+    expect(result.simulation).toBeNull();
+    expect(result.resultCenter).toBeNull();
+    expect(result.diagnostics).toBeNull();
+    expect(result.visualization3d).toBeNull();
+  });
+
   it('executes PRELIMINARY input while preserving readiness provenance', () => {
     const input = fixture();
     input.assumptions = ['Lubrication-layer rheology supplied from an explicit engineering assumption.'];
