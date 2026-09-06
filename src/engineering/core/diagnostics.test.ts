@@ -18,6 +18,7 @@ function result(id: string, value: number | null, validationStatus: EngineeringR
     assumptions: [],
     limitations: [],
     validationStatus,
+    evidenceStatus: 'DOCUMENTED',
     inputSnapshotHash: 'fnv1a32:12345678',
     sourceRunId: 'run-1',
   };
