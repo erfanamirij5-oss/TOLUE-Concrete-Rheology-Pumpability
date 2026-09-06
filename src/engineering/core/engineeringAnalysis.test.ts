@@ -19,7 +19,7 @@ function fixture(): SimulationRunInput {
     },
     pumpCapability: {
       provenance: 'manufacturer_rated_point',
-      points: [{ flowRateM3s: 0.001, availablePressurePa: 2_000_000 }],
+      capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 2_000_000 }],
     },
     assumptions: ['test-fixture'],
   };
