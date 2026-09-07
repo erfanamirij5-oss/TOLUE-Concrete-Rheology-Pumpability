@@ -17,7 +17,7 @@ export interface EngineeringReadinessResult {
   status: ReadinessStatus;
   canExecute: boolean;
   findings: ReadinessFinding[];
-  method: 'tolue-engineering-readiness-gate-v1';
+  method: 'tolue-engineering-readiness-gate-v2';
 }
 
 function finitePositive(value: number): boolean { return Number.isFinite(value) && value > 0; }
@@ -67,6 +67,14 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
           if (calibrated.status !== 'computed') {
             block(`readiness.localCalibration.domain.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, 'Target flow is outside the supplied project-calibrated local-loss curve; extrapolation is prohibited.', 'RG-LOCAL-CAL-003');
           }
+
+          const entityId = segment.calibratedLocalLoss.provenanceEntityId;
+          const record = input.provenance?.localLossCalibrations?.[entityId];
+          if (!record) {
+            block(`readiness.localCalibration.provenanceMissing.${segment.id}`, `provenance.localLossCalibrations.${entityId}`, 'Project-calibrated local loss requires a structured provenance record bound to its provenanceEntityId.', 'RG-LOCAL-PROV-001');
+          } else if (record.evidence.entityId !== entityId) {
+            block(`readiness.localCalibration.provenanceMismatch.${segment.id}`, `provenance.localLossCalibrations.${entityId}`, 'Local-loss provenance record entity ID does not match the segment provenanceEntityId.', 'RG-LOCAL-PROV-002');
+          }
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Invalid project-calibrated local-loss contract.';
           block(`readiness.localCalibration.invalid.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, `Invalid project-calibrated local-loss contract: ${message}`, 'RG-LOCAL-CAL-002');
@@ -100,12 +108,12 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
       else warn(id, field, finding.message, finding.ruleId);
     });
   } else {
-    warn('readiness.provenance.missing', 'provenance', 'Structured input provenance is not supplied; execution may proceed only as PRELIMINARY.', 'RG-PROV-002');
+    warn('readiness.provenance.missing', 'provenance', 'Structured input provenance is not supplied; execution may proceed only as PRELIMINARY unless a project-calibrated local-loss segment requires provenance binding.', 'RG-PROV-002');
   }
 
   if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
   const blocked = findings.some(f => f.severity === 'blocking');
   const preliminary = !blocked && findings.some(f => f.severity === 'warning');
-  return { status: blocked ? 'BLOCKED' : preliminary ? 'PRELIMINARY' : 'READY', canExecute: !blocked, findings, method: 'tolue-engineering-readiness-gate-v1' };
+  return { status: blocked ? 'BLOCKED' : preliminary ? 'PRELIMINARY' : 'READY', canExecute: !blocked, findings, method: 'tolue-engineering-readiness-gate-v2' };
 }
