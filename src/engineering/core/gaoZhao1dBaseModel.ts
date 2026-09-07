@@ -61,6 +61,27 @@ export function modiFrictionCoefficient(relativeRoughness: number, reynoldsNumbe
   return 0.0055 * (1 + Math.cbrt(20_000 * relativeRoughness + 1_000_000 / reynoldsNumber));
 }
 
+/**
+ * Literal horizontal-pipe reading of Gao/Zhao Equation (27), expressed as a pressure gradient.
+ *
+ * This is a diagnostic reproduction utility only. It intentionally does not apply any hidden
+ * convention factor. The source publication reports a reference value about four times lower
+ * than this literal substitution for one published validation case, so this function MUST NOT
+ * be used as a production pressure model until that discrepancy is resolved.
+ */
+export function literalEquation27PressureGradientPaPerM(
+  modiLambda: number,
+  mortarDensityKgM3: number,
+  meanVelocityMS: number,
+  equivalentDiameterM: number,
+): number {
+  finitePositive('modiLambda', modiLambda);
+  finitePositive('mortarDensityKgM3', mortarDensityKgM3);
+  finitePositive('meanVelocityMS', meanVelocityMS);
+  finitePositive('equivalentDiameterM', equivalentDiameterM);
+  return modiLambda * mortarDensityKgM3 * meanVelocityMS ** 2 / (2 * equivalentDiameterM);
+}
+
 export function evaluateGaoZhaoBaseState(input: GaoZhaoBaseStateInput): GaoZhaoBaseState {
   finitePositive('meanVelocityMS', input.meanVelocityMS);
   const equivalentDiameterM = equivalentLubricationDiameterM(input.lubricationLayerThicknessM);
