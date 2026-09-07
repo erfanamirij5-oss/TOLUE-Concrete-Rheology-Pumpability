@@ -34,6 +34,37 @@ describe('simulation run contract', () => {
     expect(result.methods).toContain('tolue-pressure-profile-v2');
     expect(result.methods).toContain('tolue-hydraulic-invariants-v2');
     expect(result.methods).toContain('tolue-pump-capability-v1');
+    expect(result.methods).not.toContain('tolue-project-calibrated-local-loss-v1');
+  });
+
+  it('exposes the project-calibrated local-loss method when used by the route', () => {
+    const input: SimulationRunInput = {
+      ...base,
+      pipeline: {
+        ...base.pipeline,
+        segments: [
+          { id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
+          {
+            id: 'E1',
+            kind: 'elbow',
+            elevationChangeM: 0,
+            calibratedLocalLoss: {
+              calibrationCurve: [
+                { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+                { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+              ],
+              provenanceEntityId: 'LOCAL-EVIDENCE-001',
+              calibrationId: 'LOCAL-CAL-001',
+            },
+          },
+        ],
+      },
+    };
+    const result = executeSimulationRun(input);
+    expect(result.status).toBe('complete');
+    expect(result.pipeline.calibratedLocalFrictionPressurePa).toBeCloseTo(20_000, 8);
+    expect(result.methods).toContain('tolue-project-calibrated-local-loss-v1');
+    expect(result.methods.filter(method => method === 'tolue-project-calibrated-local-loss-v1')).toHaveLength(1);
   });
 
   it('retains an immutable-by-value input snapshot', () => {
