@@ -4,10 +4,10 @@
 
 - Model ID: `PRESSURE-ELBOW-002`
 - Domain: pump hydraulics / concrete elbow pressure loss
-- Status: `research`
+- Status: `specified`
 - Classification: `EMPIRICAL_MODEL`
 - Primary reference: Gao, Wei, Zhao, Wan, Li (2024), *The One-Dimensional Flow Pressure Loss Correction Model Based on the Particle Flow through Concrete Bend*, Applied Sciences 14(19), 8824, DOI 10.3390/app14198824.
-- Production status: **blocked** pending unit-resolution audit, source-case reproduction, and independent verification.
+- Production status: **blocked** pending full base-model reproduction, source pressure-case reproduction, and model-family compatibility audit.
 
 This model is captured because the full equation set is openly accessible. It is not a replacement for `PRESSURE-ELBOW-001` (Park et al. 2020), which remains the preferred full-scale-evidence family once the complete primary paper is available for exact transcription.
 
@@ -38,17 +38,39 @@ The published fitted form is:
 | Symbol | Meaning reported in source | Contract state |
 |---|---|---|
 | `Δp_w` | bend pressure loss | captured |
-| `Δp_m` | one-dimensional base pressure loss | captured |
-| `λ` | bend correction factor | captured |
-| `K_d` | relative roughness for lubrication-layer contact | captured, implementation blocked pending exact unit/definition audit |
-| `Re` | mortar/lubrication-layer Reynolds number | captured, implementation blocked pending exact constitutive definition audit |
-| `l` | conveying/bend-reference length used by base equation | captured, exact geometric interpretation must be frozen before code |
+| `Δp_m` | one-dimensional base pressure loss | captured; integration blocked pending compatibility audit |
+| `λ` | bend correction factor | captured and regression-unit semantics resolved |
+| `K_d` | relative roughness for lubrication-layer contact | captured, implementation blocked pending exact base-model reproduction |
+| `Re` | mortar/lubrication-layer Reynolds number | captured, implementation blocked pending exact constitutive reproduction |
+| `l` | conveying/bend-reference length used by base equation | captured, exact geometric interpretation must be frozen before pressure code |
 | `ρ_s` | mortar density | captured |
-| `v` | velocity/flow descriptor appearing in published equations | **unit semantics unresolved for implementation**; paper discusses pumping flow rate and speed in the fitted study, so TOLUE must not guess whether regression `v` is m/s, converted flow, or another normalized variable |
+| `v` | mean concrete velocity | **m/s** in Equation (19) regression |
 | `d_e` | equivalent lubrication-layer diameter | captured |
 | `δ` | lubrication-layer thickness | captured |
-| `r` | bend radius of curvature | captured; regression unit basis must be frozen from source data before code |
-| `θ` | horizontal inclination angle | captured; degree/radian basis must be frozen before code |
+| `r` | bend radius of curvature | **mm** in Equation (19) regression |
+| `θ` | horizontal inclination angle | **degrees** in Equation (19) regression |
+
+## Regression unit-resolution evidence
+
+The paper studies a 125 mm internal pipe diameter and reports that a volumetric flow rate of `40 m³/h` corresponds to a pumping velocity of approximately `0.905 m/s`.
+
+Using
+
+`v = (Q/3600) / (πD²/4)`
+
+with `Q = 40 m³/h` and `D = 0.125 m` gives:
+
+`v = 0.9054147873672269 m/s`
+
+which rounds to the source-reported `0.905 m/s`.
+
+Together with Table 4 headings and Equation (19), this freezes the empirical regression basis as:
+- `r` in millimetres;
+- `θ` in degrees;
+- `v` in metres per second;
+- `λ` dimensionless.
+
+These are regression-input units, not a claim that the fitted polynomial is dimensionally homogeneous physics.
 
 ## Reported study domain
 
@@ -57,31 +79,48 @@ The source reports a 125 mm-diameter bend simulation case and studies bend-radiu
 - inclination angles: `90°, 45°, 0°, -45°, -90°`
 - pumping flow rates: `40, 55, 70, 100, 120 m³/h`
 - bend radii of curvature: `195, 235, 275, 315, 355 mm`
+- corresponding velocity span for 125 mm ID: approximately `0.9054–2.7162 m/s`
 
-The paper reports that the correction-model error against engineering measurements was within 20%, with an overall comparison value reported as 15.8% in the abstract.
+The paper reports that the correction-model error against engineering measurements was within 20%, with an overall comparison value reported as 15.8%.
 
 These values define a **research calibration/verification domain only**. They are not universal limits for all concrete, pipe diameters, or pumping systems.
 
+## Verification vectors
+
+Regression verification vectors are frozen in:
+
+`docs/STAGE_0_6_ELBOW_002_VERIFICATION_VECTORS.md`
+
+They include:
+- source flow-to-velocity identity for 125 mm ID;
+- horizontal, +90°, and -90° regression cases;
+- upper-flow and alternate-radius source-domain cases;
+- negative tests against accidental metre/mm, radian/degree, and flow/velocity confusion.
+
+These vectors verify Equation (19) transcription only. They do not yet validate the full pressure-loss chain.
+
 ## TOLUE admission decision
 
-`PRESSURE-ELBOW-002` remains `research` and is **not executable** in the engineering core yet.
+`PRESSURE-ELBOW-002` advances from `research` to `specified` because Equation (19), its empirical unit basis, source domain, and deterministic verification vectors are now captured.
 
-Blocking reasons:
+It is still **not executable as a pressure-loss segment in the engineering core**.
 
-1. Regression-variable unit semantics for `r`, `θ`, and especially `v` must be resolved directly from the source tables/equation definitions.
-2. `K_d` and `Re` depend on a specific one-dimensional particle/lubrication-layer model that is not the current TOLUE straight-pipe Bingham engine.
-3. Directly multiplying the TOLUE two-fluid straight-pipe pressure by `λ` would mix incompatible model families and could double-count or misrepresent losses.
-4. A source verification vector must be reproduced numerically from published data before implementation.
-5. Applicability is tied to the paper's tested/simulated concrete, geometry, and flow domain; extrapolation is prohibited.
+Remaining blocking reasons:
 
-## Required verification before code
+1. `K_d`, `Re`, `d_e`, `l`, and the source one-dimensional base model must be reproduced numerically from the paper.
+2. The source base model is not the current TOLUE two-fluid Bingham straight-pipe engine.
+3. Directly multiplying TOLUE straight-pipe pressure by `λ` would mix model families and could double-count or misrepresent losses.
+4. At least one complete published/field `Δp_w` case must be reproduced before pressure implementation.
+5. Applicability is tied to the paper's tested/simulated concrete, 125 mm pipe geometry, bend radii, inclination range, and flow domain; extrapolation is prohibited.
 
-- Reconstruct one published case from source table data.
-- Verify the exact unit basis used in Equation (19).
-- Reproduce the published `λ` and `Δp_w` value to stated rounding tolerance.
-- Confirm whether `Δp_m` is total bend-section baseline loss or a straight-equivalent baseline so no double counting occurs.
-- Document mixture/rheology and aggregate assumptions used by the source.
-- Add out-of-domain rejection tests for radius, inclination, flow, and required source-model inputs.
+## Required verification before pressure code
+
+- Reconstruct the source one-dimensional base pressure calculation.
+- Reproduce at least one published `Δp_w`/field comparison case.
+- Confirm the geometric meaning of `l` in Equation (17).
+- Freeze `K_d`, `Re`, `δ`, and material-parameter definitions exactly as used by the source.
+- Decide whether Equation (19) can only operate with its native base model or whether a separately calibrated TOLUE adapter can be scientifically justified.
+- Add out-of-domain rejection tests for radius, inclination, velocity/flow, pipe diameter, and required source-model inputs.
 - Keep result class as `EMPIRICAL_MODEL`; evidence documentation must not upgrade scientific validation status.
 
 ## Integration rule
@@ -96,6 +135,6 @@ Until the checks above are complete:
 ## Relationship to PRESSURE-ELBOW-001
 
 - `PRESSURE-ELBOW-001`: Park et al. 2020, real-scale concrete pumping tests; preferred evidence family but exact equations still inaccessible in current evidence set.
-- `PRESSURE-ELBOW-002`: Gao et al. 2024, openly accessible particle-flow-derived correction model; equations captured but not yet admitted to executable core.
+- `PRESSURE-ELBOW-002`: Gao et al. 2024, openly accessible particle-flow-derived correction model; Equation (19) is now fully specified for isolated regression evaluation, while full pressure integration remains blocked.
 
 TOLUE may later compare both families against a common project-calibration dataset. Neither is a universal bend law.
