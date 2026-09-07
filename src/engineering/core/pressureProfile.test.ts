@@ -46,6 +46,34 @@ describe('TOLUE pressure profile', () => {
     expect(result.points[0]!.remainingRequiredPressurePa).toBeCloseTo(pipeline.requiredPressurePa!, 8);
   });
 
+  it('propagates calibrated local-loss identity without re-solving it', () => {
+    const input: PipelineAnalysisInput = {
+      ...baseInput(),
+      segments: [
+        { id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
+        {
+          id: 'E1', kind: 'elbow', elevationChangeM: 0,
+          calibratedLocalLoss: {
+            calibrationCurve: [
+              { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+              { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+            ],
+            provenanceEntityId: 'LOCAL-EVIDENCE-001',
+            calibrationId: 'LOCAL-CAL-001',
+          },
+        },
+      ],
+    };
+    const pipeline = analyzePipeline(input);
+    const result = buildPressureProfile(input, pipeline);
+    const point = result.points[2]!;
+    expect(result.completeness).toBe('complete');
+    expect(point.pressureMethod).toBe('project-calibrated-local-loss');
+    expect(point.calibrationId).toBe('LOCAL-CAL-001');
+    expect(point.provenanceEntityId).toBe('LOCAL-EVIDENCE-001');
+    expect(point.remainingRequiredPressurePa).toBe(0);
+  });
+
   it('does not bridge an unsupported local loss with a fake zero', () => {
     const input: PipelineAnalysisInput = {
       ...baseInput(),
