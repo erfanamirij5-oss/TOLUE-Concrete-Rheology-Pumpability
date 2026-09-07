@@ -3,6 +3,7 @@ export type EngineeringResultClass =
   | 'PHYSICAL_MODEL'
   | 'EMPIRICAL_MODEL'
   | 'SOURCE_DATA'
+  | 'PROJECT_CALIBRATED_DATA'
   | 'DERIVED_METRIC'
   | 'TOLUE_ENGINEERING_INDEX'
   | 'AI_PREDICTION';
@@ -43,6 +44,8 @@ export interface EngineeringResult<T = number | string | boolean | null> {
   evidenceStatus: EngineeringEvidenceStatus;
   inputSnapshotHash: string;
   sourceRunId: string;
+  provenanceEntityIds?: string[];
+  calibrationIds?: string[];
 }
 
 export function validateEngineeringResult(result: EngineeringResult): void {
@@ -53,4 +56,6 @@ export function validateEngineeringResult(result: EngineeringResult): void {
   if (!result.applicability.trim()) throw new Error('applicability must not be empty');
   if (!result.inputSnapshotHash.trim()) throw new Error('inputSnapshotHash must not be empty');
   if (!result.sourceRunId.trim()) throw new Error('sourceRunId must not be empty');
+  if (result.provenanceEntityIds?.some(id => !id.trim())) throw new Error('provenanceEntityIds must not contain empty IDs');
+  if (result.calibrationIds?.some(id => !id.trim())) throw new Error('calibrationIds must not contain empty IDs');
 }
