@@ -19,7 +19,6 @@ function stableSerialize(value: unknown): string {
   return `{${Object.keys(record).sort().map(k => `${JSON.stringify(k)}:${stableSerialize(record[k])}`).join(',')}}`;
 }
 
-// Deterministic FNV-1a 32-bit fingerprint for run traceability. This is not a cryptographic integrity signature.
 export function inputSnapshotFingerprint(value: unknown): string {
   const text = stableSerialize(value);
   let hash = 0x811c9dc5;
@@ -41,6 +40,18 @@ function evidenceStatusFor(run: SimulationRunResult, fields: InputEvidenceField[
   return 'DOCUMENTED';
 }
 
+function localEvidenceStatusFor(run: SimulationRunResult, provenanceEntityIds: string[]): EngineeringEvidenceStatus {
+  if (provenanceEntityIds.length === 0) return 'DOCUMENTED';
+  const provenance = run.inputSnapshot.provenance;
+  if (!provenance) return 'NOT_ASSESSED';
+
+  for (const entityId of provenanceEntityIds) {
+    if (!entityId || !provenance.localLossCalibrations?.[entityId]) return 'BLOCKED';
+  }
+  const fields = provenanceEntityIds.map(entityId => `localLossCalibrations.${entityId}` as InputEvidenceField);
+  return evidenceStatusFor(run, fields);
+}
+
 function combineEvidenceStatus(...statuses: EngineeringEvidenceStatus[]): EngineeringEvidenceStatus {
   if (statuses.includes('BLOCKED')) return 'BLOCKED';
   if (statuses.includes('PRELIMINARY')) return 'PRELIMINARY';
@@ -54,11 +65,10 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
   const baseHydraulicEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness']);
   const pumpEvidenceStatus = evidenceStatusFor(run, ['pumpCapability']);
   const calibratedLocalSegments = run.pipeline.segments.filter(segment => segment.pressureMethod === 'project-calibrated-local-loss');
-
-  // Local-loss calibration currently carries stable calibration/provenance identities,
-  // but is not yet represented in SimulationInputProvenance v2 as a fully assessed record.
-  // Therefore it must remain PRELIMINARY rather than being silently promoted to DOCUMENTED.
-  const localEvidenceStatus: EngineeringEvidenceStatus = calibratedLocalSegments.length > 0 ? 'PRELIMINARY' : 'DOCUMENTED';
+  const localProvenanceEntityIds = calibratedLocalSegments
+    .map(segment => segment.provenanceEntityId)
+    .filter((id): id is string => id !== null);
+  const localEvidenceStatus = localEvidenceStatusFor(run, localProvenanceEntityIds);
   const hydraulicEvidenceStatus = combineEvidenceStatus(baseHydraulicEvidenceStatus, localEvidenceStatus);
   const combinedEvidenceStatus = combineEvidenceStatus(hydraulicEvidenceStatus, pumpEvidenceStatus);
 
@@ -80,6 +90,9 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
   results.push({ id: 'pressureProfile.peakRequiredPressure', label: 'Peak required pressure', value: run.pressureProfile.peakRequiredPressurePa, unit: 'Pa', methodId: run.pressureProfile.method, validationStatus: run.pressureProfile.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
 
   for (const segment of calibratedLocalSegments) {
+    const segmentEvidenceStatus = segment.provenanceEntityId
+      ? localEvidenceStatusFor(run, [segment.provenanceEntityId])
+      : 'BLOCKED';
     results.push({
       id: `pipeline.segment.${segment.id}.calibratedLocalPressure`,
       label: `Project-calibrated local pressure loss — ${segment.id}`,
@@ -97,7 +110,7 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
         'This result is not a universal local-loss correlation and must not be transferred to another project/component without independent calibration evidence.',
       ],
       validationStatus: segment.status === 'computed' && segment.frictionPressurePa !== null ? 'candidate' : 'insufficient_data',
-      evidenceStatus: 'PRELIMINARY',
+      evidenceStatus: segmentEvidenceStatus,
       inputSnapshotHash: hash,
       sourceRunId: run.runId,
       provenanceEntityIds: segment.provenanceEntityId ? [segment.provenanceEntityId] : [],
