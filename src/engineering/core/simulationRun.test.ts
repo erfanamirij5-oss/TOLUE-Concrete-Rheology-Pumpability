@@ -30,7 +30,7 @@ describe('simulation run contract', () => {
     expect(result.pipeline.completeness).toBe('complete');
     expect(result.pressureProfile.completeness).toBe('complete');
     expect(result.pumpAssessment?.status).toBe('PASS');
-    expect(result.methods).toContain('tolue-pipeline-pressure-v1');
+    expect(result.methods).toContain('tolue-pipeline-pressure-v2');
     expect(result.methods).toContain('tolue-pressure-profile-v1');
     expect(result.methods).toContain('tolue-pump-capability-v1');
   });
