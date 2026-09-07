@@ -24,6 +24,25 @@ function measuredRecord(entityId: string, unit: string): EngineeringInputProvena
   };
 }
 
+function localLossRecord(entityId: string): EngineeringInputProvenanceRecord {
+  return {
+    evidence: {
+      entityId,
+      entityKind: 'derived_result',
+      generatedByActivityId: `${entityId}-derivation`,
+      sourceEntityIds: [`${entityId}-field-data`],
+      referenceIds: ['PROJECT-PUMP-TEST-001'],
+    },
+    activities: [{
+      id: `${entityId}-derivation`,
+      kind: 'derivation',
+      methodId: 'project-local-loss-calibration-v1',
+      agentIds: ['TOLUE-TEST'],
+    }],
+    agents: [{ id: 'TOLUE-TEST', kind: 'software' }],
+  };
+}
+
 function documentedProvenance(): SimulationInputProvenance {
   return {
     bulkRheology: measuredRecord('bulk-rheology', 'Pa'),
@@ -65,6 +84,24 @@ function fixture(): SimulationRunInput {
   };
 }
 
+function addCalibratedElbow(input: SimulationRunInput): void {
+  const entityId = 'project-elbow-evidence-001';
+  input.pipeline.segments.push({
+    id: 'E1',
+    kind: 'elbow',
+    elevationChangeM: 0,
+    calibratedLocalLoss: {
+      calibrationCurve: [
+        { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+        { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+      ],
+      provenanceEntityId: entityId,
+      calibrationId: 'project-elbow-cal-001',
+    },
+  });
+  input.provenance!.localLossCalibrations = { [entityId]: localLossRecord(entityId) };
+}
+
 describe('assessEngineeringReadiness', () => {
   it('returns READY only when complete supported inputs also have documented provenance', () => {
     const result = assessEngineeringReadiness(fixture());
@@ -99,42 +136,33 @@ describe('assessEngineeringReadiness', () => {
     expect(result.findings.some(f => f.ruleId === 'RG-MODEL-001')).toBe(true);
   });
 
-  it('admits an in-domain project-calibrated fitting without a universal loss model', () => {
+  it('admits an in-domain project-calibrated fitting only when provenance binding resolves', () => {
     const input = fixture();
-    input.pipeline.segments.push({
-      id: 'E1',
-      kind: 'elbow',
-      elevationChangeM: 0,
-      calibratedLocalLoss: {
-        calibrationCurve: [
-          { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
-          { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
-        ],
-        provenanceEntityId: 'project-elbow-evidence-001',
-        calibrationId: 'project-elbow-cal-001',
-      },
-    });
+    addCalibratedElbow(input);
     const result = assessEngineeringReadiness(input);
     expect(result.status).toBe('READY');
     expect(result.canExecute).toBe(true);
-    expect(result.findings.some(f => f.ruleId.startsWith('RG-LOCAL-CAL'))).toBe(false);
+    expect(result.findings.some(f => f.ruleId.startsWith('RG-LOCAL'))).toBe(false);
+  });
+
+  it('blocks a calibrated fitting when structured provenance is missing', () => {
+    const input = fixture();
+    addCalibratedElbow(input);
+    delete input.provenance!.localLossCalibrations;
+    const result = assessEngineeringReadiness(input);
+    expect(result.status).toBe('BLOCKED');
+    expect(result.findings.some(f => f.ruleId === 'RG-LOCAL-PROV-001')).toBe(true);
   });
 
   it('blocks project-calibrated fitting extrapolation', () => {
     const input = fixture();
-    input.pipeline.segments.push({
-      id: 'E1',
-      kind: 'elbow',
-      elevationChangeM: 0,
-      calibratedLocalLoss: {
-        calibrationCurve: [
-          { flowRateM3s: 0.0011, pressureLossPa: 10_000 },
-          { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
-        ],
-        provenanceEntityId: 'project-elbow-evidence-001',
-        calibrationId: 'project-elbow-cal-001',
-      },
-    });
+    addCalibratedElbow(input);
+    const elbow = input.pipeline.segments[1]!;
+    if (elbow.kind === 'straight' || !elbow.calibratedLocalLoss) throw new Error('test fixture error');
+    elbow.calibratedLocalLoss.calibrationCurve = [
+      { flowRateM3s: 0.0011, pressureLossPa: 10_000 },
+      { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+    ];
     const result = assessEngineeringReadiness(input);
     expect(result.status).toBe('BLOCKED');
     expect(result.canExecute).toBe(false);
