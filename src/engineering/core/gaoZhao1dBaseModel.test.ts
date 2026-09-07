@@ -18,9 +18,9 @@ describe('Gao/Zhao one-dimensional base-model primitives', () => {
   });
 
   it('reproduces the published Reynolds number and Modi friction coefficient to source rounding', () => {
-    const velocity = (42 / 3600) / (Math.PI * 0.125 ** 2 / 4);
+    const sourceRoundedVelocityMS = 0.951;
     const nu = mortarKinematicViscosityM2S(2.5, 2100);
-    const re = gaoZhaoReynoldsNumber(velocity, 0.00418, nu);
+    const re = gaoZhaoReynoldsNumber(sourceRoundedVelocityMS, 0.00418, nu);
     const kd = relativeAggregateRoughness(0.0158, 0.00418);
     const lambda = modiFrictionCoefficient(kd, re);
 
@@ -30,7 +30,7 @@ describe('Gao/Zhao one-dimensional base-model primitives', () => {
 
   it('evaluates the same published state deterministically', () => {
     const input = {
-      meanVelocityMS: (42 / 3600) / (Math.PI * 0.125 ** 2 / 4),
+      meanVelocityMS: 0.951,
       lubricationLayerThicknessM: 0.00209,
       mortarDensityKgM3: 2100,
       mortarDynamicViscosityPaS: 2.5,
