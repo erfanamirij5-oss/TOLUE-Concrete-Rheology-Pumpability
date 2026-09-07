@@ -71,6 +71,10 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
       ? 'complete'
       : 'incomplete';
 
+  const usesProjectCalibratedLocalLoss = pipeline.segments.some(
+    segment => segment.pressureMethod === 'project-calibrated-local-loss',
+  );
+
   return {
     runId: input.runId,
     engineVersion: input.engineVersion,
@@ -85,6 +89,7 @@ export function executeSimulationRun(input: SimulationRunInput): SimulationRunRe
     assumptions,
     methods: [
       pipeline.method,
+      ...(usesProjectCalibratedLocalLoss ? ['tolue-project-calibrated-local-loss-v1'] : []),
       pressureProfile.method,
       hydraulicInvariants.method,
       ...(pumpAssessment ? [pumpAssessment.method] : []),
