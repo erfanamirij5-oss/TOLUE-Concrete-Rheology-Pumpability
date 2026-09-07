@@ -99,6 +99,68 @@ describe('assessEngineeringReadiness', () => {
     expect(result.findings.some(f => f.ruleId === 'RG-MODEL-001')).toBe(true);
   });
 
+  it('admits an in-domain project-calibrated fitting without a universal loss model', () => {
+    const input = fixture();
+    input.pipeline.segments.push({
+      id: 'E1',
+      kind: 'elbow',
+      elevationChangeM: 0,
+      calibratedLocalLoss: {
+        calibrationCurve: [
+          { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+          { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+        ],
+        provenanceEntityId: 'project-elbow-evidence-001',
+        calibrationId: 'project-elbow-cal-001',
+      },
+    });
+    const result = assessEngineeringReadiness(input);
+    expect(result.status).toBe('READY');
+    expect(result.canExecute).toBe(true);
+    expect(result.findings.some(f => f.ruleId.startsWith('RG-LOCAL-CAL'))).toBe(false);
+  });
+
+  it('blocks project-calibrated fitting extrapolation', () => {
+    const input = fixture();
+    input.pipeline.segments.push({
+      id: 'E1',
+      kind: 'elbow',
+      elevationChangeM: 0,
+      calibratedLocalLoss: {
+        calibrationCurve: [
+          { flowRateM3s: 0.0011, pressureLossPa: 10_000 },
+          { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+        ],
+        provenanceEntityId: 'project-elbow-evidence-001',
+        calibrationId: 'project-elbow-cal-001',
+      },
+    });
+    const result = assessEngineeringReadiness(input);
+    expect(result.status).toBe('BLOCKED');
+    expect(result.canExecute).toBe(false);
+    expect(result.findings.some(f => f.ruleId === 'RG-LOCAL-CAL-003')).toBe(true);
+  });
+
+  it('blocks invalid project-calibration metadata', () => {
+    const input = fixture();
+    input.pipeline.segments.push({
+      id: 'E1',
+      kind: 'elbow',
+      elevationChangeM: 0,
+      calibratedLocalLoss: {
+        calibrationCurve: [
+          { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+          { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+        ],
+        provenanceEntityId: '',
+        calibrationId: 'project-elbow-cal-001',
+      },
+    });
+    const result = assessEngineeringReadiness(input);
+    expect(result.status).toBe('BLOCKED');
+    expect(result.findings.some(f => f.ruleId === 'RG-LOCAL-CAL-002')).toBe(true);
+  });
+
   it('blocks invalid lubrication-layer geometry', () => {
     const input = fixture();
     input.pipeline.lubricationLayerThicknessM = 0.0625;
