@@ -22,6 +22,25 @@ function measuredRecord(entityId: string): EngineeringInputProvenanceRecord {
   };
 }
 
+function localLossRecord(entityId: string): EngineeringInputProvenanceRecord {
+  return {
+    evidence: {
+      entityId,
+      entityKind: 'derived_result',
+      generatedByActivityId: `${entityId}-derivation`,
+      sourceEntityIds: [`${entityId}-field-data`],
+      referenceIds: ['PROJECT-PUMP-TEST-001'],
+    },
+    activities: [{
+      id: `${entityId}-derivation`,
+      kind: 'derivation',
+      methodId: 'project-local-loss-calibration-v1',
+      agentIds: ['TOLUE'],
+    }],
+    agents: [{ id: 'TOLUE', kind: 'software' }],
+  };
+}
+
 function documented(): SimulationInputProvenance {
   return {
     bulkRheology: measuredRecord('bulk-rheology'),
@@ -39,11 +58,32 @@ function documented(): SimulationInputProvenance {
   };
 }
 
-describe('TOLUE input provenance v2', () => {
+describe('TOLUE input provenance v3', () => {
   it('returns DOCUMENTED for structurally complete lineage without claiming physical verification', () => {
     const result = assessInputEvidence(documented());
     expect(result.status).toBe('DOCUMENTED');
+    expect(result.method).toBe('tolue-input-provenance-v3');
     expect(result.findings).toEqual([]);
+  });
+
+  it('assesses project-calibrated local-loss evidence as a first-class provenance record', () => {
+    const input = documented();
+    input.localLossCalibrations = {
+      'project-elbow-evidence-001': localLossRecord('project-elbow-evidence-001'),
+    };
+    const result = assessInputEvidence(input);
+    expect(result.status).toBe('DOCUMENTED');
+    expect(result.findings).toEqual([]);
+  });
+
+  it('blocks a local-loss provenance map key that does not match evidence.entityId', () => {
+    const input = documented();
+    input.localLossCalibrations = {
+      'project-elbow-evidence-001': localLossRecord('different-entity'),
+    };
+    const result = assessInputEvidence(input);
+    expect(result.status).toBe('BLOCKED');
+    expect(result.findings.some(f => f.ruleId === 'PROV-LOCAL-002')).toBe(true);
   });
 
   it('marks explicit engineering assumptions PRELIMINARY', () => {
