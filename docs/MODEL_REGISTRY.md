@@ -18,7 +18,7 @@ A model may also be `experimental`, `deprecated`, or `blocked`.
 | PRESSURE-STRAIGHT-001 | Pump hydraulics | blocked | Straight-pipe pressure loss | No formula selected until Stage 0.3 evidence review |
 | PRESSURE-ELEVATION-001 | Pump hydraulics | research | Hydrostatic/elevation contribution | Requires sign convention, density basis and numerical tests |
 | PRESSURE-ELBOW-001 | Pump hydraulics | research | Concrete-specific elbow pressure-loss model family based on Park et al. 2020 real-scale evidence | Implementation blocked until exact primary equations, coefficients, validity domain and published verification cases are captured; no generic K-factor substitution |
-| PRESSURE-ELBOW-002 | Pump hydraulics | research | Openly accessible Gao et al. 2024 particle-flow-derived bend correction model | Equation set captured; implementation remains blocked until regression units, base-model compatibility, and published-case reproduction are verified |
+| PRESSURE-ELBOW-002 | Pump hydraulics | specified | Gao et al. 2024 empirical bend correction-factor model with frozen regression units and verification vectors | Isolated lambda evaluator is spec-ready; pressure integration remains blocked until native base-model reproduction, full pressure-case verification, and compatibility/double-counting audit are complete |
 | PRESSURE-LOCAL-001 | Pump hydraulics | blocked | Reducer/hose/valve/other local losses | No generic water-flow K-factor substitution without concrete-specific justification |
 | LUBRICATION-001 | Interface | blocked | Lubrication/interface layer representation | Requires cited/calibrated interface model |
 | BLOCKAGE-001 | Risk | blocked | Plugging/blockage risk | Requires validated physical/empirical basis or explicit TI classification |
