@@ -32,6 +32,34 @@ describe('TOLUE hydraulic invariants', () => {
     expect(result.checkedInvariantIds).toContain('PROFILE_STEPS');
   });
 
+  it('accepts a complete route with project-calibrated local loss and preserves its component sum', () => {
+    const input: PipelineAnalysisInput = {
+      ...completeInput(),
+      segments: [
+        { id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
+        {
+          id: 'E1', kind: 'elbow', elevationChangeM: 0,
+          calibratedLocalLoss: {
+            calibrationCurve: [
+              { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+              { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+            ],
+            provenanceEntityId: 'LOCAL-EVIDENCE-001',
+            calibrationId: 'LOCAL-CAL-001',
+          },
+        },
+      ],
+    };
+    const pipeline = analyzePipeline(input);
+    const profile = buildPressureProfile(input, pipeline);
+    const result = verifyHydraulicInvariants(pipeline, profile);
+
+    expect(result.status).toBe('consistent');
+    expect(pipeline.calibratedLocalFrictionPressurePa).toBeCloseTo(20_000, 8);
+    expect(result.checkedInvariantIds).toContain('CALIBRATED_LOCAL_FRICTION_SUM');
+    expect(result.checkedInvariantIds).toContain('TRACEABILITY_PROPAGATION');
+  });
+
   it('accepts explicit incomplete/null propagation without inventing local loss', () => {
     const input: PipelineAnalysisInput = {
       ...completeInput(),
