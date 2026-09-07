@@ -9,7 +9,7 @@ export interface EngineeringResultCenter {
   results: EngineeringResult[];
   warnings: string[];
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-result-center-v1';
+  method: 'tolue-engineering-result-center-v2';
 }
 
 function stableSerialize(value: unknown): string {
@@ -41,12 +41,26 @@ function evidenceStatusFor(run: SimulationRunResult, fields: InputEvidenceField[
   return 'DOCUMENTED';
 }
 
+function combineEvidenceStatus(...statuses: EngineeringEvidenceStatus[]): EngineeringEvidenceStatus {
+  if (statuses.includes('BLOCKED')) return 'BLOCKED';
+  if (statuses.includes('PRELIMINARY')) return 'PRELIMINARY';
+  if (statuses.includes('NOT_ASSESSED')) return 'NOT_ASSESSED';
+  return 'DOCUMENTED';
+}
+
 export function buildEngineeringResultCenter(run: SimulationRunResult): EngineeringResultCenter {
   const hash = inputSnapshotFingerprint(run.inputSnapshot);
   const results: EngineeringResult[] = [];
-  const hydraulicEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness']);
+  const baseHydraulicEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness']);
   const pumpEvidenceStatus = evidenceStatusFor(run, ['pumpCapability']);
-  const combinedEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness', 'pumpCapability']);
+  const calibratedLocalSegments = run.pipeline.segments.filter(segment => segment.pressureMethod === 'project-calibrated-local-loss');
+
+  // Local-loss calibration currently carries stable calibration/provenance identities,
+  // but is not yet represented in SimulationInputProvenance v2 as a fully assessed record.
+  // Therefore it must remain PRELIMINARY rather than being silently promoted to DOCUMENTED.
+  const localEvidenceStatus: EngineeringEvidenceStatus = calibratedLocalSegments.length > 0 ? 'PRELIMINARY' : 'DOCUMENTED';
+  const hydraulicEvidenceStatus = combineEvidenceStatus(baseHydraulicEvidenceStatus, localEvidenceStatus);
+  const combinedEvidenceStatus = combineEvidenceStatus(hydraulicEvidenceStatus, pumpEvidenceStatus);
 
   const physicalModelCommon = {
     resultClass: 'PHYSICAL_MODEL' as const,
@@ -64,6 +78,32 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
   results.push({ id: 'pipeline.requiredPressure', label: 'Required pipeline pressure', value: run.pipeline.requiredPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: run.pipeline.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
   results.push({ id: 'pipeline.elevationPressure', label: 'Elevation pressure contribution', value: run.pipeline.elevationPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: 'candidate', ...physicalModelCommon });
   results.push({ id: 'pressureProfile.peakRequiredPressure', label: 'Peak required pressure', value: run.pressureProfile.peakRequiredPressurePa, unit: 'Pa', methodId: run.pressureProfile.method, validationStatus: run.pressureProfile.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
+
+  for (const segment of calibratedLocalSegments) {
+    results.push({
+      id: `pipeline.segment.${segment.id}.calibratedLocalPressure`,
+      label: `Project-calibrated local pressure loss — ${segment.id}`,
+      value: segment.frictionPressurePa,
+      unit: 'Pa',
+      resultClass: 'PROJECT_CALIBRATED_DATA',
+      methodId: 'tolue-project-calibrated-local-loss-v1',
+      methodVersion: run.engineVersion,
+      referenceIds: [],
+      standardEditionIds: [],
+      applicability: 'Project-calibrated data only; exact or interpolated use is limited to the supplied calibration curve domain and component identity.',
+      assumptions: [...run.assumptions],
+      limitations: [
+        ...run.warnings,
+        'This result is not a universal local-loss correlation and must not be transferred to another project/component without independent calibration evidence.',
+      ],
+      validationStatus: segment.status === 'computed' && segment.frictionPressurePa !== null ? 'candidate' : 'insufficient_data',
+      evidenceStatus: 'PRELIMINARY',
+      inputSnapshotHash: hash,
+      sourceRunId: run.runId,
+      provenanceEntityIds: segment.provenanceEntityId ? [segment.provenanceEntityId] : [],
+      calibrationIds: segment.calibrationId ? [segment.calibrationId] : [],
+    });
+  }
 
   if (run.pumpAssessment) {
     const status = run.pumpAssessment.status === 'INSUFFICIENT_DATA' ? 'insufficient_data' : 'candidate';
@@ -91,6 +131,6 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
     results,
     warnings: [...run.warnings],
     completeness: run.status,
-    method: 'tolue-engineering-result-center-v1',
+    method: 'tolue-engineering-result-center-v2',
   };
 }
