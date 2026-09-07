@@ -2,6 +2,47 @@ import { describe, expect, it } from 'vitest';
 import { buildEngineeringResultCenter, inputSnapshotFingerprint } from './resultCenter';
 import { validateEngineeringResult } from './engineeringResult';
 import { executeSimulationRun, SimulationRunInput } from './simulationRun';
+import { EngineeringInputProvenanceRecord, SimulationInputProvenance } from './inputProvenance';
+
+function measuredRecord(entityId: string): EngineeringInputProvenanceRecord {
+  return {
+    evidence: {
+      entityId,
+      entityKind: 'measurement_result',
+      generatedByActivityId: `${entityId}-measurement`,
+      uncertainty: { expandedUncertainty: 1, coverageFactor: 2, unit: 'Pa', evaluationMethodId: 'test' },
+    },
+    activities: [{ id: `${entityId}-measurement`, kind: 'measurement', methodId: 'test', agentIds: ['EQ-1'] }],
+    agents: [{ id: 'EQ-1', kind: 'equipment' }],
+  };
+}
+
+function documentedProvenance(localEntityId?: string): SimulationInputProvenance {
+  const provenance: SimulationInputProvenance = {
+    bulkRheology: measuredRecord('bulk-rheology'),
+    lubricationLayerRheology: measuredRecord('ll-rheology'),
+    lubricationLayerThickness: {
+      evidence: { entityId: 'll-thickness', entityKind: 'derived_result', generatedByActivityId: 'll-derivation', sourceEntityIds: ['field-data'] },
+      activities: [{ id: 'll-derivation', kind: 'derivation', methodId: 'project-ll-v1', agentIds: ['TOLUE'] }],
+      agents: [{ id: 'TOLUE', kind: 'software' }],
+    },
+    pumpCapability: {
+      evidence: { entityId: 'pump-curve', entityKind: 'manufacturer_data', generatedByActivityId: 'pump-declaration', sourceDocumentId: 'pump-datasheet-v1' },
+      activities: [{ id: 'pump-declaration', kind: 'manufacturer_declaration', agentIds: ['MFR'] }],
+      agents: [{ id: 'MFR', kind: 'organization' }],
+    },
+  };
+  if (localEntityId) {
+    provenance.localLossCalibrations = {
+      [localEntityId]: {
+        evidence: { entityId: localEntityId, entityKind: 'derived_result', generatedByActivityId: `${localEntityId}-derivation`, sourceEntityIds: [`${localEntityId}-field-data`], referenceIds: ['PROJECT-PUMP-TEST-001'] },
+        activities: [{ id: `${localEntityId}-derivation`, kind: 'derivation', methodId: 'project-local-loss-calibration-v1', agentIds: ['TOLUE'] }],
+        agents: [{ id: 'TOLUE', kind: 'software' }],
+      },
+    };
+  }
+  return provenance;
+}
 
 const semanticRunInput: SimulationRunInput = {
   runId: 'RUN-RESULT-SEMANTICS',
@@ -61,10 +102,12 @@ describe('Engineering Result provenance contract', () => {
     expect(utilization?.unit).toBe('1');
   });
 
-  it('keeps project-calibrated local loss distinct from source data and generic derived metrics', () => {
+  it('keeps project-calibrated local loss distinct and promotes evidence only when structured binding is documented', () => {
+    const localEntityId = 'LOCAL-EVIDENCE-001';
     const input: SimulationRunInput = {
       ...semanticRunInput,
       runId: 'RUN-LOCAL-SEMANTICS',
+      provenance: documentedProvenance(localEntityId),
       pipeline: {
         ...semanticRunInput.pipeline,
         segments: [
@@ -76,7 +119,7 @@ describe('Engineering Result provenance contract', () => {
                 { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
                 { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
               ],
-              provenanceEntityId: 'LOCAL-EVIDENCE-001',
+              provenanceEntityId: localEntityId,
               calibrationId: 'LOCAL-CAL-001',
             },
           },
@@ -92,15 +135,16 @@ describe('Engineering Result provenance contract', () => {
     expect(local?.resultClass).toBe('PROJECT_CALIBRATED_DATA');
     expect(local?.resultClass).not.toBe('SOURCE_DATA');
     expect(local?.resultClass).not.toBe('DERIVED_METRIC');
-    expect(local?.provenanceEntityIds).toEqual(['LOCAL-EVIDENCE-001']);
+    expect(local?.provenanceEntityIds).toEqual([localEntityId]);
     expect(local?.calibrationIds).toEqual(['LOCAL-CAL-001']);
-    expect(local?.evidenceStatus).toBe('PRELIMINARY');
-    expect(required?.evidenceStatus).toBe('PRELIMINARY');
-    expect(margin?.evidenceStatus).toBe('PRELIMINARY');
+    expect(local?.evidenceStatus).toBe('DOCUMENTED');
+    expect(required?.evidenceStatus).toBe('DOCUMENTED');
+    expect(margin?.evidenceStatus).toBe('DOCUMENTED');
   });
 
   it('does not promote scientific validation merely because evidence is documented', () => {
-    const center = buildEngineeringResultCenter(executeSimulationRun(semanticRunInput));
+    const input = { ...semanticRunInput, provenance: documentedProvenance() };
+    const center = buildEngineeringResultCenter(executeSimulationRun(input));
     const available = center.results.find(result => result.id === 'pump.availablePressure');
 
     expect(available?.validationStatus).toBe('candidate');
