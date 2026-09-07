@@ -61,6 +61,44 @@ describe('Engineering Result provenance contract', () => {
     expect(utilization?.unit).toBe('1');
   });
 
+  it('keeps project-calibrated local loss distinct from source data and generic derived metrics', () => {
+    const input: SimulationRunInput = {
+      ...semanticRunInput,
+      runId: 'RUN-LOCAL-SEMANTICS',
+      pipeline: {
+        ...semanticRunInput.pipeline,
+        segments: [
+          { id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 0 },
+          {
+            id: 'E1', kind: 'elbow', elevationChangeM: 0,
+            calibratedLocalLoss: {
+              calibrationCurve: [
+                { flowRateM3s: 0.0005, pressureLossPa: 10_000 },
+                { flowRateM3s: 0.0015, pressureLossPa: 30_000 },
+              ],
+              provenanceEntityId: 'LOCAL-EVIDENCE-001',
+              calibrationId: 'LOCAL-CAL-001',
+            },
+          },
+        ],
+      },
+    };
+
+    const center = buildEngineeringResultCenter(executeSimulationRun(input));
+    const local = center.results.find(result => result.id === 'pipeline.segment.E1.calibratedLocalPressure');
+    const required = center.results.find(result => result.id === 'pipeline.requiredPressure');
+    const margin = center.results.find(result => result.id === 'pump.pressureMargin');
+
+    expect(local?.resultClass).toBe('PROJECT_CALIBRATED_DATA');
+    expect(local?.resultClass).not.toBe('SOURCE_DATA');
+    expect(local?.resultClass).not.toBe('DERIVED_METRIC');
+    expect(local?.provenanceEntityIds).toEqual(['LOCAL-EVIDENCE-001']);
+    expect(local?.calibrationIds).toEqual(['LOCAL-CAL-001']);
+    expect(local?.evidenceStatus).toBe('PRELIMINARY');
+    expect(required?.evidenceStatus).toBe('PRELIMINARY');
+    expect(margin?.evidenceStatus).toBe('PRELIMINARY');
+  });
+
   it('does not promote scientific validation merely because evidence is documented', () => {
     const center = buildEngineeringResultCenter(executeSimulationRun(semanticRunInput));
     const available = center.results.find(result => result.id === 'pump.availablePressure');
