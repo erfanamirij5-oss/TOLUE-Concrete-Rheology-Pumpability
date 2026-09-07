@@ -1,6 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { inputSnapshotFingerprint } from './resultCenter';
+import { buildEngineeringResultCenter, inputSnapshotFingerprint } from './resultCenter';
 import { validateEngineeringResult } from './engineeringResult';
+import { executeSimulationRun, SimulationRunInput } from './simulationRun';
+
+const semanticRunInput: SimulationRunInput = {
+  runId: 'RUN-RESULT-SEMANTICS',
+  engineVersion: '0.1.0',
+  createdAtIso: '2026-09-07T08:43:00+03:30',
+  pipeline: {
+    targetFlowRateM3s: 0.001,
+    densityKgM3: 2400,
+    lubricationLayerThicknessM: 0.002,
+    bulk: { yieldStressPa: 0, plasticViscosityPaS: 1 },
+    lubricationLayer: { yieldStressPa: 0, plasticViscosityPaS: 1 },
+    segments: [{ id: 'S1', kind: 'straight', lengthM: 10, pipeRadiusM: 0.0625, elevationChangeM: 5 }],
+  },
+  pumpCapability: {
+    capabilityCurve: [
+      { flowRateM3s: 0, availableConcretePressurePa: 5_000_000 },
+      { flowRateM3s: 0.002, availableConcretePressurePa: 4_000_000 },
+    ],
+    provenance: 'manufacturer_curve',
+  },
+};
 
 describe('Engineering Result provenance contract', () => {
   it('creates deterministic fingerprints independent of object key order', () => {
@@ -25,6 +47,26 @@ describe('Engineering Result provenance contract', () => {
     expect(() => validateEngineeringResult(result)).not.toThrow();
     expect(result.validationStatus).toBe('candidate');
     expect(result.evidenceStatus).toBe('DOCUMENTED');
+  });
+
+  it('classifies pump source data and arithmetic derivatives explicitly', () => {
+    const center = buildEngineeringResultCenter(executeSimulationRun(semanticRunInput));
+    const available = center.results.find(result => result.id === 'pump.availablePressure');
+    const margin = center.results.find(result => result.id === 'pump.pressureMargin');
+    const utilization = center.results.find(result => result.id === 'pump.pressureUtilization');
+
+    expect(available?.resultClass).toBe('SOURCE_DATA');
+    expect(margin?.resultClass).toBe('DERIVED_METRIC');
+    expect(utilization?.resultClass).toBe('DERIVED_METRIC');
+    expect(utilization?.unit).toBe('1');
+  });
+
+  it('does not promote scientific validation merely because evidence is documented', () => {
+    const center = buildEngineeringResultCenter(executeSimulationRun(semanticRunInput));
+    const available = center.results.find(result => result.id === 'pump.availablePressure');
+
+    expect(available?.validationStatus).toBe('candidate');
+    expect(available?.validationStatus).not.toBe('verified');
   });
 
   it('rejects a result without traceability identity', () => {
