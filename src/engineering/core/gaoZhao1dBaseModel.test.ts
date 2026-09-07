@@ -3,6 +3,7 @@ import {
   equivalentLubricationDiameterM,
   evaluateGaoZhaoBaseState,
   gaoZhaoReynoldsNumber,
+  literalEquation27PressureGradientPaPerM,
   modiFrictionCoefficient,
   mortarKinematicViscosityM2S,
   relativeAggregateRoughness,
@@ -28,6 +29,14 @@ describe('Gao/Zhao one-dimensional base-model primitives', () => {
     expect(lambda).toBeCloseTo(0.4021, 3);
   });
 
+  it('locks the literal Equation 27 reproduction mismatch instead of hiding a factor', () => {
+    const literalGradient = literalEquation27PressureGradientPaPerM(0.4021, 2100, 0.951, 0.00418);
+    const publishedGradient = 0.02284e6;
+
+    expect(literalGradient).toBeCloseTo(91_349.91009688996, 6);
+    expect(literalGradient / publishedGradient).toBeCloseTo(3.9995582354154976, 6);
+  });
+
   it('evaluates the same published state deterministically', () => {
     const input = {
       meanVelocityMS: 0.951,
@@ -46,5 +55,6 @@ describe('Gao/Zhao one-dimensional base-model primitives', () => {
     expect(() => gaoZhaoReynoldsNumber(1, 0.00418, 0)).toThrow();
     expect(() => relativeAggregateRoughness(0.0158, -0.00418)).toThrow();
     expect(() => modiFrictionCoefficient(1, 0)).toThrow();
+    expect(() => literalEquation27PressureGradientPaPerM(0, 2100, 0.951, 0.00418)).toThrow();
   });
 });
