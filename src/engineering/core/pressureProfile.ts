@@ -1,4 +1,4 @@
-import { PipelineAnalysisInput, PipelineAnalysisResult } from './pipeline';
+import { PipelineAnalysisInput, PipelineAnalysisResult, SegmentPressureResult } from './pipeline';
 
 export interface PressureProfilePoint {
   index: number;
@@ -8,6 +8,9 @@ export interface PressureProfilePoint {
   cumulativeRequiredPressurePa: number | null;
   remainingRequiredPressurePa: number | null;
   status: 'computed' | 'not_computed';
+  pressureMethod: SegmentPressureResult['pressureMethod'] | null;
+  calibrationId: string | null;
+  provenanceEntityId: string | null;
 }
 
 export interface PressureProfileResult {
@@ -17,7 +20,7 @@ export interface PressureProfileResult {
   peakPointIndex: number | null;
   outletPressureReferencePa: 0;
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-pressure-profile-v1';
+  method: 'tolue-pressure-profile-v2';
   assumption: 'stationary-segment-properties';
 }
 
@@ -27,6 +30,10 @@ export interface PressureProfileResult {
  * This function intentionally does not run hydraulic solvers. PipelineAnalysisResult
  * is the single source of truth for segment pressure contributions; the original
  * route input is used only for geometric station/elevation coordinates.
+ *
+ * Traceability metadata for each boundary is copied from the segment ending at
+ * that boundary. Project-calibrated local losses therefore retain calibration
+ * and provenance identity without being reclassified as a universal model.
  *
  * Convention: outlet pressure is the zero-gauge reference. For a complete
  * route, remainingRequiredPressurePa at each boundary equals the pressure
@@ -84,14 +91,18 @@ export function buildPressureProfile(
 
   const points: PressureProfilePoint[] = [];
   for (let i = 0; i <= n; i++) {
+    const segment = i === 0 ? null : pipeline.segments[i - 1]!;
     points.push({
       index: i,
-      segmentId: i === 0 ? null : pipeline.segments[i - 1]!.id,
+      segmentId: segment?.id ?? null,
       positionM: positions[i]!,
       elevationM: elevations[i]!,
       cumulativeRequiredPressurePa: cumulativeFromInlet[i]!,
       remainingRequiredPressurePa: remainingToOutlet[i]!,
       status: cumulativeFromInlet[i] !== null && remainingToOutlet[i] !== null ? 'computed' : 'not_computed',
+      pressureMethod: segment?.pressureMethod ?? null,
+      calibrationId: segment?.calibrationId ?? null,
+      provenanceEntityId: segment?.provenanceEntityId ?? null,
     });
   }
 
@@ -114,7 +125,7 @@ export function buildPressureProfile(
     peakPointIndex,
     outletPressureReferencePa: 0,
     completeness: pipeline.completeness,
-    method: 'tolue-pressure-profile-v1',
+    method: 'tolue-pressure-profile-v2',
     assumption: 'stationary-segment-properties',
   };
 }
