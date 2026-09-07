@@ -1,5 +1,6 @@
 import { SimulationRunInput } from './simulationRun';
 import { assessInputEvidence } from './inputProvenance';
+import { evaluateProjectCalibratedLocalLoss } from './projectCalibratedLocalLoss';
 
 export type ReadinessStatus = 'READY' | 'PRELIMINARY' | 'BLOCKED';
 export type ReadinessSeverity = 'info' | 'warning' | 'blocking';
@@ -52,7 +53,25 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
         if (!finitePositive(segment.lengthM)) block(`readiness.segment.length.${segment.id}`, `pipeline.segments.${segment.id}.lengthM`, 'Straight-segment length must be finite and > 0.', 'RG-ROUTE-005');
         if (!finitePositive(segment.pipeRadiusM)) block(`readiness.segment.radius.${segment.id}`, `pipeline.segments.${segment.id}.pipeRadiusM`, 'Straight-segment radius must be finite and > 0.', 'RG-ROUTE-006');
         if (finitePositive(segment.pipeRadiusM) && finitePositive(p.lubricationLayerThicknessM) && p.lubricationLayerThicknessM >= segment.pipeRadiusM) block(`readiness.llGeometry.${segment.id}`, 'pipeline.lubricationLayerThicknessM', 'Lubrication-layer thickness must be smaller than every straight-pipe radius.', 'RG-LL-002');
-      } else block(`readiness.unsupported.${segment.id}`, `pipeline.segments.${segment.id}`, `Friction model for segment kind '${segment.kind}' is not implemented; complete pressure demand cannot be computed.`, 'RG-MODEL-001');
+      } else if (!segment.calibratedLocalLoss) {
+        block(`readiness.unsupported.${segment.id}`, `pipeline.segments.${segment.id}`, `Friction model for segment kind '${segment.kind}' is not implemented and no project-calibrated local-loss curve is supplied; complete pressure demand cannot be computed.`, 'RG-MODEL-001');
+      } else {
+        try {
+          const calibrated = evaluateProjectCalibratedLocalLoss({
+            componentKind: segment.kind,
+            targetFlowRateM3s: p.targetFlowRateM3s,
+            calibrationCurve: segment.calibratedLocalLoss.calibrationCurve,
+            provenanceEntityId: segment.calibratedLocalLoss.provenanceEntityId,
+            calibrationId: segment.calibratedLocalLoss.calibrationId,
+          });
+          if (calibrated.status !== 'computed') {
+            block(`readiness.localCalibration.domain.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, 'Target flow is outside the supplied project-calibrated local-loss curve; extrapolation is prohibited.', 'RG-LOCAL-CAL-003');
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid project-calibrated local-loss contract.';
+          block(`readiness.localCalibration.invalid.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, `Invalid project-calibrated local-loss contract: ${message}`, 'RG-LOCAL-CAL-002');
+        }
+      }
     }
   }
 
