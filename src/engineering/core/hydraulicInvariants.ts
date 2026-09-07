@@ -4,7 +4,7 @@ import { PressureProfileResult } from './pressureProfile';
 export interface HydraulicInvariantResult {
   status: 'consistent' | 'incomplete';
   checkedInvariantIds: string[];
-  method: 'tolue-hydraulic-invariants-v1';
+  method: 'tolue-hydraulic-invariants-v2';
 }
 
 function assertClose(id: string, actual: number, expected: number): void {
@@ -49,12 +49,19 @@ export function verifyHydraulicInvariants(
   }
   checkedInvariantIds.push('OUTLET_ZERO');
 
-  const frictionSum = pipeline.segments.reduce(
-    (sum, segment) => sum + (segment.frictionPressurePa ?? 0),
+  const straightFrictionSum = pipeline.segments.reduce(
+    (sum, segment) => sum + (segment.pressureMethod === 'two-fluid-bingham' ? (segment.frictionPressurePa ?? 0) : 0),
     0,
   );
-  assertClose('FRICTION_SUM', pipeline.straightFrictionPressurePa, frictionSum);
-  checkedInvariantIds.push('FRICTION_SUM');
+  assertClose('STRAIGHT_FRICTION_SUM', pipeline.straightFrictionPressurePa, straightFrictionSum);
+  checkedInvariantIds.push('STRAIGHT_FRICTION_SUM');
+
+  const calibratedLocalFrictionSum = pipeline.segments.reduce(
+    (sum, segment) => sum + (segment.pressureMethod === 'project-calibrated-local-loss' && segment.status === 'computed' ? (segment.frictionPressurePa ?? 0) : 0),
+    0,
+  );
+  assertClose('CALIBRATED_LOCAL_FRICTION_SUM', pipeline.calibratedLocalFrictionPressurePa, calibratedLocalFrictionSum);
+  checkedInvariantIds.push('CALIBRATED_LOCAL_FRICTION_SUM');
 
   const elevationSum = pipeline.segments.reduce((sum, segment) => sum + segment.elevationPressurePa, 0);
   assertClose('ELEVATION_SUM', pipeline.elevationPressurePa, elevationSum);
@@ -62,6 +69,17 @@ export function verifyHydraulicInvariants(
 
   for (let i = 0; i < pipeline.segments.length; i++) {
     const segment = pipeline.segments[i]!;
+    const point = pressureProfile.points[i + 1]!;
+
+    if (
+      point.segmentId !== segment.id ||
+      point.pressureMethod !== segment.pressureMethod ||
+      point.calibrationId !== segment.calibrationId ||
+      point.provenanceEntityId !== segment.provenanceEntityId
+    ) {
+      throw new Error(`Hydraulic invariant TRACEABILITY_PROPAGATION failed at ${segment.id}`);
+    }
+
     if (segment.totalPressurePa === null) {
       if (segment.status !== 'not_computed') {
         throw new Error(`Hydraulic invariant SEGMENT_STATUS failed at ${segment.id}`);
@@ -78,6 +96,7 @@ export function verifyHydraulicInvariants(
     }
   }
   checkedInvariantIds.push('SEGMENT_TOTALS_AND_STATUS');
+  checkedInvariantIds.push('TRACEABILITY_PROPAGATION');
 
   if (pipeline.completeness === 'complete') {
     if (pipeline.requiredPressurePa === null) {
@@ -87,7 +106,7 @@ export function verifyHydraulicInvariants(
     assertClose(
       'REQUIRED_COMPONENT_SUM',
       pipeline.requiredPressurePa,
-      pipeline.straightFrictionPressurePa + pipeline.elevationPressurePa,
+      pipeline.straightFrictionPressurePa + pipeline.calibratedLocalFrictionPressurePa + pipeline.elevationPressurePa,
     );
     checkedInvariantIds.push('REQUIRED_COMPONENT_SUM');
 
@@ -113,7 +132,7 @@ export function verifyHydraulicInvariants(
     }
     checkedInvariantIds.push('PROFILE_STEPS');
 
-    return { status: 'consistent', checkedInvariantIds, method: 'tolue-hydraulic-invariants-v1' };
+    return { status: 'consistent', checkedInvariantIds, method: 'tolue-hydraulic-invariants-v2' };
   }
 
   if (pipeline.requiredPressurePa !== null || pressureProfile.peakRequiredPressurePa !== null) {
@@ -121,5 +140,5 @@ export function verifyHydraulicInvariants(
   }
   checkedInvariantIds.push('INCOMPLETE_NULL_PROPAGATION');
 
-  return { status: 'incomplete', checkedInvariantIds, method: 'tolue-hydraulic-invariants-v1' };
+  return { status: 'incomplete', checkedInvariantIds, method: 'tolue-hydraulic-invariants-v2' };
 }
