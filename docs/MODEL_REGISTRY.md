@@ -17,7 +17,8 @@ A model may also be `experimental`, `deprecated`, or `blocked`.
 | PIPE-GEOMETRY-001 | Pipeline | research | Route graph and segment geometry | Requires topology/unit validation |
 | PRESSURE-STRAIGHT-001 | Pump hydraulics | blocked | Straight-pipe pressure loss | No formula selected until Stage 0.3 evidence review |
 | PRESSURE-ELEVATION-001 | Pump hydraulics | research | Hydrostatic/elevation contribution | Requires sign convention, density basis and numerical tests |
-| PRESSURE-LOCAL-001 | Pump hydraulics | blocked | Elbow/reducer/hose/local losses | No generic water-flow K-factor substitution without concrete-specific justification |
+| PRESSURE-ELBOW-001 | Pump hydraulics | research | Concrete-specific elbow pressure-loss model family based on real-scale evidence | Implementation blocked until exact primary equations, coefficients, validity domain and published verification cases are captured; no generic K-factor substitution |
+| PRESSURE-LOCAL-001 | Pump hydraulics | blocked | Reducer/hose/valve/other local losses | No generic water-flow K-factor substitution without concrete-specific justification |
 | LUBRICATION-001 | Interface | blocked | Lubrication/interface layer representation | Requires cited/calibrated interface model |
 | BLOCKAGE-001 | Risk | blocked | Plugging/blockage risk | Requires validated physical/empirical basis or explicit TI classification |
 | PUMPABILITY-SCORE-001 | Assessment | blocked | 0–100 TOLUE Pumpability Score | Weighting/gates cannot be finalized before upstream model validation |
