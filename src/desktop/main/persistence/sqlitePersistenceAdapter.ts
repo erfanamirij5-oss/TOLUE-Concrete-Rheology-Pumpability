@@ -36,19 +36,10 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
     }
   };
 
-  const upsertEngineeringRun = (row: Readonly<PersistedEngineeringRunRow>): void => {
+  const insertEngineeringRun = (row: Readonly<PersistedEngineeringRunRow>): void => {
     database.prepare(`INSERT INTO engineering_runs (
       run_id, engine_version, created_at_iso, input_snapshot_hash, execution_status, completeness, input_json, result_json, method
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(run_id) DO UPDATE SET
-      engine_version=excluded.engine_version,
-      created_at_iso=excluded.created_at_iso,
-      input_snapshot_hash=excluded.input_snapshot_hash,
-      execution_status=excluded.execution_status,
-      completeness=excluded.completeness,
-      input_json=excluded.input_json,
-      result_json=excluded.result_json,
-      method=excluded.method`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(row.runId, row.engineVersion, row.createdAtIso, row.inputSnapshotHash, row.executionStatus, row.completeness, row.inputJson, row.resultJson, row.method);
   };
 
@@ -66,5 +57,5 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
     return Object.freeze(rows.map(row => Object.freeze(row)));
   };
 
-  return Object.freeze({ databasePath, readSchemaVersion, applyMigrationAtomically, upsertEngineeringRun, readEngineeringRun, listEngineeringRuns, close: () => database.close() });
+  return Object.freeze({ databasePath, readSchemaVersion, applyMigrationAtomically, insertEngineeringRun, readEngineeringRun, listEngineeringRuns, close: () => database.close() });
 }
