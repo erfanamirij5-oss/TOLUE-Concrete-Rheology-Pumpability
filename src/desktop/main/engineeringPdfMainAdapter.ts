@@ -23,6 +23,7 @@ export interface EngineeringPdfMainAdapterDeps {
 
 function baseResponse(request: EngineeringPdfIpcRequest) {
   return {
+    engineVersion: request.payload.engineVersion,
     runId: request.payload.runId,
     inputSnapshotHash: request.payload.inputSnapshotHash,
     method: 'tolue-engineering-pdf-ipc-response-v1' as const,
@@ -36,21 +37,23 @@ function baseResponse(request: EngineeringPdfIpcRequest) {
  * Electron dialog/webContents/fs adapters later without coupling Core to them.
  */
 export async function executeEngineeringPdfMainAdapter(
-  request: EngineeringPdfIpcRequest,
+  request: unknown,
   deps: EngineeringPdfMainAdapterDeps,
 ): Promise<EngineeringPdfIpcResponse> {
   try {
     validateEngineeringPdfIpcRequest(request);
   } catch (error) {
     return {
-      ...baseResponse(request),
+      runId: '', engineVersion: '', inputSnapshotHash: '',
+      method: 'tolue-engineering-pdf-ipc-response-v1',
       status: 'REJECTED',
       savedFileName: null,
       bytesWritten: null,
-      errorCode: error instanceof Error ? error.message : 'PDF-IPC-VALIDATION-UNKNOWN',
+      errorCode: error instanceof Error && /^PDF-IPC-[A-Z]+-\d+$/.test(error.message) ? error.message : 'PDF-IPC-VALIDATION-UNKNOWN',
     };
   }
 
+  try {
   const destination = await deps.saveDialog.choosePdfDestination(request.payload.fileName);
   if (destination.cancelled) {
     return {
@@ -62,7 +65,6 @@ export async function executeEngineeringPdfMainAdapter(
     };
   }
 
-  try {
     const pdfBytes = await deps.renderer.renderHtmlToPdf({
       html: request.payload.html,
       page: request.payload.page,

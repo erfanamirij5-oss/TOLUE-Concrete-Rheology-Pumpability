@@ -40,3 +40,6 @@ jobs:
 
       - name: Run engineering golden tests
         run: npm test
+
+      - name: Build desktop boundaries
+        run: npm run build:desktop

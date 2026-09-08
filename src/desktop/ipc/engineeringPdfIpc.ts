@@ -10,6 +10,7 @@ export interface EngineeringPdfIpcRequest {
 export type EngineeringPdfIpcStatus = 'SUCCESS' | 'CANCELLED' | 'FAILED' | 'REJECTED';
 
 export interface EngineeringPdfIpcResponse {
+  engineVersion: string;
   runId: string;
   inputSnapshotHash: string;
   status: EngineeringPdfIpcStatus;
@@ -19,8 +20,8 @@ export interface EngineeringPdfIpcResponse {
   method: 'tolue-engineering-pdf-ipc-response-v1';
 }
 
-function nonEmpty(value: string): boolean {
-  return value.trim().length > 0;
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 /**
@@ -29,7 +30,16 @@ function nonEmpty(value: string): boolean {
  * Engineering Core contract. It cannot select an arbitrary IPC channel,
  * filesystem path, page geometry, media type, or execution boundary.
  */
-export function validateEngineeringPdfIpcRequest(request: EngineeringPdfIpcRequest): void {
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function validateEngineeringPdfIpcRequest(request: unknown): asserts request is EngineeringPdfIpcRequest {
+  if (!record(request) || !record(request.payload)) throw new Error('PDF-IPC-SHAPE-001');
+  const allowed = ['runId', 'engineVersion', 'inputSnapshotHash', 'fileName', 'html', 'mediaType', 'sourceMediaType', 'page', 'rendererBoundary', 'scientificClaim', 'method'];
+  if (Object.keys(request).some(key => !['channel', 'payload'].includes(key)) || Object.keys(request.payload).some(key => !allowed.includes(key))) throw new Error('PDF-IPC-SHAPE-001');
+  if (!record(request.payload.page) || !record(request.payload.page.marginsMm)) throw new Error('PDF-IPC-SHAPE-001');
+  if (typeof request.payload.fileName !== 'string') throw new Error('PDF-IPC-FILENAME-001');
   if (request.channel !== ENGINEERING_PDF_EXPORT_CHANNEL) throw new Error('PDF-IPC-CHANNEL-001');
   const payload = request.payload;
   if (!nonEmpty(payload.runId)) throw new Error('PDF-IPC-ID-001');
@@ -40,13 +50,15 @@ export function validateEngineeringPdfIpcRequest(request: EngineeringPdfIpcReque
   if (payload.rendererBoundary !== 'privileged_desktop_main_process') throw new Error('PDF-IPC-BOUNDARY-001');
   if (payload.method !== 'tolue-engineering-pdf-export-request-v1') throw new Error('PDF-IPC-METHOD-001');
   if (payload.scientificClaim !== 'presentation_only_no_new_engineering_inference') throw new Error('PDF-IPC-CLAIM-001');
-  if (!payload.fileName.endsWith('.pdf')) throw new Error('PDF-IPC-FILENAME-001');
+  if (typeof payload.fileName !== 'string' || !payload.fileName.endsWith('.pdf')) throw new Error('PDF-IPC-FILENAME-001');
   if (payload.fileName.includes('/') || payload.fileName.includes('\\') || payload.fileName.includes('..')) throw new Error('PDF-IPC-FILENAME-002');
+  if (!record(payload.page) || !record(payload.page.marginsMm)) throw new Error('PDF-IPC-SHAPE-001');
+  if (payload.fileName.includes(':') || /[<>"|?*\x00-\x1f]/.test(payload.fileName)) throw new Error('PDF-IPC-FILENAME-002');
   if (payload.page.format !== 'A4' || payload.page.landscape !== false) throw new Error('PDF-IPC-PAGE-001');
   if (payload.page.printBackground !== true || payload.page.preferCssPageSize !== true || payload.page.displayHeaderFooter !== false) throw new Error('PDF-IPC-PAGE-002');
   const margins = payload.page.marginsMm;
   for (const value of [margins.top, margins.right, margins.bottom, margins.left]) {
-    if (!Number.isFinite(value) || value < 0) throw new Error('PDF-IPC-PAGE-003');
+    if (typeof value !== 'number' || !Number.isFinite(value) || value !== 14) throw new Error('PDF-IPC-PAGE-003');
   }
 }
 
