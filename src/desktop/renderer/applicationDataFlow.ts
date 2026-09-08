@@ -1,14 +1,92 @@
 import type { EngineeringAnalysisResult } from '../../engineering/core/engineeringAnalysis';
+import type { SimulationRunInput } from '../../engineering/core/simulationRun';
+import type { EngineeringAnalysisIpcResponse } from '../ipc/engineeringAnalysisIpc';
 import { createEngineeringAnalysisPresentation, type EngineeringAnalysisPresentation } from './analysisPresentation';
 
+export type AnalysisSessionStatus = 'IDLE' | 'READY' | 'RUNNING' | 'SUCCEEDED' | 'REJECTED' | 'STALE';
+
 export interface ApplicationDataFlowState {
+  readonly status: AnalysisSessionStatus;
+  readonly input: Readonly<SimulationRunInput> | null;
   readonly analysis: Readonly<EngineeringAnalysisPresentation> | null;
+  readonly activeRunId: string | null;
+  readonly activeInputSnapshotHash: string | null;
+  readonly errorCode: string | null;
+  readonly isStale: boolean;
+}
+
+function freezeInput(input: SimulationRunInput): Readonly<SimulationRunInput> {
+  return Object.freeze(structuredClone(input));
 }
 
 export function createApplicationDataFlowState(
   analysis?: EngineeringAnalysisResult,
 ): Readonly<ApplicationDataFlowState> {
+  const presentation = analysis ? createEngineeringAnalysisPresentation(analysis) : null;
   return Object.freeze({
-    analysis: analysis ? createEngineeringAnalysisPresentation(analysis) : null,
+    status: analysis ? 'SUCCEEDED' : 'IDLE',
+    input: null,
+    analysis: presentation,
+    activeRunId: presentation?.runId ?? null,
+    activeInputSnapshotHash: presentation?.inputSnapshotHash ?? null,
+    errorCode: null,
+    isStale: false,
   });
+}
+
+export function setAnalysisInput(
+  state: Readonly<ApplicationDataFlowState>,
+  input: SimulationRunInput,
+): Readonly<ApplicationDataFlowState> {
+  return Object.freeze({
+    status: state.analysis ? 'STALE' : 'READY',
+    input: freezeInput(input),
+    analysis: state.analysis,
+    activeRunId: state.activeRunId,
+    activeInputSnapshotHash: state.activeInputSnapshotHash,
+    errorCode: null,
+    isStale: state.analysis !== null,
+  });
+}
+
+export function markAnalysisRunning(state: Readonly<ApplicationDataFlowState>): Readonly<ApplicationDataFlowState> {
+  if (!state.input) throw new Error('APPLICATION-DATA-FLOW-INPUT-001');
+  return Object.freeze({ ...state, status: 'RUNNING', errorCode: null });
+}
+
+export function applyEngineeringAnalysisResponse(
+  state: Readonly<ApplicationDataFlowState>,
+  response: EngineeringAnalysisIpcResponse,
+): Readonly<ApplicationDataFlowState> {
+  if (!state.input) throw new Error('APPLICATION-DATA-FLOW-INPUT-002');
+  if (response.status === 'REJECTED') {
+    return Object.freeze({
+      ...state,
+      status: 'REJECTED',
+      analysis: null,
+      activeRunId: null,
+      activeInputSnapshotHash: null,
+      errorCode: response.errorCode,
+      isStale: false,
+    });
+  }
+
+  if (response.result.runId !== state.input.runId) throw new Error('APPLICATION-DATA-FLOW-RUN-001');
+  const analysis = createEngineeringAnalysisPresentation(response.result);
+  return Object.freeze({
+    ...state,
+    status: 'SUCCEEDED',
+    analysis,
+    activeRunId: analysis.runId,
+    activeInputSnapshotHash: analysis.inputSnapshotHash,
+    errorCode: null,
+    isStale: false,
+  });
+}
+
+export function getExportablePdfRequest(state: Readonly<ApplicationDataFlowState>) {
+  if (state.status !== 'SUCCEEDED' || state.isStale || !state.analysis?.report) return null;
+  if (state.analysis.report.runId !== state.activeRunId) throw new Error('APPLICATION-DATA-FLOW-PDF-RUN-001');
+  if (state.analysis.report.inputSnapshotHash !== state.activeInputSnapshotHash) throw new Error('APPLICATION-DATA-FLOW-PDF-HASH-001');
+  return state.analysis.report.pdfRequest;
 }
