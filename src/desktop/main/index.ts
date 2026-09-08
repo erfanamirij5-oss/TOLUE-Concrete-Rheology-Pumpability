@@ -1,8 +1,6 @@
-import { join } from 'node:path';
 import { startDesktopShell } from './desktopShell';
+import { resolveDesktopRuntimePaths } from './runtimePaths';
 
 // This entry is bundled as CommonJS; __dirname is owned by Electron Main.
-startDesktopShell(
-  join(__dirname, '../preload/index.cjs'),
-  join(__dirname, '../renderer/index.js'),
-);
+const runtime = resolveDesktopRuntimePaths(__dirname);
+startDesktopShell(runtime.preloadBundlePath, runtime.rendererBundlePath);
