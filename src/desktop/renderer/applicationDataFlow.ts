@@ -1,6 +1,7 @@
 import type { EngineeringAnalysisResult } from '../../engineering/core/engineeringAnalysis';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { EngineeringAnalysisIpcResponse } from '../ipc/engineeringAnalysisIpc';
+import type { EngineeringRunLoadIpcResponse } from '../ipc/engineeringRunIpc';
 import { createEngineeringAnalysisPresentation, type EngineeringAnalysisPresentation } from './analysisPresentation';
 
 export type AnalysisSessionStatus = 'IDLE' | 'READY' | 'RUNNING' | 'SUCCEEDED' | 'REJECTED' | 'STALE';
@@ -15,38 +16,15 @@ export interface ApplicationDataFlowState {
   readonly isStale: boolean;
 }
 
-function freezeInput(input: SimulationRunInput): Readonly<SimulationRunInput> {
-  return Object.freeze(structuredClone(input));
-}
+function freezeInput(input: SimulationRunInput): Readonly<SimulationRunInput> { return Object.freeze(structuredClone(input)); }
 
-export function createApplicationDataFlowState(
-  analysis?: EngineeringAnalysisResult,
-): Readonly<ApplicationDataFlowState> {
+export function createApplicationDataFlowState(analysis?: EngineeringAnalysisResult): Readonly<ApplicationDataFlowState> {
   const presentation = analysis ? createEngineeringAnalysisPresentation(analysis) : null;
-  return Object.freeze({
-    status: analysis ? 'SUCCEEDED' : 'IDLE',
-    input: null,
-    analysis: presentation,
-    activeRunId: presentation?.runId ?? null,
-    activeInputSnapshotHash: presentation?.inputSnapshotHash ?? null,
-    errorCode: null,
-    isStale: false,
-  });
+  return Object.freeze({ status: analysis ? 'SUCCEEDED' : 'IDLE', input: null, analysis: presentation, activeRunId: presentation?.runId ?? null, activeInputSnapshotHash: presentation?.inputSnapshotHash ?? null, errorCode: null, isStale: false });
 }
 
-export function setAnalysisInput(
-  state: Readonly<ApplicationDataFlowState>,
-  input: SimulationRunInput,
-): Readonly<ApplicationDataFlowState> {
-  return Object.freeze({
-    status: state.analysis ? 'STALE' : 'READY',
-    input: freezeInput(input),
-    analysis: state.analysis,
-    activeRunId: state.activeRunId,
-    activeInputSnapshotHash: state.activeInputSnapshotHash,
-    errorCode: null,
-    isStale: state.analysis !== null,
-  });
+export function setAnalysisInput(state: Readonly<ApplicationDataFlowState>, input: SimulationRunInput): Readonly<ApplicationDataFlowState> {
+  return Object.freeze({ status: state.analysis ? 'STALE' : 'READY', input: freezeInput(input), analysis: state.analysis, activeRunId: state.activeRunId, activeInputSnapshotHash: state.activeInputSnapshotHash, errorCode: null, isStale: state.analysis !== null });
 }
 
 export function markAnalysisRunning(state: Readonly<ApplicationDataFlowState>): Readonly<ApplicationDataFlowState> {
@@ -54,33 +32,23 @@ export function markAnalysisRunning(state: Readonly<ApplicationDataFlowState>): 
   return Object.freeze({ ...state, status: 'RUNNING', errorCode: null });
 }
 
-export function applyEngineeringAnalysisResponse(
-  state: Readonly<ApplicationDataFlowState>,
-  response: EngineeringAnalysisIpcResponse,
-): Readonly<ApplicationDataFlowState> {
+export function applyEngineeringAnalysisResponse(state: Readonly<ApplicationDataFlowState>, response: EngineeringAnalysisIpcResponse): Readonly<ApplicationDataFlowState> {
   if (!state.input) throw new Error('APPLICATION-DATA-FLOW-INPUT-002');
-  if (response.status === 'REJECTED') {
-    return Object.freeze({
-      ...state,
-      status: 'REJECTED',
-      analysis: null,
-      activeRunId: null,
-      activeInputSnapshotHash: null,
-      errorCode: response.errorCode,
-      isStale: false,
-    });
-  }
-
+  if (response.status === 'REJECTED') return Object.freeze({ ...state, status: 'REJECTED', analysis: null, activeRunId: null, activeInputSnapshotHash: null, errorCode: response.errorCode, isStale: false });
   if (response.result.runId !== state.input.runId) throw new Error('APPLICATION-DATA-FLOW-RUN-001');
   const analysis = createEngineeringAnalysisPresentation(response.result);
+  return Object.freeze({ ...state, status: 'SUCCEEDED', analysis, activeRunId: analysis.runId, activeInputSnapshotHash: analysis.inputSnapshotHash, errorCode: null, isStale: false });
+}
+
+export function hydratePersistedEngineeringRun(response: EngineeringRunLoadIpcResponse): Readonly<ApplicationDataFlowState> {
+  if (response.status !== 'SUCCESS') throw new Error(response.status === 'NOT_FOUND' ? 'APPLICATION-DATA-FLOW-LOAD-404' : response.errorCode);
+  if (response.input.runId !== response.result.runId) throw new Error('APPLICATION-DATA-FLOW-LOAD-RUN-001');
+  if (response.input.engineVersion !== response.result.engineVersion) throw new Error('APPLICATION-DATA-FLOW-LOAD-ENGINE-001');
+  const analysis = createEngineeringAnalysisPresentation(response.result);
   return Object.freeze({
-    ...state,
-    status: 'SUCCEEDED',
-    analysis,
-    activeRunId: analysis.runId,
-    activeInputSnapshotHash: analysis.inputSnapshotHash,
-    errorCode: null,
-    isStale: false,
+    status: 'SUCCEEDED', input: freezeInput(response.input), analysis,
+    activeRunId: analysis.runId, activeInputSnapshotHash: analysis.inputSnapshotHash,
+    errorCode: null, isStale: false,
   });
 }
 
