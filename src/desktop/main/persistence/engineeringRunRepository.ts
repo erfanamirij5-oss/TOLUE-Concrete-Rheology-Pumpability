@@ -13,9 +13,19 @@ export interface PersistedEngineeringRunRow {
   readonly method: 'tolue-engineering-analysis-orchestrator-v6';
 }
 
+export interface EngineeringRunHistoryItem {
+  readonly runId: string;
+  readonly engineVersion: string;
+  readonly createdAtIso: string;
+  readonly inputSnapshotHash: string | null;
+  readonly executionStatus: 'EXECUTED' | 'BLOCKED';
+  readonly completeness: 'complete' | 'incomplete';
+}
+
 export interface EngineeringRunRowStore {
   readonly upsertEngineeringRun: (row: Readonly<PersistedEngineeringRunRow>) => void;
   readonly readEngineeringRun: (runId: string) => Readonly<PersistedEngineeringRunRow> | null;
+  readonly listEngineeringRuns: () => readonly Readonly<PersistedEngineeringRunRow>[];
 }
 
 export interface PersistedEngineeringRun {
@@ -58,6 +68,16 @@ export function createEngineeringRunRepository(store: Readonly<EngineeringRunRow
         throw new Error('PERSISTENCE-RUN-ROW-INTEGRITY-001');
       }
       return Object.freeze({ input: Object.freeze(input), result: Object.freeze(result) });
+    },
+    listHistory(): readonly Readonly<EngineeringRunHistoryItem>[] {
+      return Object.freeze(store.listEngineeringRuns().map(row => Object.freeze({
+        runId: row.runId,
+        engineVersion: row.engineVersion,
+        createdAtIso: row.createdAtIso,
+        inputSnapshotHash: row.inputSnapshotHash,
+        executionStatus: row.executionStatus,
+        completeness: row.completeness,
+      })));
     },
   });
 }
