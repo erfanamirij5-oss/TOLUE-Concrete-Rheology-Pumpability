@@ -53,7 +53,7 @@ export function renderApplicationShell(
     if (section.id === 'project') renderProjectView(content);
     else if (section.id === 'materials') renderMaterialsView(content);
     else if (section.id === 'rheology') renderRheologyView(content);
-    else if (section.id === 'pipeline') renderPipelineView(content, analysis?.pipeline ?? undefined);
+    else if (section.id === 'pipeline') renderPipelineView(content, analysis?.pipeline ?? undefined, analysis?.pressureProfile ?? undefined);
     else if (section.id === 'pump') renderPumpView(content, analysis?.pump ?? undefined);
     else if (section.id === 'evidence') renderEvidenceView(content);
     else if (section.id === 'results') renderResultView(content, analysis?.results ?? undefined);
