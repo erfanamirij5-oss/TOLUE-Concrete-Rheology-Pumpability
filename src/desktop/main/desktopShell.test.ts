@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({
-  ready: vi.fn(), lock: vi.fn(), quit: vi.fn(), sandbox: vi.fn(), schemes: vi.fn(),
+  ready: vi.fn(), lock: vi.fn(), quit: vi.fn(), sandbox: vi.fn(), schemes: vi.fn(), getPath: vi.fn(),
   appOn: vi.fn(), options: vi.fn(), load: vi.fn(), show: vi.fn(), destroy: vi.fn(),
   on: vi.fn(), once: vi.fn(), open: vi.fn(), registerPdf: vi.fn(), registerAnalysis: vi.fn(), disposePdf: vi.fn(), disposeAnalysis: vi.fn(),
   request: vi.fn(), check: vi.fn(), filter: vi.fn(), protocol: vi.fn(), sessionOn: vi.fn(), error: vi.fn(), read: vi.fn(),
+  bootstrapPersistence: vi.fn(), closePersistence: vi.fn(),
 }));
 vi.mock('electron', () => ({
-  app: { whenReady: m.ready, requestSingleInstanceLock: m.lock, quit: m.quit, enableSandbox: m.sandbox, on: m.appOn },
+  app: { whenReady: m.ready, requestSingleInstanceLock: m.lock, quit: m.quit, enableSandbox: m.sandbox, on: m.appOn, getPath: m.getPath },
   protocol: { registerSchemesAsPrivileged: m.schemes }, dialog: { showErrorBox: m.error },
   session: { fromPartition: () => ({ setPermissionRequestHandler: m.request, setPermissionCheckHandler: m.check,
     webRequest: { onBeforeRequest: m.filter }, protocol: { handle: m.protocol }, on: m.sessionOn }) },
@@ -21,13 +22,15 @@ vi.mock('electron', () => ({
 vi.mock('node:fs/promises', () => ({ readFile: m.read }));
 vi.mock('./electronPdfAdapter', () => ({ registerEngineeringPdfIpc: m.registerPdf }));
 vi.mock('./electronAnalysisAdapter', () => ({ registerEngineeringAnalysisIpc: m.registerAnalysis }));
+vi.mock('./persistence/persistenceBootstrap', () => ({ bootstrapPersistence: m.bootstrapPersistence }));
 import { desktopResponse, DESKTOP_RENDERER_URL, DESKTOP_URL, startDesktopShell } from './desktopShell';
 const preload = process.platform === 'win32' ? 'C:\\tolue\\preload.cjs' : '/tolue/preload.cjs';
 const renderer = process.platform === 'win32' ? 'C:\\tolue\\renderer.js' : '/tolue/renderer.js';
 const rendererJs = 'globalThis.__tolueRenderer=true;';
 const flush = async () => { await new Promise(resolve => setTimeout(resolve, 0)); };
 beforeEach(() => {
-  vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.read.mockResolvedValue(rendererJs);
+  vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.read.mockResolvedValue(rendererJs); m.getPath.mockReturnValue('/tolue/user-data');
+  m.bootstrapPersistence.mockReturnValue({ databasePath: '/tolue/user-data/tolue-rheology.sqlite3', migration: { fromVersion: 0, toVersion: 1, appliedVersions: [1], method: 'tolue-persistence-migration-v2' }, close: m.closePersistence });
   m.load.mockResolvedValue(undefined); m.registerPdf.mockReturnValue(m.disposePdf); m.registerAnalysis.mockReturnValue(m.disposeAnalysis);
 });
 describe('secure desktop shell', () => {
@@ -45,11 +48,13 @@ describe('secure desktop shell', () => {
     }
     expect(desktopResponse(DESKTOP_URL, 'POST', rendererJs).status).toBe(404);
   });
-  it('waits for readiness, loads main-owned renderer asset and installs isolated window', async () => {
+  it('waits for readiness, bootstraps userData persistence, and installs isolated window', async () => {
     let resolveReady!: () => void;
     m.ready.mockReturnValue(new Promise<void>(resolve => { resolveReady = resolve; }));
     startDesktopShell(preload, renderer); expect(m.options).not.toHaveBeenCalled();
     resolveReady(); await flush();
+    expect(m.getPath).toHaveBeenCalledWith('userData');
+    expect(m.bootstrapPersistence).toHaveBeenCalledWith('/tolue/user-data');
     expect(m.read).toHaveBeenCalledWith(renderer, 'utf8');
     expect(m.sandbox).toHaveBeenCalledOnce();
     expect(m.options).toHaveBeenCalledWith(expect.objectContaining({ show: false, webPreferences: expect.objectContaining({
@@ -67,6 +72,8 @@ describe('secure desktop shell', () => {
     m.request.mock.calls[0]![0](null, 'camera', cb); expect(cb).toHaveBeenLastCalledWith(false);
     m.once.mock.calls.find(c => c[0] === 'closed')![1]();
     expect(m.disposePdf).toHaveBeenCalledOnce(); expect(m.disposeAnalysis).toHaveBeenCalledOnce();
+    m.appOn.mock.calls.find(c => c[0] === 'before-quit')![1]();
+    expect(m.closePersistence).toHaveBeenCalledOnce();
   });
   it('rejects relative main-owned asset paths and exits duplicate instance without a window', async () => {
     expect(() => startDesktopShell('relative.cjs', renderer)).toThrow('DESKTOP-PRELOAD-PATH-001');
@@ -74,14 +81,15 @@ describe('secure desktop shell', () => {
     m.lock.mockReturnValue(false); startDesktopShell(preload, renderer); await flush();
     expect(m.quit).toHaveBeenCalledOnce(); expect(m.options).not.toHaveBeenCalled();
   });
-  it('fails closed when renderer asset cannot be loaded or is empty', async () => {
-    m.read.mockRejectedValueOnce(new Error('private renderer path'));
+  it('fails closed when persistence bootstrap, renderer load, or renderer content fails', async () => {
+    m.bootstrapPersistence.mockImplementationOnce(() => { throw new Error('private database path'); });
+    startDesktopShell(preload, renderer); await flush();
+    expect(m.options).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
+    expect(JSON.stringify(m.error.mock.calls)).not.toContain('private database path');
+    vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.getPath.mockReturnValue('/tolue/user-data'); m.bootstrapPersistence.mockReturnValue({ databasePath: 'x', migration: {}, close: m.closePersistence }); m.read.mockRejectedValueOnce(new Error('private renderer path'));
     startDesktopShell(preload, renderer); await flush();
     expect(m.options).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
     expect(JSON.stringify(m.error.mock.calls)).not.toContain('private renderer path');
-    vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.read.mockResolvedValue('');
-    startDesktopShell(preload, renderer); await flush();
-    expect(m.options).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
   });
   it('disposes IPC on document load failure and contains native error details', async () => {
     m.load.mockRejectedValue(new Error('private filesystem detail'));
