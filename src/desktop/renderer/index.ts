@@ -7,17 +7,19 @@ export interface RendererPlatform {
   readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
   readonly loadEngineeringRun: TolueBridge['loadEngineeringRun'];
   readonly listEngineeringRuns: TolueBridge['listEngineeringRuns'];
+  readonly compareEngineeringRuns: TolueBridge['compareEngineeringRuns'];
   readonly exportEngineeringPdf: TolueBridge['exportEngineeringPdf'];
 }
 
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
-  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function') {
+  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.compareEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function') {
     throw new Error('RENDERER-BRIDGE-001');
   }
   return Object.freeze({
     executeEngineeringAnalysis: (input: SimulationRunInput) => bridge.executeEngineeringAnalysis(input),
     loadEngineeringRun: (runId: string) => bridge.loadEngineeringRun(runId),
     listEngineeringRuns: () => bridge.listEngineeringRuns(),
+    compareEngineeringRuns: (baselineRunId: string, candidateRunId: string) => bridge.compareEngineeringRuns(baselineRunId, candidateRunId),
     exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
   });
 }
@@ -30,6 +32,7 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
     executeEngineeringAnalysis: platform.executeEngineeringAnalysis,
     loadEngineeringRun: platform.loadEngineeringRun,
     listEngineeringRuns: platform.listEngineeringRuns,
+    compareEngineeringRuns: platform.compareEngineeringRuns,
     exportEngineeringPdf: platform.exportEngineeringPdf,
   });
   root.dataset.rendererReady = 'true';
