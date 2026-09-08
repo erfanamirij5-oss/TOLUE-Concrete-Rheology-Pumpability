@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { registerEngineeringAnalysisIpc } from './electronAnalysisAdapter';
 import { registerEngineeringPdfIpc } from './electronPdfAdapter';
+import { registerEngineeringRunLoadIpc } from './electronRunAdapter';
 import { bootstrapPersistence } from './persistence/persistenceBootstrap';
 import type { EngineeringRunRepository } from './persistence/engineeringRunRepository';
 
@@ -33,7 +34,7 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
   let engineeringRuns: Readonly<EngineeringRunRepository> | undefined;
   const failStartup = () => { dialog.showErrorBox('طلوع', 'راه‌اندازی محیط مهندسی انجام نشد. برنامه را دوباره اجرا کنید.'); app.quit(); };
   const open = async (): Promise<void> => {
-    if (!ready || opening || owner) return;
+    if (!ready || opening || owner || !engineeringRuns) return;
     opening = true;
     try {
       const win = new BrowserWindow({ width: 1200, height: 800, minWidth: 900, minHeight: 600, show: false, autoHideMenuBar: true, webPreferences: {
@@ -47,7 +48,8 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
       win.webContents.on('will-attach-webview', event => event.preventDefault());
       const disposePdf = registerEngineeringPdfIpc(win, DESKTOP_URL);
       const disposeAnalysis = registerEngineeringAnalysisIpc(win, DESKTOP_URL, engineeringRuns);
-      win.once('closed', () => { disposeAnalysis(); disposePdf(); owner = undefined; });
+      const disposeRunLoad = registerEngineeringRunLoadIpc(win, DESKTOP_URL, engineeringRuns);
+      win.once('closed', () => { disposeRunLoad(); disposeAnalysis(); disposePdf(); owner = undefined; });
       try { await win.loadURL(DESKTOP_URL); if (!win.isDestroyed()) win.show(); }
       catch { if (!win.isDestroyed()) win.destroy(); throw new Error('DESKTOP-LOAD-001'); }
     } finally { opening = false; }
