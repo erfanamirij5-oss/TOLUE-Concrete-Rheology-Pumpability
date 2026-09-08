@@ -5,16 +5,23 @@ import { renderApplicationShell } from './applicationShell';
 
 export interface RendererPlatform {
   readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
+  readonly loadEngineeringRun: TolueBridge['loadEngineeringRun'];
   readonly exportEngineeringPdf: TolueBridge['exportEngineeringPdf'];
 }
 
 /** Renderer receives only the narrow preload contract; privileged APIs stay outside. */
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
-  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.exportEngineeringPdf !== 'function') {
+  if (
+    !bridge ||
+    typeof bridge.executeEngineeringAnalysis !== 'function' ||
+    typeof bridge.loadEngineeringRun !== 'function' ||
+    typeof bridge.exportEngineeringPdf !== 'function'
+  ) {
     throw new Error('RENDERER-BRIDGE-001');
   }
   return Object.freeze({
     executeEngineeringAnalysis: (input: SimulationRunInput) => bridge.executeEngineeringAnalysis(input),
+    loadEngineeringRun: (runId: string) => bridge.loadEngineeringRun(runId),
     exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
   });
 }
