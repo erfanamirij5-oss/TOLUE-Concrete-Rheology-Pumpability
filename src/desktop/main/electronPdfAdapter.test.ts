@@ -47,17 +47,16 @@ describe('Electron PDF adapter', () => {
   it('returns cancellation without rendering', async () => { mock.save.mockResolvedValue({ canceled: true }); expect((await executeEngineeringPdfMainAdapter(buildEngineeringPdfIpcRequest(payload()), createElectronPdfPorts())).status).toBe('CANCELLED'); expect(mock.load).not.toHaveBeenCalled(); });
   it.each(['save', 'print', 'write'] as const)('contains %s errors', async port => { mock[port].mockRejectedValueOnce(new Error('secret path')); const result = await executeEngineeringPdfMainAdapter(buildEngineeringPdfIpcRequest(payload()), createElectronPdfPorts()); expect(result.status).toBe('FAILED'); expect(JSON.stringify(result)).not.toContain('secret'); });
   it('fails closed on empty bytes', async () => { mock.print.mockResolvedValueOnce(new Uint8Array()); expect((await executeEngineeringPdfMainAdapter(buildEngineeringPdfIpcRequest(payload()), createElectronPdfPorts())).status).toBe('FAILED'); expect(mock.write).not.toHaveBeenCalled(); });
-  it('forwards only fixed bridge operation through trusted main frame', async () => {
+  it('forwards fixed PDF operation through trusted main frame while bridge exposes only typed operations', async () => {
     const mainFrame = { url: 'app://tolue' }; const owner = { isDestroyed: () => false, webContents: { mainFrame } };
-    // Minimal Electron window double: only the authorization surface is exercised.
     const dispose = registerEngineeringPdfIpc(owner as unknown as Parameters<typeof registerEngineeringPdfIpc>[0], mainFrame.url);
     const [channel, handler] = mock.handle.mock.calls[0]!; expect(channel).toBe('tolue:engineering:pdf-export:v1');
     const bridge = createTolueBridge((_channel, request) => handler({ sender: owner.webContents, senderFrame: mainFrame }, request));
-    expect(Object.keys(bridge)).toEqual(['exportEngineeringPdf']); expect(Object.isFrozen(bridge)).toBe(true);
+    expect(Object.keys(bridge).sort()).toEqual(['executeEngineeringAnalysis', 'exportEngineeringPdf']); expect(Object.isFrozen(bridge)).toBe(true);
     expect((await bridge.exportEngineeringPdf(payload())).status).toBe('SUCCESS');
     expect((await handler({ sender: {}, senderFrame: mainFrame }, buildEngineeringPdfIpcRequest(payload()))).status).toBe('REJECTED');
     expect((await handler({ sender: owner.webContents, senderFrame: { url: mainFrame.url } }, buildEngineeringPdfIpcRequest(payload()))).status).toBe('REJECTED');
     dispose(); expect(mock.remove).toHaveBeenCalledWith(channel);
   });
-  it('exposes only the typed API, never raw ipcRenderer', async () => { await import('../preload/index'); expect(mock.expose).toHaveBeenCalledWith('tolue', { exportEngineeringPdf: expect.any(Function) }); });
+  it('exposes only the typed API, never raw ipcRenderer', async () => { await import('../preload/index'); expect(mock.expose).toHaveBeenCalledWith('tolue', { executeEngineeringAnalysis: expect.any(Function), exportEngineeringPdf: expect.any(Function) }); });
 });
