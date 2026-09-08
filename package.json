@@ -11,7 +11,7 @@
     "test": "vitest run",
     "build:desktop": "esbuild src/desktop/renderer/index.ts --bundle --platform=browser --format=iife --outfile=dist/desktop/renderer/index.js && esbuild src/desktop/main/electronPdfAdapter.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/main/electronPdfAdapter.cjs && esbuild src/desktop/preload/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload/index.cjs && esbuild src/desktop/main/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/main/index.cjs",
     "start:desktop": "npm run build:desktop && electron dist/desktop/main/index.cjs",
-    "package:win": "npm run build:desktop && electron-builder --win nsis --x64"
+    "package:win": "npm run build:desktop && npx --yes electron-builder@26.0.12 --win nsis --x64"
   },
   "build": {
     "appId": "ir.tolue.concrete.rheology.pumpability",
@@ -38,7 +38,6 @@
   },
   "devDependencies": {
     "electron": "44.2.0",
-    "electron-builder": "26.0.12",
     "esbuild": "0.28.2",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
