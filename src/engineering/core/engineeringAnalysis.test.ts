@@ -72,11 +72,15 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.simulation.runId).toBe(result.runId);
     expect(result.resultCenter.runId).toBe(result.runId);
     expect(result.diagnostics.runId).toBe(result.runId);
+    expect(result.pumpabilityDecision.runId).toBe(result.runId);
     expect(result.visualization3d.runId).toBe(result.runId);
     expect(result.resultCenter.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.diagnostics.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.visualization3d.inputSnapshotHash).toBe(result.inputSnapshotHash);
-    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v2');
+    expect(result.pumpabilityDecision.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
+    expect(result.pumpabilityDecision.stability).toBe('NOT_ASSESSED');
+    expect(result.pumpabilityDecision.blockageRisk).toBe('NOT_ASSESSED');
+    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v3');
   });
 
   it('executes a hydraulically complete run when pump pressure is insufficient and emits a critical diagnostic', () => {
@@ -92,6 +96,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.completeness).toBe('complete');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed pump-fail analysis');
     expect(result.simulation.pumpAssessment?.status).toBe('FAIL');
+    expect(result.pumpabilityDecision.status).toBe('FAIL_PRESSURE');
     expect(result.diagnostics.findings.some(f => f.kind === 'PUMP_PRESSURE_INSUFFICIENT' && f.severity === 'critical')).toBe(true);
   });
 
@@ -107,6 +112,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.simulation).toBeNull();
     expect(result.resultCenter).toBeNull();
     expect(result.diagnostics).toBeNull();
+    expect(result.pumpabilityDecision).toBeNull();
     expect(result.visualization3d).toBeNull();
   });
 
@@ -142,6 +148,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.simulation).toBeNull();
     expect(result.resultCenter).toBeNull();
     expect(result.diagnostics).toBeNull();
+    expect(result.pumpabilityDecision).toBeNull();
     expect(result.visualization3d).toBeNull();
     expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-001')).toBe(true);
   });
