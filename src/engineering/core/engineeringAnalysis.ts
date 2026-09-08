@@ -5,6 +5,7 @@ import { assessPumpabilityDecision, PumpabilityDecisionResult } from './pumpabil
 import { executeSimulationRun, SimulationRunInput, SimulationRunResult } from './simulationRun';
 import { buildEngineeringVisualization3DData, EngineeringVisualization3DData } from './visualization3d';
 import { buildFinalEngineeringOutput, FinalEngineeringOutput } from './finalEngineeringOutput';
+import { buildEngineeringReportExportBundle, EngineeringReportExportBundle } from './engineeringReportExport';
 
 export interface ExecutedEngineeringAnalysisResult {
   runId: string;
@@ -17,9 +18,10 @@ export interface ExecutedEngineeringAnalysisResult {
   diagnostics: DiagnosticsResult;
   pumpabilityDecision: PumpabilityDecisionResult;
   finalOutput: FinalEngineeringOutput;
+  reportExport: EngineeringReportExportBundle;
   visualization3d: EngineeringVisualization3DData;
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v5';
+  method: 'tolue-engineering-analysis-orchestrator-v6';
 }
 
 export interface BlockedEngineeringAnalysisResult {
@@ -33,9 +35,10 @@ export interface BlockedEngineeringAnalysisResult {
   diagnostics: null;
   pumpabilityDecision: null;
   finalOutput: null;
+  reportExport: null;
   visualization3d: null;
   completeness: 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v5';
+  method: 'tolue-engineering-analysis-orchestrator-v6';
 }
 
 export type EngineeringAnalysisResult = ExecutedEngineeringAnalysisResult | BlockedEngineeringAnalysisResult;
@@ -55,9 +58,10 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
       diagnostics: null,
       pumpabilityDecision: null,
       finalOutput: null,
+      reportExport: null,
       visualization3d: null,
       completeness: 'incomplete',
-      method: 'tolue-engineering-analysis-orchestrator-v5',
+      method: 'tolue-engineering-analysis-orchestrator-v6',
     };
   }
 
@@ -66,6 +70,7 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
   const resultCenter = buildEngineeringResultCenter(simulation, pumpabilityDecision);
   const diagnostics = diagnoseEngineeringResults(resultCenter, pumpabilityDecision);
   const finalOutput = buildFinalEngineeringOutput(simulation, resultCenter, diagnostics, pumpabilityDecision);
+  const reportExport = buildEngineeringReportExportBundle(finalOutput);
   const visualization3d = buildEngineeringVisualization3DData(simulation, resultCenter, diagnostics, pumpabilityDecision);
 
   if (
@@ -73,6 +78,7 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
     simulation.runId !== diagnostics.runId ||
     simulation.runId !== pumpabilityDecision.runId ||
     simulation.runId !== finalOutput.runId ||
+    simulation.runId !== reportExport.runId ||
     simulation.runId !== visualization3d.runId
   ) {
     throw new Error('Engineering analysis runId consistency invariant failed');
@@ -81,6 +87,7 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
   if (
     resultCenter.inputSnapshotHash !== diagnostics.inputSnapshotHash ||
     resultCenter.inputSnapshotHash !== finalOutput.traceability.inputSnapshotHash ||
+    resultCenter.inputSnapshotHash !== reportExport.inputSnapshotHash ||
     resultCenter.inputSnapshotHash !== visualization3d.inputSnapshotHash
   ) {
     throw new Error('Engineering analysis inputSnapshotHash consistency invariant failed');
@@ -89,6 +96,7 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
   if (
     simulation.engineVersion !== resultCenter.engineVersion ||
     simulation.engineVersion !== finalOutput.engineVersion ||
+    simulation.engineVersion !== reportExport.engineVersion ||
     simulation.engineVersion !== visualization3d.engineVersion
   ) {
     throw new Error('Engineering analysis engineVersion consistency invariant failed');
@@ -105,8 +113,9 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
     diagnostics,
     pumpabilityDecision,
     finalOutput,
+    reportExport,
     visualization3d,
     completeness: simulation.status,
-    method: 'tolue-engineering-analysis-orchestrator-v5',
+    method: 'tolue-engineering-analysis-orchestrator-v6',
   };
 }
