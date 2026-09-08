@@ -1,6 +1,7 @@
 import { diagnoseEngineeringResults, DiagnosticsResult } from './diagnostics';
 import { assessEngineeringReadiness, EngineeringReadinessResult } from './readinessGate';
 import { buildEngineeringResultCenter, EngineeringResultCenter } from './resultCenter';
+import { assessPumpabilityDecision, PumpabilityDecisionResult } from './pumpabilityDecision';
 import { executeSimulationRun, SimulationRunInput, SimulationRunResult } from './simulationRun';
 import { buildEngineeringVisualization3DData, EngineeringVisualization3DData } from './visualization3d';
 
@@ -13,9 +14,10 @@ export interface ExecutedEngineeringAnalysisResult {
   simulation: SimulationRunResult;
   resultCenter: EngineeringResultCenter;
   diagnostics: DiagnosticsResult;
+  pumpabilityDecision: PumpabilityDecisionResult;
   visualization3d: EngineeringVisualization3DData;
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v2';
+  method: 'tolue-engineering-analysis-orchestrator-v3';
 }
 
 export interface BlockedEngineeringAnalysisResult {
@@ -27,9 +29,10 @@ export interface BlockedEngineeringAnalysisResult {
   simulation: null;
   resultCenter: null;
   diagnostics: null;
+  pumpabilityDecision: null;
   visualization3d: null;
   completeness: 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v2';
+  method: 'tolue-engineering-analysis-orchestrator-v3';
 }
 
 export type EngineeringAnalysisResult = ExecutedEngineeringAnalysisResult | BlockedEngineeringAnalysisResult;
@@ -38,7 +41,8 @@ export type EngineeringAnalysisResult = ExecutedEngineeringAnalysisResult | Bloc
  * Single deterministic entry point for the current TOLUE Engineering Core.
  *
  * Execution order is fixed and auditable:
- * Readiness Gate -> SimulationRun -> EngineeringResultCenter -> Diagnostics -> 3D data contract.
+ * Readiness Gate -> SimulationRun -> EngineeringResultCenter -> Diagnostics ->
+ * Pumpability Decision -> 3D data contract.
  *
  * BLOCKED readiness is a hard execution boundary: no solver or downstream
  * engineering stage is invoked. PRELIMINARY and READY inputs may execute, and
@@ -57,18 +61,25 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
       simulation: null,
       resultCenter: null,
       diagnostics: null,
+      pumpabilityDecision: null,
       visualization3d: null,
       completeness: 'incomplete',
-      method: 'tolue-engineering-analysis-orchestrator-v2',
+      method: 'tolue-engineering-analysis-orchestrator-v3',
     };
   }
 
   const simulation = executeSimulationRun(input);
   const resultCenter = buildEngineeringResultCenter(simulation);
   const diagnostics = diagnoseEngineeringResults(resultCenter);
+  const pumpabilityDecision = assessPumpabilityDecision(simulation);
   const visualization3d = buildEngineeringVisualization3DData(simulation, resultCenter, diagnostics);
 
-  if (simulation.runId !== resultCenter.runId || simulation.runId !== diagnostics.runId || simulation.runId !== visualization3d.runId) {
+  if (
+    simulation.runId !== resultCenter.runId ||
+    simulation.runId !== diagnostics.runId ||
+    simulation.runId !== pumpabilityDecision.runId ||
+    simulation.runId !== visualization3d.runId
+  ) {
     throw new Error('Engineering analysis runId consistency invariant failed');
   }
 
@@ -92,8 +103,9 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
     simulation,
     resultCenter,
     diagnostics,
+    pumpabilityDecision,
     visualization3d,
     completeness: simulation.status,
-    method: 'tolue-engineering-analysis-orchestrator-v2',
+    method: 'tolue-engineering-analysis-orchestrator-v3',
   };
 }
