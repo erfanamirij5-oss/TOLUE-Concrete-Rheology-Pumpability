@@ -6,6 +6,7 @@ import { renderPipelineView } from './pipelineView';
 import { renderProjectView } from './projectView';
 import { renderPumpView } from './pumpView';
 import { renderRheologyView } from './rheologyView';
+import { renderResultView } from './resultView';
 
 const SECTION_DESCRIPTIONS: Readonly<Record<TolueSectionId, string>> = Object.freeze({
   project: 'تعریف و مدیریت زمینه پروژه و ورودی‌های سطح پروژه.',
@@ -93,19 +94,14 @@ export function renderApplicationShell(root: HTMLElement): void {
     heading.textContent = section.label;
     intro.textContent = SECTION_DESCRIPTIONS[section.id];
     content.replaceChildren();
-    if (section.id === 'project') {
-      renderProjectView(content);
-    } else if (section.id === 'materials') {
-      renderMaterialsView(content);
-    } else if (section.id === 'rheology') {
-      renderRheologyView(content);
-    } else if (section.id === 'pipeline') {
-      renderPipelineView(content);
-    } else if (section.id === 'pump') {
-      renderPumpView(content);
-    } else if (section.id === 'evidence') {
-      renderEvidenceView(content);
-    } else {
+    if (section.id === 'project') renderProjectView(content);
+    else if (section.id === 'materials') renderMaterialsView(content);
+    else if (section.id === 'rheology') renderRheologyView(content);
+    else if (section.id === 'pipeline') renderPipelineView(content);
+    else if (section.id === 'pump') renderPumpView(content);
+    else if (section.id === 'evidence') renderEvidenceView(content);
+    else if (section.id === 'results') renderResultView(content);
+    else {
       const placeholder = document.createElement('section');
       placeholder.textContent = 'این بخش در مرحله بعد به قراردادهای داده و خروجی‌های Engineering Core متصل خواهد شد.';
       placeholder.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
