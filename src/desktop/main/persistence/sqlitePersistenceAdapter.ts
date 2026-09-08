@@ -31,7 +31,7 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
         .run(migration.version, migratedAtIso);
       database.exec('COMMIT');
     } catch (error) {
-      try { database.exec('ROLLBACK'); } catch { /* preserve original migration failure */ }
+      try { database.exec('ROLLBACK'); } catch { }
       throw error;
     }
   };
@@ -52,27 +52,19 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
       .run(row.runId, row.engineVersion, row.createdAtIso, row.inputSnapshotHash, row.executionStatus, row.completeness, row.inputJson, row.resultJson, row.method);
   };
 
+  const rowSelect = `SELECT run_id AS runId, engine_version AS engineVersion, created_at_iso AS createdAtIso,
+    input_snapshot_hash AS inputSnapshotHash, execution_status AS executionStatus, completeness,
+    input_json AS inputJson, result_json AS resultJson, method FROM engineering_runs`;
+
   const readEngineeringRun = (runId: string): Readonly<PersistedEngineeringRunRow> | null => {
-    const row = database.prepare(`SELECT
-      run_id AS runId,
-      engine_version AS engineVersion,
-      created_at_iso AS createdAtIso,
-      input_snapshot_hash AS inputSnapshotHash,
-      execution_status AS executionStatus,
-      completeness,
-      input_json AS inputJson,
-      result_json AS resultJson,
-      method
-      FROM engineering_runs WHERE run_id = ?`).get(runId) as PersistedEngineeringRunRow | undefined;
+    const row = database.prepare(`${rowSelect} WHERE run_id = ?`).get(runId) as PersistedEngineeringRunRow | undefined;
     return row ? Object.freeze(row) : null;
   };
 
-  return Object.freeze({
-    databasePath,
-    readSchemaVersion,
-    applyMigrationAtomically,
-    upsertEngineeringRun,
-    readEngineeringRun,
-    close: () => database.close(),
-  });
+  const listEngineeringRuns = (): readonly Readonly<PersistedEngineeringRunRow>[] => {
+    const rows = database.prepare(`${rowSelect} ORDER BY created_at_iso DESC, run_id ASC`).all() as PersistedEngineeringRunRow[];
+    return Object.freeze(rows.map(row => Object.freeze(row)));
+  };
+
+  return Object.freeze({ databasePath, readSchemaVersion, applyMigrationAtomically, upsertEngineeringRun, readEngineeringRun, listEngineeringRuns, close: () => database.close() });
 }
