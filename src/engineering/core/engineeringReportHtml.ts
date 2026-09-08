@@ -1,4 +1,4 @@
-import { PersianEngineeringReportDocument } from './engineeringReportExport';
+import type { PersianEngineeringReportDocument } from './engineeringReportExport';
 
 export interface EngineeringReportHtmlExport {
   mediaType: 'text/html';
