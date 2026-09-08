@@ -1,4 +1,5 @@
 import { FinalEngineeringOutput, FinalEngineeringKeyResult } from './finalEngineeringOutput';
+import { EngineeringReportHtmlExport, renderPersianEngineeringReportHtml } from './engineeringReportHtml';
 
 export type EngineeringReportDirection = 'rtl';
 export type EngineeringReportLocale = 'fa-IR';
@@ -67,13 +68,14 @@ export interface EngineeringReportExportBundle {
   engineVersion: string;
   inputSnapshotHash: string;
   report: PersianEngineeringReportDocument;
+  html: EngineeringReportHtmlExport;
   json: {
     mediaType: 'application/json';
     encoding: 'utf-8';
     content: string;
     method: 'tolue-final-output-json-export-v1';
   };
-  method: 'tolue-engineering-report-export-bundle-v1';
+  method: 'tolue-engineering-report-export-bundle-v2';
 }
 
 const RESULT_LABELS_FA: Record<string, string> = {
@@ -184,17 +186,19 @@ export function serializeFinalEngineeringOutputJson(output: FinalEngineeringOutp
 
 export function buildEngineeringReportExportBundle(output: FinalEngineeringOutput): EngineeringReportExportBundle {
   const report = buildPersianEngineeringReportDocument(output);
+  const html = renderPersianEngineeringReportHtml(report);
   return {
     runId: output.runId,
     engineVersion: output.engineVersion,
     inputSnapshotHash: output.traceability.inputSnapshotHash,
     report,
+    html,
     json: {
       mediaType: 'application/json',
       encoding: 'utf-8',
       content: serializeFinalEngineeringOutputJson(output),
       method: 'tolue-final-output-json-export-v1',
     },
-    method: 'tolue-engineering-report-export-bundle-v1',
+    method: 'tolue-engineering-report-export-bundle-v2',
   };
 }
