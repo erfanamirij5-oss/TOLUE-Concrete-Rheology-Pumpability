@@ -23,7 +23,7 @@ export interface ExecutedEngineeringAnalysisResult {
   pdfExportRequest: EngineeringPdfExportRequest;
   visualization3d: EngineeringVisualization3DData;
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v7';
+  method: 'tolue-engineering-analysis-orchestrator-v6';
 }
 
 export interface BlockedEngineeringAnalysisResult {
@@ -41,7 +41,7 @@ export interface BlockedEngineeringAnalysisResult {
   pdfExportRequest: null;
   visualization3d: null;
   completeness: 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v7';
+  method: 'tolue-engineering-analysis-orchestrator-v6';
 }
 
 export type EngineeringAnalysisResult = ExecutedEngineeringAnalysisResult | BlockedEngineeringAnalysisResult;
@@ -65,7 +65,7 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
       pdfExportRequest: null,
       visualization3d: null,
       completeness: 'incomplete',
-      method: 'tolue-engineering-analysis-orchestrator-v7',
+      method: 'tolue-engineering-analysis-orchestrator-v6',
     };
   }
 
@@ -125,6 +125,6 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
     pdfExportRequest,
     visualization3d,
     completeness: simulation.status,
-    method: 'tolue-engineering-analysis-orchestrator-v7',
+    method: 'tolue-engineering-analysis-orchestrator-v6',
   };
 }
