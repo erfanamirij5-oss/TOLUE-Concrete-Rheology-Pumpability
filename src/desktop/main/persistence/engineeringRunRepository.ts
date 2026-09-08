@@ -23,7 +23,7 @@ export interface EngineeringRunHistoryItem {
 }
 
 export interface EngineeringRunRowStore {
-  readonly upsertEngineeringRun: (row: Readonly<PersistedEngineeringRunRow>) => void;
+  readonly insertEngineeringRun: (row: Readonly<PersistedEngineeringRunRow>) => void;
   readonly readEngineeringRun: (runId: string) => Readonly<PersistedEngineeringRunRow> | null;
   readonly listEngineeringRuns: () => readonly Readonly<PersistedEngineeringRunRow>[];
 }
@@ -41,21 +41,37 @@ function validatePair(input: Readonly<SimulationRunInput>, result: Readonly<Engi
   if (result.executionStatus === 'BLOCKED' && result.inputSnapshotHash !== null) throw new Error('PERSISTENCE-BLOCKED-HASH-001');
 }
 
+function rowFor(input: Readonly<SimulationRunInput>, result: Readonly<EngineeringAnalysisResult>): Readonly<PersistedEngineeringRunRow> {
+  return Object.freeze({
+    runId: result.runId,
+    engineVersion: result.engineVersion,
+    createdAtIso: input.createdAtIso,
+    inputSnapshotHash: result.inputSnapshotHash,
+    executionStatus: result.executionStatus,
+    completeness: result.completeness,
+    inputJson: JSON.stringify(input),
+    resultJson: JSON.stringify(result),
+    method: result.method,
+  });
+}
+
+function sameRow(left: Readonly<PersistedEngineeringRunRow>, right: Readonly<PersistedEngineeringRunRow>): boolean {
+  return left.runId === right.runId && left.engineVersion === right.engineVersion && left.createdAtIso === right.createdAtIso &&
+    left.inputSnapshotHash === right.inputSnapshotHash && left.executionStatus === right.executionStatus && left.completeness === right.completeness &&
+    left.inputJson === right.inputJson && left.resultJson === right.resultJson && left.method === right.method;
+}
+
 export function createEngineeringRunRepository(store: Readonly<EngineeringRunRowStore>) {
   return Object.freeze({
     save(input: Readonly<SimulationRunInput>, result: Readonly<EngineeringAnalysisResult>): void {
       validatePair(input, result);
-      store.upsertEngineeringRun(Object.freeze({
-        runId: result.runId,
-        engineVersion: result.engineVersion,
-        createdAtIso: input.createdAtIso,
-        inputSnapshotHash: result.inputSnapshotHash,
-        executionStatus: result.executionStatus,
-        completeness: result.completeness,
-        inputJson: JSON.stringify(input),
-        resultJson: JSON.stringify(result),
-        method: result.method,
-      }));
+      const next = rowFor(input, result);
+      const existing = store.readEngineeringRun(next.runId);
+      if (existing) {
+        if (sameRow(existing, next)) return;
+        throw new Error('PERSISTENCE-RUN-IMMUTABLE-001');
+      }
+      store.insertEngineeringRun(next);
     },
     findByRunId(runId: string): Readonly<PersistedEngineeringRun> | null {
       if (!runId.trim()) throw new Error('PERSISTENCE-RUN-ID-LOOKUP-001');
