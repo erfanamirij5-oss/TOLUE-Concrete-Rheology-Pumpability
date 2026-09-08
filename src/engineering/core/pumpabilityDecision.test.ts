@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assessPumpabilityDecision } from './pumpabilityDecision';
+import { ProjectQualifiedPumpabilityEvidenceInput } from './projectQualifiedPumpabilityEvidence';
 import { executeSimulationRun, SimulationRunInput } from './simulationRun';
 
 function input(availablePressurePa: number): SimulationRunInput {
@@ -22,7 +23,9 @@ function input(availablePressurePa: number): SimulationRunInput {
   };
 }
 
-function qualifiedEvidence(outcome: 'ACCEPTABLE' | 'UNACCEPTABLE') {
+function qualifiedEvidence(
+  outcome: 'ACCEPTABLE' | 'UNACCEPTABLE',
+): Omit<ProjectQualifiedPumpabilityEvidenceInput, 'targetFlowRateM3s' | 'domain'> {
   return {
     projectId: 'PROJECT-001',
     evidenceId: 'EVIDENCE-001',
@@ -33,7 +36,7 @@ function qualifiedEvidence(outcome: 'ACCEPTABLE' | 'UNACCEPTABLE') {
     qualifiedFlowRangeM3s: { min: 0.0005, max: 0.0015 },
     applicabilityStatement: 'Qualified only for the documented project route/material system.',
     limitations: ['Not transferable without independent qualification.'],
-  } as const;
+  };
 }
 
 describe('TOLUE pumpability decision v2', () => {
