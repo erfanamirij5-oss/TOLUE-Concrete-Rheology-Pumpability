@@ -32,7 +32,7 @@ function center(results: EngineeringResult[], completeness: EngineeringResultCen
     results,
     warnings: [],
     completeness,
-    method: 'tolue-engineering-result-center-v3',
+    method: 'tolue-engineering-result-center-v4',
   };
 }
 
