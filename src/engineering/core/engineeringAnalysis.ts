@@ -17,7 +17,7 @@ export interface ExecutedEngineeringAnalysisResult {
   pumpabilityDecision: PumpabilityDecisionResult;
   visualization3d: EngineeringVisualization3DData;
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v3';
+  method: 'tolue-engineering-analysis-orchestrator-v4';
 }
 
 export interface BlockedEngineeringAnalysisResult {
@@ -32,22 +32,11 @@ export interface BlockedEngineeringAnalysisResult {
   pumpabilityDecision: null;
   visualization3d: null;
   completeness: 'incomplete';
-  method: 'tolue-engineering-analysis-orchestrator-v3';
+  method: 'tolue-engineering-analysis-orchestrator-v4';
 }
 
 export type EngineeringAnalysisResult = ExecutedEngineeringAnalysisResult | BlockedEngineeringAnalysisResult;
 
-/**
- * Single deterministic entry point for the current TOLUE Engineering Core.
- *
- * Execution order is fixed and auditable:
- * Readiness Gate -> SimulationRun -> EngineeringResultCenter -> Diagnostics ->
- * Pumpability Decision -> 3D data contract.
- *
- * BLOCKED readiness is a hard execution boundary: no solver or downstream
- * engineering stage is invoked. PRELIMINARY and READY inputs may execute, and
- * their readiness classification remains attached to the returned analysis.
- */
 export function executeEngineeringAnalysis(input: SimulationRunInput): EngineeringAnalysisResult {
   const readiness = assessEngineeringReadiness(input);
 
@@ -64,15 +53,15 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
       pumpabilityDecision: null,
       visualization3d: null,
       completeness: 'incomplete',
-      method: 'tolue-engineering-analysis-orchestrator-v3',
+      method: 'tolue-engineering-analysis-orchestrator-v4',
     };
   }
 
   const simulation = executeSimulationRun(input);
-  const resultCenter = buildEngineeringResultCenter(simulation);
-  const diagnostics = diagnoseEngineeringResults(resultCenter);
   const pumpabilityDecision = assessPumpabilityDecision(simulation);
-  const visualization3d = buildEngineeringVisualization3DData(simulation, resultCenter, diagnostics);
+  const resultCenter = buildEngineeringResultCenter(simulation, pumpabilityDecision);
+  const diagnostics = diagnoseEngineeringResults(resultCenter, pumpabilityDecision);
+  const visualization3d = buildEngineeringVisualization3DData(simulation, resultCenter, diagnostics, pumpabilityDecision);
 
   if (
     simulation.runId !== resultCenter.runId ||
@@ -106,6 +95,6 @@ export function executeEngineeringAnalysis(input: SimulationRunInput): Engineeri
     pumpabilityDecision,
     visualization3d,
     completeness: simulation.status,
-    method: 'tolue-engineering-analysis-orchestrator-v3',
+    method: 'tolue-engineering-analysis-orchestrator-v4',
   };
 }
