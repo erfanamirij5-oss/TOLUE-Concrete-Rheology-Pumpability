@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import type { PersistenceMigrationStore } from './persistenceMigration';
+import type { PersistenceMigration } from './persistenceSchema';
 
 export interface SqlitePersistenceAdapter extends PersistenceMigrationStore {
   readonly databasePath: string;
@@ -19,18 +20,14 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
     return row.schema_version ?? 0;
   };
 
-  const executeMigrationTransaction = (
-    statements: readonly string[],
-    version: number,
-    migratedAtIso: string,
-  ): void => {
+  const applyMigrationAtomically = (migration: Readonly<PersistenceMigration>, migratedAtIso: string): void => {
     database.exec('BEGIN IMMEDIATE');
     try {
-      for (const statement of statements) database.exec(statement);
+      for (const statement of migration.statements) database.exec(statement);
       database.prepare(`INSERT INTO schema_meta (singleton_id, schema_version, migrated_at_iso)
         VALUES (1, ?, ?)
         ON CONFLICT(singleton_id) DO UPDATE SET schema_version=excluded.schema_version, migrated_at_iso=excluded.migrated_at_iso`)
-        .run(version, migratedAtIso);
+        .run(migration.version, migratedAtIso);
       database.exec('COMMIT');
     } catch (error) {
       try { database.exec('ROLLBACK'); } catch { /* preserve original migration failure */ }
@@ -41,7 +38,7 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
   return Object.freeze({
     databasePath,
     readSchemaVersion,
-    executeMigrationTransaction,
+    applyMigrationAtomically,
     close: () => database.close(),
   });
 }
