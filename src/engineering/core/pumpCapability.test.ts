@@ -49,4 +49,15 @@ describe('pump capability engine', () => {
     expect(r.status).toBe('INSUFFICIENT_DATA');
     expect(r.availablePressurePa).toBeNull();
   });
+
+  it('preserves a detached immutable copy of verified source points', () => {
+    const source = curve.map(point => ({ ...point }));
+    const r = assessPumpCapability({ targetFlowRateM3s: 0.010, requiredPressurePa: 10_000_000, pipelineCompleteness: 'complete', capabilityCurve: source, provenance: 'manufacturer_curve' });
+    expect(r.verifiedCapabilityCurve).toEqual(curve);
+    expect(r.verifiedCapabilityCurve).not.toBe(source);
+    expect(Object.isFrozen(r.verifiedCapabilityCurve)).toBe(true);
+    expect(Object.isFrozen(r.verifiedCapabilityCurve[0])).toBe(true);
+    source[0]!.availableConcretePressurePa = 1;
+    expect(r.verifiedCapabilityCurve[0]!.availableConcretePressurePa).toBe(14_000_000);
+  });
 });
