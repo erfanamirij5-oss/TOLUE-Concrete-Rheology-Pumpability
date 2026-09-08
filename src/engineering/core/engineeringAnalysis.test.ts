@@ -88,22 +88,29 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.diagnostics.runId).toBe(result.runId);
     expect(result.pumpabilityDecision.runId).toBe(result.runId);
     expect(result.finalOutput.runId).toBe(result.runId);
+    expect(result.reportExport.runId).toBe(result.runId);
     expect(result.visualization3d.runId).toBe(result.runId);
     expect(result.resultCenter.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.diagnostics.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.finalOutput.traceability.inputSnapshotHash).toBe(result.inputSnapshotHash);
+    expect(result.reportExport.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.visualization3d.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.pumpabilityDecision.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
     expect(result.resultCenter.results.find(r => r.id === 'pumpability.decisionStatus')?.value).toBe('PRESSURE_ONLY_ACCEPTABLE');
     expect(result.finalOutput.decision.qualificationScope).toBe('pressure_only');
     expect(result.finalOutput.renderTargets).toEqual(['desktop_ui', 'pdf_report', 'json_export']);
     expect(result.finalOutput.scientificClaim).toBe('derived_from_engineering_core_only');
+    expect(result.reportExport.report.locale).toBe('fa-IR');
+    expect(result.reportExport.report.direction).toBe('rtl');
+    expect(result.reportExport.report.scientificClaim).toBe('presentation_only_no_new_engineering_inference');
+    expect(JSON.parse(result.reportExport.json.content)).toEqual(result.finalOutput);
     expect(result.visualization3d.pumpabilityDecision?.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
     expect(result.resultCenter.method).toBe('tolue-engineering-result-center-v4');
     expect(result.diagnostics.method).toBe('tolue-diagnostics-v2');
     expect(result.finalOutput.method).toBe('tolue-final-engineering-output-v1');
+    expect(result.reportExport.method).toBe('tolue-engineering-report-export-bundle-v1');
     expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v2');
-    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v5');
+    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v6');
   });
 
   it('propagates project-qualified three-axis pumpability evidence into final reporting traceability', () => {
@@ -132,6 +139,9 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.blockageEvidence')).toBe(true);
     expect(result.finalOutput.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
     expect(result.finalOutput.traceability.sourceMethodIds).toContain('tolue-pumpability-decision-v2');
+    expect(result.reportExport.report.decision.overallStatus).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
+    expect(result.reportExport.report.decision.overallStatusFa).toContain('پروژه');
+    expect(result.reportExport.report.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
     expect(result.visualization3d.pumpabilityDecision).toEqual(expect.objectContaining({
       pressureFeasibility: 'PASS',
       stability: 'ACCEPTABLE',
@@ -152,6 +162,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.simulation.pumpAssessment?.status).toBe('FAIL');
     expect(result.pumpabilityDecision.status).toBe('FAIL_PRESSURE');
     expect(result.finalOutput.decision.qualificationScope).toBe('failed');
+    expect(result.reportExport.report.decision.overallStatusFa).toContain('فشار');
     expect(result.diagnostics.findings.some(f => f.kind === 'PUMP_PRESSURE_INSUFFICIENT' && f.severity === 'critical')).toBe(true);
   });
 
@@ -167,6 +178,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.diagnostics).toBeNull();
     expect(result.pumpabilityDecision).toBeNull();
     expect(result.finalOutput).toBeNull();
+    expect(result.reportExport).toBeNull();
     expect(result.visualization3d).toBeNull();
   });
 
