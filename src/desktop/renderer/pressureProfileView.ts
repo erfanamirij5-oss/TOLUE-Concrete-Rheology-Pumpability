@@ -9,6 +9,90 @@ function coordinate(value: number | null, unit: string): string {
   return value === null ? '—' : `${value} ${unit}`;
 }
 
+function renderPressureChart(
+  panel: HTMLElement,
+  presentation: Readonly<PressureProfilePresentation>,
+): void {
+  const drawable = presentation.points.filter(point =>
+    point.status === 'computed'
+    && point.positionM !== null
+    && point.remainingRequiredPressurePa !== null,
+  );
+  if (drawable.length === 0) return;
+
+  const width = 760;
+  const height = 280;
+  const padding = 36;
+  const maxX = Math.max(...drawable.map(point => point.positionM ?? 0), 1);
+  const pressures = drawable.map(point => point.remainingRequiredPressurePa ?? 0);
+  const minP = Math.min(...pressures, 0);
+  const maxP = Math.max(...pressures, 1);
+  const spanP = Math.max(maxP - minP, 1);
+  const x = (positionM: number) => padding + (positionM / maxX) * (width - 2 * padding);
+  const y = (pressurePa: number) => height - padding - ((pressurePa - minP) / spanP) * (height - 2 * padding);
+
+  const wrapper = document.createElement('div');
+  wrapper.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
+  wrapper.style.overflowX = 'auto';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'نمودار فشار باقی‌مانده در طول مسیر');
+  svg.style.width = '100%';
+  svg.style.minWidth = '620px';
+  svg.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
+  svg.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
+  svg.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
+
+  const axisX = document.createElementNS(svg.namespaceURI, 'line');
+  axisX.setAttribute('x1', String(padding)); axisX.setAttribute('y1', String(height - padding));
+  axisX.setAttribute('x2', String(width - padding)); axisX.setAttribute('y2', String(height - padding));
+  axisX.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border);
+  const axisY = document.createElementNS(svg.namespaceURI, 'line');
+  axisY.setAttribute('x1', String(padding)); axisY.setAttribute('y1', String(padding));
+  axisY.setAttribute('x2', String(padding)); axisY.setAttribute('y2', String(height - padding));
+  axisY.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border);
+  svg.append(axisX, axisY);
+
+  for (let i = 1; i < presentation.points.length; i += 1) {
+    const previous = presentation.points[i - 1]!;
+    const current = presentation.points[i]!;
+    if (
+      previous.status !== 'computed' || current.status !== 'computed'
+      || previous.positionM === null || current.positionM === null
+      || previous.remainingRequiredPressurePa === null || current.remainingRequiredPressurePa === null
+    ) continue;
+    const line = document.createElementNS(svg.namespaceURI, 'line');
+    line.setAttribute('x1', String(x(previous.positionM)));
+    line.setAttribute('y1', String(y(previous.remainingRequiredPressurePa)));
+    line.setAttribute('x2', String(x(current.positionM)));
+    line.setAttribute('y2', String(y(current.remainingRequiredPressurePa)));
+    line.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.focus);
+    line.setAttribute('stroke-width', '2');
+    svg.appendChild(line);
+  }
+
+  for (const point of drawable) {
+    const circle = document.createElementNS(svg.namespaceURI, 'circle');
+    circle.setAttribute('cx', String(x(point.positionM!)));
+    circle.setAttribute('cy', String(y(point.remainingRequiredPressurePa!)));
+    circle.setAttribute('r', '4');
+    circle.setAttribute('fill', TOLUE_DESIGN_TOKENS.color.focus);
+    const title = document.createElementNS(svg.namespaceURI, 'title');
+    title.textContent = `#${point.index} · ${point.segmentId ?? 'INLET'} · ${point.positionM} m · ${point.remainingRequiredPressurePa} Pa`;
+    circle.appendChild(title);
+    svg.appendChild(circle);
+  }
+
+  const caption = document.createElement('small');
+  caption.textContent = 'محور افقی: موقعیت هندسی معلوم (m) · محور عمودی: فشار باقی‌مانده موردنیاز (Pa). اتصال فقط بین نقاط مجاور computed رسم می‌شود.';
+  caption.style.display = 'block';
+  caption.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
+  caption.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+  wrapper.append(svg, caption);
+  panel.appendChild(wrapper);
+}
+
 export function renderPressureProfileView(
   root: HTMLElement,
   presentation?: Readonly<PressureProfilePresentation>,
@@ -58,6 +142,7 @@ export function renderPressureProfileView(
     card.append(key, val); summary.appendChild(card);
   }
   panel.appendChild(summary);
+  renderPressureChart(panel, presentation);
 
   const table = document.createElement('div');
   table.style.display = 'grid';
