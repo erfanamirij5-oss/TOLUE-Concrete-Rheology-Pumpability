@@ -1,15 +1,22 @@
 import type { EngineeringPdfExportRequest } from '../../engineering/core/engineeringPdfExport';
+import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { TolueBridge } from '../preload/tolueBridge';
 import { renderApplicationShell } from './applicationShell';
 
 export interface RendererPlatform {
+  readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
   readonly exportEngineeringPdf: TolueBridge['exportEngineeringPdf'];
 }
 
 /** Renderer receives only the narrow preload contract; privileged APIs stay outside. */
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
-  if (!bridge || typeof bridge.exportEngineeringPdf !== 'function') throw new Error('RENDERER-BRIDGE-001');
-  return Object.freeze({ exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request) });
+  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.exportEngineeringPdf !== 'function') {
+    throw new Error('RENDERER-BRIDGE-001');
+  }
+  return Object.freeze({
+    executeEngineeringAnalysis: (input: SimulationRunInput) => bridge.executeEngineeringAnalysis(input),
+    exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
+  });
 }
 
 export function bootstrapRenderer(target: Document = document): Readonly<RendererPlatform> {
