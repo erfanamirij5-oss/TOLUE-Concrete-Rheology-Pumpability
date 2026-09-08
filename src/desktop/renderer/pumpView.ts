@@ -1,5 +1,6 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import type { PumpCapabilityPresentation } from './pumpPresentation';
+import { renderPumpFlowPressureCurveView } from './pumpFlowPressureCurveView';
 import { renderPumpPressureChartView } from './pumpPressureChartView';
 
 function pressureText(value: number | null): string {
@@ -32,6 +33,7 @@ export function renderPumpView(root: HTMLElement, result?: Readonly<PumpCapabili
     panel.appendChild(empty);
     root.appendChild(panel);
     renderPumpPressureChartView(root);
+    renderPumpFlowPressureCurveView(root);
     return;
   }
 
@@ -68,4 +70,5 @@ export function renderPumpView(root: HTMLElement, result?: Readonly<PumpCapabili
   panel.appendChild(grid);
   root.appendChild(panel);
   renderPumpPressureChartView(root, result);
+  renderPumpFlowPressureCurveView(root, result);
 }
