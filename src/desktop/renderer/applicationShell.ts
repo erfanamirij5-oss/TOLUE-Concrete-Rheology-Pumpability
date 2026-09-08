@@ -2,7 +2,7 @@ import type { EngineeringPdfExportRequest } from '../../engineering/core/enginee
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { EngineeringAnalysisIpcResponse } from '../ipc/engineeringAnalysisIpc';
 import type { EngineeringRunHistoryIpcResponse, EngineeringRunLoadIpcResponse } from '../ipc/engineeringRunIpc';
-import { createApplicationDataFlowState, hydratePersistedEngineeringRun, type ApplicationDataFlowState } from './applicationDataFlow';
+import { createApplicationDataFlowState, getExportablePdfRequest, hydratePersistedEngineeringRun, type ApplicationDataFlowState } from './applicationDataFlow';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { renderDiagnosticsView } from './diagnosticsView';
 import { renderEvidenceView } from './evidenceView';
@@ -121,6 +121,17 @@ export function renderApplicationShell(
       : 'صفحات خروجی تا دریافت EngineeringAnalysisResult معتبر، داده مهندسی تولید نمی‌کنند.';
   };
 
+  const exportActiveEngineeringPdf = async (): Promise<unknown> => {
+    if (!actions) throw new Error('APPLICATION-PDF-ACTION-001');
+    const request = getExportablePdfRequest(sessionState);
+    if (!request) throw new Error('APPLICATION-PDF-ACTIVE-RUN-001');
+    const report = sessionState.analysis?.report;
+    if (!report || report.runId !== request.runId) throw new Error('APPLICATION-PDF-ACTIVE-RUN-002');
+    if (report.inputSnapshotHash !== request.inputSnapshotHash) throw new Error('APPLICATION-PDF-ACTIVE-HASH-001');
+    if (report.engineVersion !== request.engineVersion) throw new Error('APPLICATION-PDF-ACTIVE-ENGINE-001');
+    return actions.exportEngineeringPdf(request);
+  };
+
   const renderSection = (): void => {
     const section = TOLUE_SECTIONS.find(item => item.id === navigationState.activeSection);
     if (!section) throw new Error('RENDERER-NAV-001');
@@ -137,7 +148,7 @@ export function renderApplicationShell(
     else if (section.id === 'visualization') renderVisualization3DView(content, analysis?.visualization3d ?? undefined);
     else if (section.id === 'results') renderResultView(content, analysis?.results ?? undefined);
     else if (section.id === 'diagnostics') renderDiagnosticsView(content, analysis?.diagnostics ?? undefined);
-    else if (section.id === 'report') renderReportView(content, analysis?.report ?? undefined, actions);
+    else if (section.id === 'report') renderReportView(content, analysis?.report ?? undefined, actions ? { exportActiveEngineeringPdf } : undefined);
     for (const element of Array.from(navigation.querySelectorAll('button'))) {
       const active = element.dataset.section === navigationState.activeSection;
       element.setAttribute('aria-current', active ? 'page' : 'false');
