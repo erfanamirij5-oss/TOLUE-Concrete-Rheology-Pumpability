@@ -52,11 +52,18 @@ describe('Electron PDF adapter', () => {
     const dispose = registerEngineeringPdfIpc(owner as unknown as Parameters<typeof registerEngineeringPdfIpc>[0], mainFrame.url);
     const [channel, handler] = mock.handle.mock.calls[0]!; expect(channel).toBe('tolue:engineering:pdf-export:v1');
     const bridge = createTolueBridge((_channel, request) => handler({ sender: owner.webContents, senderFrame: mainFrame }, request));
-    expect(Object.keys(bridge).sort()).toEqual(['executeEngineeringAnalysis', 'exportEngineeringPdf']); expect(Object.isFrozen(bridge)).toBe(true);
+    expect(Object.keys(bridge).sort()).toEqual(['executeEngineeringAnalysis', 'exportEngineeringPdf', 'loadEngineeringRun']); expect(Object.isFrozen(bridge)).toBe(true);
     expect((await bridge.exportEngineeringPdf(payload())).status).toBe('SUCCESS');
     expect((await handler({ sender: {}, senderFrame: mainFrame }, buildEngineeringPdfIpcRequest(payload()))).status).toBe('REJECTED');
     expect((await handler({ sender: owner.webContents, senderFrame: { url: mainFrame.url } }, buildEngineeringPdfIpcRequest(payload()))).status).toBe('REJECTED');
     dispose(); expect(mock.remove).toHaveBeenCalledWith(channel);
   });
-  it('exposes only the typed API, never raw ipcRenderer', async () => { await import('../preload/index'); expect(mock.expose).toHaveBeenCalledWith('tolue', { executeEngineeringAnalysis: expect.any(Function), exportEngineeringPdf: expect.any(Function) }); });
+  it('exposes only the typed API, never raw ipcRenderer', async () => {
+    await import('../preload/index');
+    expect(mock.expose).toHaveBeenCalledWith('tolue', {
+      executeEngineeringAnalysis: expect.any(Function),
+      loadEngineeringRun: expect.any(Function),
+      exportEngineeringPdf: expect.any(Function),
+    });
+  });
 });
