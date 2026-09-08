@@ -9,7 +9,7 @@ export interface EngineeringResultCenter {
   results: EngineeringResult[];
   warnings: string[];
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-result-center-v2';
+  method: 'tolue-engineering-result-center-v3';
 }
 
 function stableSerialize(value: unknown): string {
@@ -68,26 +68,52 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
   const localProvenanceEntityIds = calibratedLocalSegments
     .map(segment => segment.provenanceEntityId)
     .filter((id): id is string => id !== null);
+  const localCalibrationIds = calibratedLocalSegments
+    .map(segment => segment.calibrationId)
+    .filter((id): id is string => id !== null);
   const localEvidenceStatus = localEvidenceStatusFor(run, localProvenanceEntityIds);
   const hydraulicEvidenceStatus = combineEvidenceStatus(baseHydraulicEvidenceStatus, localEvidenceStatus);
   const combinedEvidenceStatus = combineEvidenceStatus(hydraulicEvidenceStatus, pumpEvidenceStatus);
+  const mixedHydraulicResultClass = calibratedLocalSegments.length > 0 ? 'COMPOSITE_ENGINEERING_RESULT' as const : 'PHYSICAL_MODEL' as const;
 
-  const physicalModelCommon = {
-    resultClass: 'PHYSICAL_MODEL' as const,
+  const hydraulicCommon = {
+    resultClass: mixedHydraulicResultClass,
     methodVersion: run.engineVersion,
     referenceIds: [] as string[],
     standardEditionIds: [] as string[],
-    applicability: 'Current validated/candidate model domain and supplied input data.',
+    applicability: calibratedLocalSegments.length > 0
+      ? 'Composite result combining the current physical hydraulic model with project-calibrated local-loss data within each supplied calibration domain.'
+      : 'Current validated/candidate physical hydraulic model domain and supplied input data.',
     assumptions: [...run.assumptions],
     limitations: [...run.warnings],
     evidenceStatus: hydraulicEvidenceStatus,
     inputSnapshotHash: hash,
     sourceRunId: run.runId,
+    provenanceEntityIds: localProvenanceEntityIds,
+    calibrationIds: localCalibrationIds,
   };
 
-  results.push({ id: 'pipeline.requiredPressure', label: 'Required pipeline pressure', value: run.pipeline.requiredPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: run.pipeline.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
-  results.push({ id: 'pipeline.elevationPressure', label: 'Elevation pressure contribution', value: run.pipeline.elevationPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: 'candidate', ...physicalModelCommon });
-  results.push({ id: 'pressureProfile.peakRequiredPressure', label: 'Peak required pressure', value: run.pressureProfile.peakRequiredPressurePa, unit: 'Pa', methodId: run.pressureProfile.method, validationStatus: run.pressureProfile.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...physicalModelCommon });
+  results.push({ id: 'pipeline.requiredPressure', label: 'Required pipeline pressure', value: run.pipeline.requiredPressurePa, unit: 'Pa', methodId: run.pipeline.method, validationStatus: run.pipeline.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...hydraulicCommon });
+  results.push({ id: 'pressureProfile.peakRequiredPressure', label: 'Peak required pressure', value: run.pressureProfile.peakRequiredPressurePa, unit: 'Pa', methodId: run.pressureProfile.method, validationStatus: run.pressureProfile.completeness === 'complete' ? 'candidate' : 'insufficient_data', ...hydraulicCommon });
+
+  results.push({
+    id: 'pipeline.elevationPressure',
+    label: 'Elevation pressure contribution',
+    value: run.pipeline.elevationPressurePa,
+    unit: 'Pa',
+    resultClass: 'PHYSICAL_MODEL',
+    methodId: run.pipeline.method,
+    methodVersion: run.engineVersion,
+    referenceIds: [],
+    standardEditionIds: [],
+    applicability: 'Static elevation contribution computed from supplied density, gravity, and net elevation change.',
+    assumptions: [...run.assumptions],
+    limitations: [...run.warnings],
+    validationStatus: 'candidate',
+    evidenceStatus: baseHydraulicEvidenceStatus,
+    inputSnapshotHash: hash,
+    sourceRunId: run.runId,
+  });
 
   for (const segment of calibratedLocalSegments) {
     const segmentEvidenceStatus = segment.provenanceEntityId
@@ -144,6 +170,6 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
     results,
     warnings: [...run.warnings],
     completeness: run.status,
-    method: 'tolue-engineering-result-center-v2',
+    method: 'tolue-engineering-result-center-v3',
   };
 }
