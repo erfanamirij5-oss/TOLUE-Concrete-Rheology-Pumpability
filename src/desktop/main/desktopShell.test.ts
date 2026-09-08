@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({
   ready: vi.fn(), lock: vi.fn(), quit: vi.fn(), sandbox: vi.fn(), schemes: vi.fn(), getPath: vi.fn(),
   appOn: vi.fn(), options: vi.fn(), load: vi.fn(), show: vi.fn(), destroy: vi.fn(),
-  on: vi.fn(), once: vi.fn(), open: vi.fn(), registerPdf: vi.fn(), registerAnalysis: vi.fn(), disposePdf: vi.fn(), disposeAnalysis: vi.fn(),
+  on: vi.fn(), once: vi.fn(), open: vi.fn(), registerPdf: vi.fn(), registerAnalysis: vi.fn(), registerRunLoad: vi.fn(), disposePdf: vi.fn(), disposeAnalysis: vi.fn(), disposeRunLoad: vi.fn(),
   request: vi.fn(), check: vi.fn(), filter: vi.fn(), protocol: vi.fn(), sessionOn: vi.fn(), error: vi.fn(), read: vi.fn(),
   bootstrapPersistence: vi.fn(), closePersistence: vi.fn(), saveRun: vi.fn(), findRun: vi.fn(),
 }));
@@ -22,6 +22,7 @@ vi.mock('electron', () => ({
 vi.mock('node:fs/promises', () => ({ readFile: m.read }));
 vi.mock('./electronPdfAdapter', () => ({ registerEngineeringPdfIpc: m.registerPdf }));
 vi.mock('./electronAnalysisAdapter', () => ({ registerEngineeringAnalysisIpc: m.registerAnalysis }));
+vi.mock('./electronRunAdapter', () => ({ registerEngineeringRunLoadIpc: m.registerRunLoad }));
 vi.mock('./persistence/persistenceBootstrap', () => ({ bootstrapPersistence: m.bootstrapPersistence }));
 import { desktopResponse, DESKTOP_RENDERER_URL, DESKTOP_URL, startDesktopShell } from './desktopShell';
 const preload = process.platform === 'win32' ? 'C:\\tolue\\preload.cjs' : '/tolue/preload.cjs';
@@ -36,7 +37,7 @@ beforeEach(() => {
     engineeringRuns: { save: m.saveRun, findByRunId: m.findRun },
     close: m.closePersistence,
   });
-  m.load.mockResolvedValue(undefined); m.registerPdf.mockReturnValue(m.disposePdf); m.registerAnalysis.mockReturnValue(m.disposeAnalysis);
+  m.load.mockResolvedValue(undefined); m.registerPdf.mockReturnValue(m.disposePdf); m.registerAnalysis.mockReturnValue(m.disposeAnalysis); m.registerRunLoad.mockReturnValue(m.disposeRunLoad);
 });
 describe('secure desktop shell', () => {
   it('serves only exact allowlisted assets with restrictive CSP and Persian RTL', async () => {
@@ -67,6 +68,7 @@ describe('secure desktop shell', () => {
     }) }));
     expect(m.registerPdf).toHaveBeenCalledWith(expect.anything(), DESKTOP_URL);
     expect(m.registerAnalysis).toHaveBeenCalledWith(expect.anything(), DESKTOP_URL, expect.objectContaining({ save: m.saveRun, findByRunId: m.findRun }));
+    expect(m.registerRunLoad).toHaveBeenCalledWith(expect.anything(), DESKTOP_URL, expect.objectContaining({ save: m.saveRun, findByRunId: m.findRun }));
     expect(m.load).toHaveBeenCalledWith(DESKTOP_URL); expect(m.show).toHaveBeenCalledOnce();
     expect(m.open.mock.calls[0]![0]()).toEqual({ action: 'deny' });
     for (const [, handler] of m.on.mock.calls) { const event = { preventDefault: vi.fn() }; handler(event); expect(event.preventDefault).toHaveBeenCalledOnce(); }
@@ -76,7 +78,7 @@ describe('secure desktop shell', () => {
     expect(m.check.mock.calls[0]![0]()).toBe(false);
     m.request.mock.calls[0]![0](null, 'camera', cb); expect(cb).toHaveBeenLastCalledWith(false);
     m.once.mock.calls.find(c => c[0] === 'closed')![1]();
-    expect(m.disposePdf).toHaveBeenCalledOnce(); expect(m.disposeAnalysis).toHaveBeenCalledOnce();
+    expect(m.disposeRunLoad).toHaveBeenCalledOnce(); expect(m.disposePdf).toHaveBeenCalledOnce(); expect(m.disposeAnalysis).toHaveBeenCalledOnce();
     m.appOn.mock.calls.find(c => c[0] === 'before-quit')![1]();
     expect(m.closePersistence).toHaveBeenCalledOnce();
   });
@@ -99,7 +101,7 @@ describe('secure desktop shell', () => {
   it('disposes IPC on document load failure and contains native error details', async () => {
     m.load.mockRejectedValue(new Error('private filesystem detail'));
     startDesktopShell(preload, renderer); await flush();
-    expect(m.destroy).toHaveBeenCalledOnce(); expect(m.disposePdf).toHaveBeenCalledOnce(); expect(m.disposeAnalysis).toHaveBeenCalledOnce();
+    expect(m.destroy).toHaveBeenCalledOnce(); expect(m.disposeRunLoad).toHaveBeenCalledOnce(); expect(m.disposePdf).toHaveBeenCalledOnce(); expect(m.disposeAnalysis).toHaveBeenCalledOnce();
     expect(m.show).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
     expect(JSON.stringify(m.error.mock.calls)).not.toContain('private filesystem');
   });
@@ -107,6 +109,6 @@ describe('secure desktop shell', () => {
     m.load.mockReturnValue(new Promise<void>(() => {}));
     startDesktopShell(preload, renderer); await flush();
     m.appOn.mock.calls.find(c => c[0] === 'activate')![1](); await flush();
-    expect(m.options).toHaveBeenCalledOnce(); expect(m.registerPdf).toHaveBeenCalledOnce(); expect(m.registerAnalysis).toHaveBeenCalledOnce();
+    expect(m.options).toHaveBeenCalledOnce(); expect(m.registerPdf).toHaveBeenCalledOnce(); expect(m.registerAnalysis).toHaveBeenCalledOnce(); expect(m.registerRunLoad).toHaveBeenCalledOnce();
   });
 });
