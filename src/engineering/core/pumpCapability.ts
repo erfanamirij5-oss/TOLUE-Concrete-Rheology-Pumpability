@@ -22,6 +22,7 @@ export interface PumpCapabilityResult {
   status: 'PASS' | 'FAIL' | 'INSUFFICIENT_DATA';
   interpolation: 'exact_point' | 'linear_between_verified_points' | 'not_available';
   provenance: PumpCapabilityProvenance;
+  verifiedCapabilityCurve: readonly Readonly<PumpCapabilityPoint>[];
   method: 'tolue-pump-capability-v1';
 }
 
@@ -34,6 +35,10 @@ function validateCurve(points: PumpCapabilityPoint[]): void {
     if (point.flowRateM3s <= previous) throw new Error('capabilityCurve flow rates must be strictly increasing');
     previous = point.flowRateM3s;
   }
+}
+
+function freezeVerifiedCurve(points: PumpCapabilityPoint[]): readonly Readonly<PumpCapabilityPoint>[] {
+  return Object.freeze(points.map(point => Object.freeze({ ...point })));
 }
 
 export function availablePressureAtFlow(points: PumpCapabilityPoint[], targetFlowRateM3s: number): { pressurePa: number | null; interpolation: PumpCapabilityResult['interpolation'] } {
@@ -59,6 +64,7 @@ export function availablePressureAtFlow(points: PumpCapabilityPoint[], targetFlo
 
 export function assessPumpCapability(input: PumpCapabilityInput): PumpCapabilityResult {
   const available = availablePressureAtFlow(input.capabilityCurve, input.targetFlowRateM3s);
+  const verifiedCapabilityCurve = freezeVerifiedCurve(input.capabilityCurve);
 
   if (input.pipelineCompleteness !== 'complete' || input.requiredPressurePa === null || available.pressurePa === null) {
     return {
@@ -70,6 +76,7 @@ export function assessPumpCapability(input: PumpCapabilityInput): PumpCapability
       status: 'INSUFFICIENT_DATA',
       interpolation: available.interpolation,
       provenance: input.provenance,
+      verifiedCapabilityCurve,
       method: 'tolue-pump-capability-v1',
     };
   }
@@ -87,6 +94,7 @@ export function assessPumpCapability(input: PumpCapabilityInput): PumpCapability
     status: margin >= 0 ? 'PASS' : 'FAIL',
     interpolation: available.interpolation,
     provenance: input.provenance,
+    verifiedCapabilityCurve,
     method: 'tolue-pump-capability-v1',
   };
 }
