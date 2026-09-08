@@ -3,6 +3,7 @@ import { createNavigationState, TOLUE_SECTIONS, type TolueSectionId } from './na
 import { renderMaterialsView } from './materialView';
 import { renderPipelineView } from './pipelineView';
 import { renderProjectView } from './projectView';
+import { renderPumpView } from './pumpView';
 import { renderRheologyView } from './rheologyView';
 
 const SECTION_DESCRIPTIONS: Readonly<Record<TolueSectionId, string>> = Object.freeze({
@@ -99,6 +100,8 @@ export function renderApplicationShell(root: HTMLElement): void {
       renderRheologyView(content);
     } else if (section.id === 'pipeline') {
       renderPipelineView(content);
+    } else if (section.id === 'pump') {
+      renderPumpView(content);
     } else {
       const placeholder = document.createElement('section');
       placeholder.textContent = 'این بخش در مرحله بعد به قراردادهای داده و خروجی‌های Engineering Core متصل خواهد شد.';
