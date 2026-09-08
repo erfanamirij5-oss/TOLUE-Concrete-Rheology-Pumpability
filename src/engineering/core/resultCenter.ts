@@ -1,5 +1,6 @@
 import { EngineeringEvidenceStatus, EngineeringResult, validateEngineeringResult } from './engineeringResult';
 import { InputEvidenceField, assessInputEvidence } from './inputProvenance';
+import { PumpabilityDecisionResult } from './pumpabilityDecision';
 import { SimulationRunResult } from './simulationRun';
 
 export interface EngineeringResultCenter {
@@ -9,7 +10,7 @@ export interface EngineeringResultCenter {
   results: EngineeringResult[];
   warnings: string[];
   completeness: 'complete' | 'incomplete';
-  method: 'tolue-engineering-result-center-v3';
+  method: 'tolue-engineering-result-center-v4';
 }
 
 function stableSerialize(value: unknown): string {
@@ -59,7 +60,10 @@ function combineEvidenceStatus(...statuses: EngineeringEvidenceStatus[]): Engine
   return 'DOCUMENTED';
 }
 
-export function buildEngineeringResultCenter(run: SimulationRunResult): EngineeringResultCenter {
+export function buildEngineeringResultCenter(
+  run: SimulationRunResult,
+  pumpabilityDecision?: PumpabilityDecisionResult,
+): EngineeringResultCenter {
   const hash = inputSnapshotFingerprint(run.inputSnapshot);
   const results: EngineeringResult[] = [];
   const baseHydraulicEvidenceStatus = evidenceStatusFor(run, ['bulkRheology', 'lubricationLayerRheology', 'lubricationLayerThickness']);
@@ -161,6 +165,55 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
     results.push({ id: 'pump.pressureUtilization', label: 'Pump pressure utilization', value: run.pumpAssessment.pressureUtilization, unit: '1', resultClass: 'DERIVED_METRIC', methodId: run.pumpAssessment.method, validationStatus: status, evidenceStatus: combinedEvidenceStatus, ...pumpCommon });
   }
 
+  if (pumpabilityDecision) {
+    const qualifiedEvidence = [pumpabilityDecision.stabilityEvidence, pumpabilityDecision.blockageEvidence].filter(
+      (item): item is NonNullable<typeof item> => item !== null,
+    );
+
+    for (const evidence of qualifiedEvidence) {
+      results.push({
+        id: `pumpability.${evidence.domain}Evidence`,
+        label: evidence.domain === 'stability' ? 'Project-qualified stability evidence' : 'Project-qualified blockage evidence',
+        value: evidence.status === 'APPLICABLE' ? evidence.outcome : 'OUT_OF_DOMAIN',
+        unit: null,
+        resultClass: 'PROJECT_CALIBRATED_DATA',
+        methodId: evidence.method,
+        methodVersion: run.engineVersion,
+        referenceIds: [...evidence.referenceIds],
+        standardEditionIds: [],
+        applicability: evidence.applicabilityStatement,
+        assumptions: [...run.assumptions],
+        limitations: [...evidence.limitations],
+        validationStatus: evidence.status === 'APPLICABLE' ? 'candidate' : 'out_of_domain',
+        evidenceStatus: 'PRELIMINARY',
+        inputSnapshotHash: hash,
+        sourceRunId: run.runId,
+        provenanceEntityIds: [evidence.provenanceEntityId],
+      });
+    }
+
+    const decisionHasProjectEvidence = qualifiedEvidence.length > 0;
+    results.push({
+      id: 'pumpability.decisionStatus',
+      label: 'Pumpability decision status',
+      value: pumpabilityDecision.status,
+      unit: null,
+      resultClass: 'DERIVED_METRIC',
+      methodId: pumpabilityDecision.method,
+      methodVersion: run.engineVersion,
+      referenceIds: qualifiedEvidence.flatMap(item => item.referenceIds),
+      standardEditionIds: [],
+      applicability: 'Three-axis decision using pressure feasibility and only explicitly supplied project-qualified stability/blockage evidence within declared domains.',
+      assumptions: [...run.assumptions],
+      limitations: [...pumpabilityDecision.limitations],
+      validationStatus: pumpabilityDecision.status === 'INSUFFICIENT_DATA' ? 'insufficient_data' : 'candidate',
+      evidenceStatus: decisionHasProjectEvidence ? 'PRELIMINARY' : combinedEvidenceStatus,
+      inputSnapshotHash: hash,
+      sourceRunId: run.runId,
+      provenanceEntityIds: qualifiedEvidence.map(item => item.provenanceEntityId),
+    });
+  }
+
   for (const result of results) validateEngineeringResult(result);
 
   return {
@@ -170,6 +223,6 @@ export function buildEngineeringResultCenter(run: SimulationRunResult): Engineer
     results,
     warnings: [...run.warnings],
     completeness: run.status,
-    method: 'tolue-engineering-result-center-v3',
+    method: 'tolue-engineering-result-center-v4',
   };
 }
