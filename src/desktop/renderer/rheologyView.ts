@@ -1,4 +1,5 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
+import type { RheologyCurvesPresentation } from './rheologyCurvePresentation';
 import { createRheologyInputPresentation, type RheologyInputPresentation } from './rheologyPresentation';
 
 const EMPTY_RHEOLOGY_INPUTS: readonly Readonly<RheologyInputPresentation>[] = Object.freeze([
@@ -6,50 +7,11 @@ const EMPTY_RHEOLOGY_INPUTS: readonly Readonly<RheologyInputPresentation>[] = Ob
   createRheologyInputPresentation({ modelFamily: 'BINGHAM', inputId: 'plastic-viscosity', label: 'ویسکوزیته پلاستیک', value: null, unit: 'Pa·s' }),
 ]);
 
-export function renderRheologyView(root: HTMLElement, inputs: readonly Readonly<RheologyInputPresentation>[] = EMPTY_RHEOLOGY_INPUTS): void {
-  const panel = document.createElement('section');
-  panel.setAttribute('aria-label', 'ورودی‌های رئولوژی');
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const title = document.createElement('h2');
-  title.textContent = 'داده‌های رئولوژی';
-  title.style.marginTop = '0';
-
-  const note = document.createElement('p');
-  note.textContent = 'این صفحه فقط مقادیر و واحدهای ورودی/خروجی را نمایش می‌دهد. انتخاب مدل، اعتبارسنجی علمی و محاسبات در Engineering Core انجام می‌شوند.';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-
-  const grid = document.createElement('div');
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
-  grid.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-
-  for (const input of inputs) {
-    const card = document.createElement('article');
-    card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    card.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-    card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-
-    const label = document.createElement('strong');
-    label.textContent = input.label;
-    const value = document.createElement('div');
-    value.textContent = input.value === null ? `— ${input.unit}` : `${input.value} ${input.unit}`;
-    value.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    value.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
-
-    const model = document.createElement('small');
-    model.textContent = `Model contract: ${input.modelFamily}`;
-    model.style.display = 'block';
-    model.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    model.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    card.append(label, value, model);
-    grid.appendChild(card);
-  }
-
-  panel.append(title, note, grid);
-  root.appendChild(panel);
+export function renderRheologyView(root: HTMLElement, inputs: readonly Readonly<RheologyInputPresentation>[] = EMPTY_RHEOLOGY_INPUTS, curves?: Readonly<RheologyCurvesPresentation>): void {
+  const panel=document.createElement('section'); panel.setAttribute('aria-label','ورودی‌های رئولوژی'); panel.style.padding=TOLUE_DESIGN_TOKENS.spacing.lg; panel.style.background=TOLUE_DESIGN_TOKENS.color.surface; panel.style.border=`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`; panel.style.borderRadius=TOLUE_DESIGN_TOKENS.radius.md;
+  const title=document.createElement('h2'); title.textContent='داده‌ها و منحنی‌های رئولوژی'; title.style.marginTop='0'; const note=document.createElement('p'); note.textContent='منحنی‌ها فقط از نقاط محاسبه‌شده توسط Engineering Core نمایش داده می‌شوند. Renderer مدل، smoothing یا ضریب جدید ایجاد نمی‌کند.'; note.style.color=TOLUE_DESIGN_TOKENS.color.textMuted; panel.append(title,note);
+  const grid=document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns='repeat(auto-fit, minmax(220px, 1fr))'; grid.style.gap=TOLUE_DESIGN_TOKENS.spacing.md;
+  for(const input of inputs){const card=document.createElement('article'); card.style.padding=TOLUE_DESIGN_TOKENS.spacing.md; card.style.background=TOLUE_DESIGN_TOKENS.color.surfaceMuted; card.style.border=`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`; card.style.borderRadius=TOLUE_DESIGN_TOKENS.radius.sm; const label=document.createElement('strong'); label.textContent=input.label; const value=document.createElement('div'); value.textContent=input.value===null?`— ${input.unit}`:`${input.value} ${input.unit}`; value.style.marginTop=TOLUE_DESIGN_TOKENS.spacing.sm; value.style.fontFamily=TOLUE_DESIGN_TOKENS.typography.monoFamily; const model=document.createElement('small'); model.textContent=`Model contract: ${input.modelFamily}`; model.style.display='block'; model.style.marginTop=TOLUE_DESIGN_TOKENS.spacing.sm; model.style.color=TOLUE_DESIGN_TOKENS.color.textMuted; card.append(label,value,model); grid.appendChild(card);} panel.appendChild(grid);
+  if(curves){const chart=document.createElementNS('http://www.w3.org/2000/svg','svg'); chart.setAttribute('viewBox','0 0 640 320'); chart.setAttribute('role','img'); chart.setAttribute('aria-label','منحنی تنش برشی بر حسب نرخ برش'); chart.style.width='100%'; chart.style.marginTop=TOLUE_DESIGN_TOKENS.spacing.lg; const all=curves.series.flatMap(series=>series.points); const maxX=Math.max(...all.map(p=>p.shearRateSInv),1); const maxY=Math.max(...all.map(p=>p.shearStressPa),1); const sx=(x:number)=>40+(x/maxX)*560; const sy=(y:number)=>280-(y/maxY)*240; curves.series.forEach((series,seriesIndex)=>{const poly=document.createElementNS('http://www.w3.org/2000/svg','polyline'); poly.setAttribute('fill','none'); poly.setAttribute('stroke','currentColor'); poly.setAttribute('stroke-width',seriesIndex===0?'3':'2'); poly.setAttribute('stroke-dasharray',seriesIndex===0?'':'8 6'); poly.setAttribute('points',series.points.map(point=>`${sx(point.shearRateSInv)},${sy(point.shearStressPa)}`).join(' ')); chart.appendChild(poly);}); panel.appendChild(chart); const meta=document.createElement('small'); meta.textContent=`Core sampling: ${curves.samplingShearRatesSInv.join(', ')} s⁻¹ · ${curves.method}`; meta.style.display='block'; meta.style.marginTop=TOLUE_DESIGN_TOKENS.spacing.sm; meta.style.color=TOLUE_DESIGN_TOKENS.color.textMuted; panel.appendChild(meta);}
+  else {const empty=document.createElement('p'); empty.textContent='هنوز منحنی رئولوژی معتبر از تحلیل فعال دریافت نشده است.'; panel.appendChild(empty);} root.appendChild(panel);
 }
