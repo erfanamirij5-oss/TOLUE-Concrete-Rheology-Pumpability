@@ -1,4 +1,4 @@
-import type { EngineeringPdfExportRequest } from '../../engineering/engineeringPdfExport';
+import type { EngineeringPdfExportRequest } from '../../engineering/core/engineeringPdfExport';
 import type { TolueBridge } from '../preload/tolueBridge';
 
 export interface RendererPlatform {
