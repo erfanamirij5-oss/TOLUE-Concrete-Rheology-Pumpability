@@ -1,9 +1,8 @@
-import type { EngineeringPdfExportRequest } from '../../engineering/core/engineeringPdfExport';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import type { ReportExportPresentation } from './reportPresentation';
 
 export interface ReportExportActions {
-  readonly exportEngineeringPdf: (request: EngineeringPdfExportRequest) => Promise<unknown>;
+  readonly exportActiveEngineeringPdf: () => Promise<unknown>;
 }
 
 export function renderReportView(
@@ -23,7 +22,7 @@ export function renderReportView(
   title.style.marginTop = '0';
 
   const note = document.createElement('p');
-  note.textContent = 'HTML، JSON و PDF فقط از قراردادهای آماده‌شده توسط Engineering Core صادر می‌شوند. Renderer فایل‌سیستم یا printToPDF را مستقیماً کنترل نمی‌کند.';
+  note.textContent = 'HTML، JSON و PDF فقط از قراردادهای آماده‌شده توسط Engineering Core صادر می‌شوند. PDF فقط از Run فعال Session صادر می‌شود و Renderer فایل‌سیستم یا printToPDF را مستقیماً کنترل نمی‌کند.';
   note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
   panel.append(title, note);
 
@@ -68,9 +67,13 @@ export function renderReportView(
   }
   panel.appendChild(meta);
 
+  const exportStatus = document.createElement('p');
+  exportStatus.setAttribute('aria-live', 'polite');
+  exportStatus.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+
   const pdf = document.createElement('button');
   pdf.type = 'button';
-  pdf.textContent = 'صدور PDF مهندسی';
+  pdf.textContent = 'صدور PDF همین Run فعال';
   pdf.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
   pdf.style.padding = `${TOLUE_DESIGN_TOKENS.spacing.md} ${TOLUE_DESIGN_TOKENS.spacing.lg}`;
   pdf.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.focus}`;
@@ -79,9 +82,14 @@ export function renderReportView(
   pdf.disabled = !actions;
   if (actions) {
     pdf.addEventListener('click', () => {
-      void actions.exportEngineeringPdf(report.pdfRequest);
+      pdf.disabled = true;
+      exportStatus.textContent = 'در حال صدور PDF Run فعال…';
+      void actions.exportActiveEngineeringPdf()
+        .then(() => { exportStatus.textContent = 'درخواست صدور PDF Run فعال تکمیل شد.'; })
+        .catch(() => { exportStatus.textContent = 'صدور PDF رد شد؛ هویت Run/Hash یا وضعیت Session معتبر نیست.'; })
+        .finally(() => { pdf.disabled = false; });
     });
   }
-  panel.appendChild(pdf);
+  panel.append(pdf, exportStatus);
   root.appendChild(panel);
 }
