@@ -1,3 +1,4 @@
+import type { EngineeringPdfExportRequest } from '../../engineering/engineeringPdfExport';
 import type { TolueBridge } from '../preload/tolueBridge';
 
 export interface RendererPlatform {
@@ -14,7 +15,7 @@ export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<
     throw new Error('RENDERER-BRIDGE-001');
   }
   return Object.freeze({
-    exportEngineeringPdf: request => bridge.exportEngineeringPdf(request),
+    exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
   });
 }
 
