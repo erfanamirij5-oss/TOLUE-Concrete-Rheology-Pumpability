@@ -95,14 +95,16 @@ describe('Engineering Result provenance contract', () => {
     const available = center.results.find(result => result.id === 'pump.availablePressure');
     const margin = center.results.find(result => result.id === 'pump.pressureMargin');
     const utilization = center.results.find(result => result.id === 'pump.pressureUtilization');
+    const required = center.results.find(result => result.id === 'pipeline.requiredPressure');
 
     expect(available?.resultClass).toBe('SOURCE_DATA');
     expect(margin?.resultClass).toBe('DERIVED_METRIC');
     expect(utilization?.resultClass).toBe('DERIVED_METRIC');
     expect(utilization?.unit).toBe('1');
+    expect(required?.resultClass).toBe('PHYSICAL_MODEL');
   });
 
-  it('keeps project-calibrated local loss distinct and promotes evidence only when structured binding is documented', () => {
+  it('keeps project-calibrated local loss distinct and classifies mixed totals as composite', () => {
     const localEntityId = 'LOCAL-EVIDENCE-001';
     const input: SimulationRunInput = {
       ...semanticRunInput,
@@ -130,16 +132,21 @@ describe('Engineering Result provenance contract', () => {
     const center = buildEngineeringResultCenter(executeSimulationRun(input));
     const local = center.results.find(result => result.id === 'pipeline.segment.E1.calibratedLocalPressure');
     const required = center.results.find(result => result.id === 'pipeline.requiredPressure');
+    const peak = center.results.find(result => result.id === 'pressureProfile.peakRequiredPressure');
     const margin = center.results.find(result => result.id === 'pump.pressureMargin');
+    const elevation = center.results.find(result => result.id === 'pipeline.elevationPressure');
 
     expect(local?.resultClass).toBe('PROJECT_CALIBRATED_DATA');
-    expect(local?.resultClass).not.toBe('SOURCE_DATA');
-    expect(local?.resultClass).not.toBe('DERIVED_METRIC');
     expect(local?.provenanceEntityIds).toEqual([localEntityId]);
     expect(local?.calibrationIds).toEqual(['LOCAL-CAL-001']);
     expect(local?.evidenceStatus).toBe('DOCUMENTED');
+    expect(required?.resultClass).toBe('COMPOSITE_ENGINEERING_RESULT');
+    expect(peak?.resultClass).toBe('COMPOSITE_ENGINEERING_RESULT');
+    expect(required?.provenanceEntityIds).toEqual([localEntityId]);
+    expect(required?.calibrationIds).toEqual(['LOCAL-CAL-001']);
     expect(required?.evidenceStatus).toBe('DOCUMENTED');
     expect(margin?.evidenceStatus).toBe('DOCUMENTED');
+    expect(elevation?.resultClass).toBe('PHYSICAL_MODEL');
   });
 
   it('does not promote scientific validation merely because evidence is documented', () => {
