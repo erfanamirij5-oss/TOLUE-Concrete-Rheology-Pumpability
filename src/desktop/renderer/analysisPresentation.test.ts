@@ -8,7 +8,7 @@ describe('engineering analysis presentation data flow', () => {
       simulation: null, resultCenter: null, diagnostics: null, pumpabilityDecision: null, finalOutput: null,
       reportExport: null, pdfExportRequest: null, visualization3d: null, completeness: 'incomplete',
       method: 'tolue-engineering-analysis-orchestrator-v6',
-      readiness: { status: 'BLOCKED', canExecute: false, issues: [], method: 'tolue-engineering-readiness-gate-v1' },
+      readiness: { status: 'BLOCKED', canExecute: false, issues: [], method: 'tolue-engineering-readiness-gate-v2' },
     });
     expect(presentation.executionStatus).toBe('BLOCKED');
     expect(presentation.inputSnapshotHash).toBeNull();
