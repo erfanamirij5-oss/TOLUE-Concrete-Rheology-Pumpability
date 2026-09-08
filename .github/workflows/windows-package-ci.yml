@@ -15,7 +15,7 @@ jobs:
   windows-package:
     name: Build Windows NSIS Installer
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -43,11 +43,47 @@ jobs:
       - name: Verify installer artifact
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
           if ($installer.Count -ne 1) { throw "WINDOWS-PACKAGE-ARTIFACT-001: expected exactly one NSIS installer, found $($installer.Count)" }
           if ($installer[0].Length -le 0) { throw 'WINDOWS-PACKAGE-ARTIFACT-002: installer is empty' }
           Write-Host "Installer: $($installer[0].FullName)"
           Write-Host "Bytes: $($installer[0].Length)"
+
+      - name: Silent install smoke test
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)[0]
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\TOLUE Concrete Rheology & Pumpability'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "WINDOWS-INSTALL-SMOKE-001: installer exited with $($process.ExitCode)" }
+          $exe = Join-Path $installDir 'TOLUE Concrete Rheology & Pumpability.exe'
+          if (-not (Test-Path $exe -PathType Leaf)) { throw "WINDOWS-INSTALL-SMOKE-002: installed executable not found at $exe" }
+          if ((Get-Item $exe).Length -le 0) { throw 'WINDOWS-INSTALL-SMOKE-003: installed executable is empty' }
+          Write-Host "Installed executable: $exe"
+
+      - name: Validate installer shortcuts
+        shell: pwsh
+        run: |
+          $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'TOLUE Concrete Rheology & Pumpability.lnk'
+          $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\TOLUE Concrete Rheology & Pumpability.lnk'
+          if (-not (Test-Path $desktopShortcut -PathType Leaf)) { throw "WINDOWS-SHORTCUT-001: desktop shortcut not found at $desktopShortcut" }
+          if (-not (Test-Path $startMenuShortcut -PathType Leaf)) { throw "WINDOWS-SHORTCUT-002: Start Menu shortcut not found at $startMenuShortcut" }
+          $shell = New-Object -ComObject WScript.Shell
+          foreach ($shortcutPath in @($desktopShortcut, $startMenuShortcut)) {
+            $shortcut = $shell.CreateShortcut($shortcutPath)
+            if (-not (Test-Path $shortcut.TargetPath -PathType Leaf)) { throw "WINDOWS-SHORTCUT-003: shortcut target missing: $($shortcut.TargetPath)" }
+            if ([IO.Path]::GetFileName($shortcut.TargetPath) -ne 'TOLUE Concrete Rheology & Pumpability.exe') { throw "WINDOWS-SHORTCUT-004: unexpected shortcut target: $($shortcut.TargetPath)" }
+          }
+
+      - name: Launch installed executable smoke test
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\TOLUE Concrete Rheology & Pumpability\TOLUE Concrete Rheology & Pumpability.exe'
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "WINDOWS-LAUNCH-SMOKE-001: installed application exited early with code $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host 'Installed application remained alive through launch smoke window.'
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
