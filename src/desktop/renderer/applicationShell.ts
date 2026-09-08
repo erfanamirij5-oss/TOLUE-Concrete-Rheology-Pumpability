@@ -1,5 +1,6 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { createNavigationState, TOLUE_SECTIONS, type TolueSectionId } from './navigation';
+import { renderProjectView } from './projectView';
 
 const SECTION_DESCRIPTIONS: Readonly<Record<TolueSectionId, string>> = Object.freeze({
   project: 'تعریف و مدیریت زمینه پروژه و ورودی‌های سطح پروژه.',
@@ -62,6 +63,9 @@ export function renderApplicationShell(root: HTMLElement): void {
   intro.style.lineHeight = TOLUE_DESIGN_TOKENS.typography.lineHeight;
   intro.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
 
+  const content = document.createElement('div');
+  content.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.xl;
+
   const status = document.createElement('section');
   status.setAttribute('aria-label', 'وضعیت محیط');
   status.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.xl;
@@ -83,6 +87,19 @@ export function renderApplicationShell(root: HTMLElement): void {
     if (!section) throw new Error('RENDERER-NAV-001');
     heading.textContent = section.label;
     intro.textContent = SECTION_DESCRIPTIONS[section.id];
+    content.replaceChildren();
+    if (section.id === 'project') {
+      renderProjectView(content);
+    } else {
+      const placeholder = document.createElement('section');
+      placeholder.textContent = 'این بخش در مرحله بعد به قراردادهای داده و خروجی‌های Engineering Core متصل خواهد شد.';
+      placeholder.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
+      placeholder.style.background = TOLUE_DESIGN_TOKENS.color.surface;
+      placeholder.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
+      placeholder.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
+      placeholder.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+      content.appendChild(placeholder);
+    }
     for (const element of Array.from(navigation.querySelectorAll('button'))) {
       const active = element.dataset.section === state.activeSection;
       element.setAttribute('aria-current', active ? 'page' : 'false');
@@ -110,7 +127,7 @@ export function renderApplicationShell(root: HTMLElement): void {
   }
 
   sidebar.appendChild(navigation);
-  main.append(eyebrow, heading, intro, status);
+  main.append(eyebrow, heading, intro, content, status);
   layout.append(sidebar, main);
   root.appendChild(layout);
   renderSection();
