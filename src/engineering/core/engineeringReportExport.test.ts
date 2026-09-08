@@ -5,6 +5,7 @@ import {
   buildPersianEngineeringReportDocument,
   serializeFinalEngineeringOutputJson,
 } from './engineeringReportExport';
+import { renderPersianEngineeringReportHtml } from './engineeringReportHtml';
 
 function fixture(): FinalEngineeringOutput {
   return {
@@ -82,13 +83,38 @@ describe('TOLUE engineering report export', () => {
     expect(report.scientificClaim).toBe('presentation_only_no_new_engineering_inference');
   });
 
+  it('renders deterministic print-ready RTL HTML without changing report values', () => {
+    const report = buildPersianEngineeringReportDocument(fixture());
+    const a = renderPersianEngineeringReportHtml(report);
+    const b = renderPersianEngineeringReportHtml(report);
+
+    expect(a).toEqual(b);
+    expect(a.mediaType).toBe('text/html');
+    expect(a.encoding).toBe('utf-8');
+    expect(a.method).toBe('tolue-persian-engineering-report-html-v1');
+    expect(a.content).toContain('<html lang="fa" dir="rtl">');
+    expect(a.content).toContain('@page { size: A4;');
+    expect(a.content).toContain('1250000');
+    expect(a.content).toContain('fnv1a32:12345678');
+    expect(a.content).toContain('هیچ استنتاج، ضریب یا مدل مهندسی جدیدی اعمال نمی‌شود');
+  });
+
+  it('escapes dynamic HTML content instead of allowing markup injection', () => {
+    const output = fixture();
+    output.warnings = ['<script>alert("x")</script>'];
+    const html = renderPersianEngineeringReportHtml(buildPersianEngineeringReportDocument(output));
+
+    expect(html.content).not.toContain('<script>alert("x")</script>');
+    expect(html.content).toContain('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+  });
+
   it('serializes the exact final output as parseable UTF-8 JSON content', () => {
     const output = fixture();
     const text = serializeFinalEngineeringOutputJson(output);
     expect(JSON.parse(text)).toEqual(output);
   });
 
-  it('builds a deterministic export bundle with identity and traceability preserved', () => {
+  it('builds a deterministic export bundle with identity, HTML and traceability preserved', () => {
     const output = fixture();
     const a = buildEngineeringReportExportBundle(output);
     const b = buildEngineeringReportExportBundle(output);
@@ -99,8 +125,10 @@ describe('TOLUE engineering report export', () => {
     expect(a.inputSnapshotHash).toBe(output.traceability.inputSnapshotHash);
     expect(a.report.traceability.provenanceEntityIds).toEqual(['PROV-LOCAL-001']);
     expect(a.report.traceability.calibrationIds).toEqual(['LOCAL-CAL-001']);
+    expect(a.html.mediaType).toBe('text/html');
+    expect(a.html.content).toContain('گزارش مهندسی رئولوژی و پمپ‌پذیری بتن');
     expect(a.json.mediaType).toBe('application/json');
     expect(JSON.parse(a.json.content)).toEqual(output);
-    expect(a.method).toBe('tolue-engineering-report-export-bundle-v1');
+    expect(a.method).toBe('tolue-engineering-report-export-bundle-v2');
   });
 });
