@@ -1,10 +1,23 @@
-import { SimulationRunResult } from './simulationRun';
+import {
+  ProjectQualifiedPumpabilityEvidenceResult,
+  evaluateProjectQualifiedPumpabilityEvidence,
+} from './projectQualifiedPumpabilityEvidence';
+import { PumpabilityEvidenceSetInput, SimulationRunResult } from './simulationRun';
 
 export type PressureFeasibilityStatus = 'PASS' | 'FAIL' | 'INSUFFICIENT_DATA';
-export type EvidenceDomainStatus = 'NOT_ASSESSED';
+export type EvidenceDomainStatus =
+  | 'NOT_ASSESSED'
+  | 'OUT_OF_DOMAIN'
+  | 'ACCEPTABLE'
+  | 'UNACCEPTABLE';
+
 export type PumpabilityDecisionStatus =
+  | 'PROJECT_QUALIFIED_ACCEPTABLE'
+  | 'PARTIALLY_QUALIFIED_ACCEPTABLE'
   | 'PRESSURE_ONLY_ACCEPTABLE'
   | 'FAIL_PRESSURE'
+  | 'FAIL_STABILITY'
+  | 'FAIL_BLOCKAGE'
   | 'INSUFFICIENT_DATA';
 
 export interface PumpabilityDecisionResult {
@@ -12,44 +25,76 @@ export interface PumpabilityDecisionResult {
   pressureFeasibility: PressureFeasibilityStatus;
   stability: EvidenceDomainStatus;
   blockageRisk: EvidenceDomainStatus;
+  stabilityEvidence: ProjectQualifiedPumpabilityEvidenceResult | null;
+  blockageEvidence: ProjectQualifiedPumpabilityEvidenceResult | null;
   status: PumpabilityDecisionStatus;
   sourceMethodIds: string[];
   limitations: string[];
-  method: 'tolue-pumpability-decision-v1';
+  method: 'tolue-pumpability-decision-v2';
+}
+
+function evaluateDomain(
+  run: SimulationRunResult,
+  domain: 'stability' | 'blockage',
+  evidence: PumpabilityEvidenceSetInput['stability'] | PumpabilityEvidenceSetInput['blockage'] | undefined,
+): ProjectQualifiedPumpabilityEvidenceResult | null {
+  if (!evidence) return null;
+  return evaluateProjectQualifiedPumpabilityEvidence({
+    ...evidence,
+    domain,
+    targetFlowRateM3s: run.inputSnapshot.pipeline.targetFlowRateM3s,
+  });
+}
+
+function domainStatus(result: ProjectQualifiedPumpabilityEvidenceResult | null): EvidenceDomainStatus {
+  if (!result) return 'NOT_ASSESSED';
+  if (result.status === 'OUT_OF_DOMAIN') return 'OUT_OF_DOMAIN';
+  return result.outcome ?? 'NOT_ASSESSED';
 }
 
 /**
- * Conservative decision layer for the current validated Engineering Core.
+ * Conservative three-axis pumpability decision layer:
+ * pressure feasibility + project-qualified stability evidence +
+ * project-qualified blockage evidence.
  *
- * This function intentionally does NOT infer concrete stability or blockage risk
- * from pressure margin, slump, rheology, or any undocumented threshold. Until a
- * validated stability/blockage evidence path is implemented, those domains stay
- * NOT_ASSESSED. A pressure PASS therefore means pressure-only feasibility, not a
- * full pumpability certification.
+ * Stability/blockage evidence is never inferred from hydraulic pressure,
+ * rheology, slump, or undocumented thresholds. Project-qualified evidence is
+ * accepted only inside its declared flow domain, and no extrapolation occurs.
  */
 export function assessPumpabilityDecision(run: SimulationRunResult): PumpabilityDecisionResult {
   const pressureFeasibility: PressureFeasibilityStatus = run.pumpAssessment?.status ?? 'INSUFFICIENT_DATA';
+  const evidence = run.inputSnapshot.pumpabilityEvidence;
+  const stabilityEvidence = evaluateDomain(run, 'stability', evidence?.stability);
+  const blockageEvidence = evaluateDomain(run, 'blockage', evidence?.blockage);
+  const stability = domainStatus(stabilityEvidence);
+  const blockageRisk = domainStatus(blockageEvidence);
 
-  const status: PumpabilityDecisionStatus =
-    pressureFeasibility === 'FAIL'
-      ? 'FAIL_PRESSURE'
-      : pressureFeasibility === 'PASS'
-        ? 'PRESSURE_ONLY_ACCEPTABLE'
-        : 'INSUFFICIENT_DATA';
+  let status: PumpabilityDecisionStatus;
+  if (pressureFeasibility === 'INSUFFICIENT_DATA') status = 'INSUFFICIENT_DATA';
+  else if (pressureFeasibility === 'FAIL') status = 'FAIL_PRESSURE';
+  else if (stability === 'UNACCEPTABLE') status = 'FAIL_STABILITY';
+  else if (blockageRisk === 'UNACCEPTABLE') status = 'FAIL_BLOCKAGE';
+  else if (stability === 'ACCEPTABLE' && blockageRisk === 'ACCEPTABLE') status = 'PROJECT_QUALIFIED_ACCEPTABLE';
+  else if (stability === 'ACCEPTABLE' || blockageRisk === 'ACCEPTABLE') status = 'PARTIALLY_QUALIFIED_ACCEPTABLE';
+  else status = 'PRESSURE_ONLY_ACCEPTABLE';
+
+  const evidenceMethods = [stabilityEvidence?.method, blockageEvidence?.method].filter((id): id is string => Boolean(id));
 
   return {
     runId: run.runId,
     pressureFeasibility,
-    stability: 'NOT_ASSESSED',
-    blockageRisk: 'NOT_ASSESSED',
+    stability,
+    blockageRisk,
+    stabilityEvidence,
+    blockageEvidence,
     status,
-    sourceMethodIds: [...run.methods],
+    sourceMethodIds: [...new Set([...run.methods, ...evidenceMethods])],
     limitations: [
       'Pressure feasibility alone is not a complete pumpability assessment.',
-      'Concrete stability is not assessed because no validated stability evidence/model contract is active in this version.',
-      'Blockage risk is not assessed because no validated universal blockage model or project-calibrated blockage evidence contract is active in this version.',
-      'No arbitrary safety factor, marginal band, slump threshold, or blockage threshold is introduced by this decision layer.',
+      'Stability and blockage conclusions are project-qualified evidence statements, not universal concrete behavior models.',
+      'OUT_OF_DOMAIN evidence is not extrapolated and contributes no acceptable/unacceptable conclusion.',
+      'No arbitrary safety factor, marginal band, slump threshold, stability threshold, or blockage threshold is introduced by this decision layer.',
     ],
-    method: 'tolue-pumpability-decision-v1',
+    method: 'tolue-pumpability-decision-v2',
   };
 }
