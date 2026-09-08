@@ -1,18 +1,20 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
+import { createNavigationState, TOLUE_SECTIONS, type TolueSectionId } from './navigation';
 
-const NAVIGATION_ITEMS = Object.freeze([
-  'پروژه',
-  'مصالح',
-  'رئولوژی',
-  'خط لوله',
-  'پمپ',
-  'شواهد',
-  'نتایج',
-  'عیب‌یابی',
-  'گزارش',
-] as const);
+const SECTION_DESCRIPTIONS: Readonly<Record<TolueSectionId, string>> = Object.freeze({
+  project: 'تعریف و مدیریت زمینه پروژه و ورودی‌های سطح پروژه.',
+  materials: 'مدیریت داده‌های مصالح بدون ایجاد تفسیر مهندسی در لایه نمایش.',
+  rheology: 'ورودی و نمایش داده‌های رئولوژی؛ محاسبات فقط توسط Engineering Core انجام می‌شوند.',
+  pipeline: 'تعریف هندسه مسیر و نمایش اجزای فشار محاسبه‌شده توسط Core.',
+  pump: 'ثبت داده‌های قابلیت پمپ از منابع مجاز و نمایش تطابق فشار.',
+  evidence: 'نمایش شواهد پروژه‌ای، دامنه اعتبار و ردیابی منشأ داده.',
+  results: 'مرکز نتایج مهندسی تولیدشده توسط Engineering Core.',
+  diagnostics: 'نمایش تشخیص‌ها، هشدارها و محدودیت‌های تولیدشده توسط Core.',
+  report: 'آماده‌سازی و صدور گزارش از خروجی‌های معتبر بدون استنتاج جدید.',
+});
 
 export function renderApplicationShell(root: HTMLElement): void {
+  let state = createNavigationState();
   root.replaceChildren();
   root.setAttribute('dir', 'rtl');
   root.setAttribute('lang', 'fa');
@@ -43,23 +45,6 @@ export function renderApplicationShell(root: HTMLElement): void {
   navigation.style.display = 'grid';
   navigation.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
 
-  for (const item of NAVIGATION_ITEMS) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = item;
-    button.disabled = true;
-    button.style.textAlign = 'right';
-    button.style.padding = `${TOLUE_DESIGN_TOKENS.spacing.md} ${TOLUE_DESIGN_TOKENS.spacing.md}`;
-    button.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-    button.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    button.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    button.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    button.style.fontFamily = 'inherit';
-    button.setAttribute('aria-disabled', 'true');
-    navigation.appendChild(button);
-  }
-  sidebar.appendChild(navigation);
-
   const main = document.createElement('main');
   main.style.padding = TOLUE_DESIGN_TOKENS.spacing.xl;
 
@@ -69,12 +54,10 @@ export function renderApplicationShell(root: HTMLElement): void {
   eyebrow.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
 
   const heading = document.createElement('h1');
-  heading.textContent = 'طلوع؛ رئولوژی و پمپ‌پذیری بتن';
   heading.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.sm} 0 ${TOLUE_DESIGN_TOKENS.spacing.md}`;
   heading.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeXl;
 
   const intro = document.createElement('p');
-  intro.textContent = 'زیرساخت رابط مهندسی در حال آماده‌سازی است. منطق علمی و نتایج فقط از Engineering Core دریافت خواهند شد.';
   intro.style.maxWidth = '760px';
   intro.style.lineHeight = TOLUE_DESIGN_TOKENS.typography.lineHeight;
   intro.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
@@ -88,15 +71,47 @@ export function renderApplicationShell(root: HTMLElement): void {
   status.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
 
   const statusTitle = document.createElement('strong');
-  statusTitle.textContent = 'محیط دسکتاپ امن آماده است';
-
+  statusTitle.textContent = 'مرز ارائه فعال است';
   const statusText = document.createElement('p');
-  statusText.textContent = 'این لایه فقط نمایش و تعامل را مدیریت می‌کند و هیچ مدل، ضریب یا قاعده مهندسی جدیدی تولید نمی‌کند.';
+  statusText.textContent = 'این صفحه فقط ساختار تعامل را مدیریت می‌کند؛ هیچ مدل، ضریب، آستانه یا نتیجه مهندسی در Renderer تولید نمی‌شود.';
   statusText.style.marginBottom = '0';
   statusText.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-
   status.append(statusTitle, statusText);
+
+  const renderSection = (): void => {
+    const section = TOLUE_SECTIONS.find(item => item.id === state.activeSection);
+    if (!section) throw new Error('RENDERER-NAV-001');
+    heading.textContent = section.label;
+    intro.textContent = SECTION_DESCRIPTIONS[section.id];
+    for (const element of Array.from(navigation.querySelectorAll('button'))) {
+      const active = element.dataset.section === state.activeSection;
+      element.setAttribute('aria-current', active ? 'page' : 'false');
+      element.style.background = active ? TOLUE_DESIGN_TOKENS.color.surface : TOLUE_DESIGN_TOKENS.color.surfaceMuted;
+      element.style.color = active ? TOLUE_DESIGN_TOKENS.color.text : TOLUE_DESIGN_TOKENS.color.textMuted;
+      element.style.borderColor = active ? TOLUE_DESIGN_TOKENS.color.focus : TOLUE_DESIGN_TOKENS.color.border;
+    }
+  };
+
+  for (const section of TOLUE_SECTIONS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = section.label;
+    button.dataset.section = section.id;
+    button.style.textAlign = 'right';
+    button.style.padding = `${TOLUE_DESIGN_TOKENS.spacing.md} ${TOLUE_DESIGN_TOKENS.spacing.md}`;
+    button.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
+    button.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
+    button.style.fontFamily = 'inherit';
+    button.addEventListener('click', () => {
+      state = createNavigationState(section.id);
+      renderSection();
+    });
+    navigation.appendChild(button);
+  }
+
+  sidebar.appendChild(navigation);
   main.append(eyebrow, heading, intro, status);
   layout.append(sidebar, main);
   root.appendChild(layout);
+  renderSection();
 }
