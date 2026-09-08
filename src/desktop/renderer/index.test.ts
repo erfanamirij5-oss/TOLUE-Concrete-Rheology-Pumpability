@@ -20,20 +20,23 @@ const analysisInput = {
 } as SimulationRunInput;
 
 describe('renderer application boundary', () => {
-  it('exposes only typed analysis and PDF operations and preserves payload identity', async () => {
+  it('exposes only typed analysis, run load, and PDF operations and preserves payload identity', async () => {
     const executeEngineeringAnalysis = vi.fn().mockResolvedValue({ status: 'REJECTED', result: null, errorCode: 'TEST', method: 'tolue-engineering-analysis-ipc-response-v1' });
+    const loadEngineeringRun = vi.fn().mockResolvedValue({ status: 'NOT_FOUND', input: null, result: null, errorCode: null, method: 'tolue-engineering-run-load-ipc-response-v1' });
     const exportEngineeringPdf = vi.fn().mockResolvedValue({
       runId: pdfRequest.runId, engineVersion: pdfRequest.engineVersion, inputSnapshotHash: pdfRequest.inputSnapshotHash,
       status: 'CANCELLED', savedFileName: null, bytesWritten: null, errorCode: null, method: 'tolue-engineering-pdf-ipc-response-v1',
     });
-    const bridge: Readonly<TolueBridge> = Object.freeze({ executeEngineeringAnalysis, exportEngineeringPdf });
+    const bridge: Readonly<TolueBridge> = Object.freeze({ executeEngineeringAnalysis, loadEngineeringRun, exportEngineeringPdf });
     const platform = createRendererPlatform(bridge);
-    expect(Object.keys(platform)).toEqual(['executeEngineeringAnalysis', 'exportEngineeringPdf']);
+    expect(Object.keys(platform)).toEqual(['executeEngineeringAnalysis', 'loadEngineeringRun', 'exportEngineeringPdf']);
     expect(Object.isFrozen(platform)).toBe(true);
     const inputSnapshot = structuredClone(analysisInput);
     await platform.executeEngineeringAnalysis(analysisInput);
     expect(executeEngineeringAnalysis).toHaveBeenCalledWith(analysisInput);
     expect(analysisInput).toEqual(inputSnapshot);
+    await platform.loadEngineeringRun('run-analysis');
+    expect(loadEngineeringRun).toHaveBeenCalledWith('run-analysis');
     const pdfSnapshot = structuredClone(pdfRequest);
     const result = await platform.exportEngineeringPdf(pdfRequest);
     expect(exportEngineeringPdf).toHaveBeenCalledWith(pdfRequest);
@@ -41,7 +44,7 @@ describe('renderer application boundary', () => {
     expect(result).toMatchObject({ status: 'CANCELLED', runId: 'run-renderer' });
   });
 
-  it('fails closed when either preload bridge operation is unavailable', () => {
+  it('fails closed when any preload bridge operation is unavailable', () => {
     expect(() => createRendererPlatform({} as Readonly<TolueBridge>)).toThrow('RENDERER-BRIDGE-001');
   });
 });
