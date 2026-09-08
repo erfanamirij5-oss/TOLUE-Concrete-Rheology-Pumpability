@@ -12,17 +12,19 @@ const pdfRequest: EngineeringPdfExportRequest = {
 const analysisInput = { runId: 'run-analysis', engineVersion: 'v1', createdAtIso: '2026-09-09T00:00:00Z', pipeline: { targetFlowRateM3s: 0, densityKgM3: 2400, lubricationLayerThicknessM: 0.001, bulk: { yieldStressPa: 0, plasticViscosityPaS: 1 }, lubricationLayer: { yieldStressPa: 0, plasticViscosityPaS: 1 }, segments: [] } } as SimulationRunInput;
 
 describe('renderer application boundary', () => {
-  it('exposes typed analysis, run history/load, and PDF operations', async () => {
+  it('exposes typed analysis, run history/load/comparison, and PDF operations', async () => {
     const executeEngineeringAnalysis = vi.fn().mockResolvedValue({ status: 'REJECTED', result: null, errorCode: 'TEST', method: 'tolue-engineering-analysis-ipc-response-v1' });
     const loadEngineeringRun = vi.fn().mockResolvedValue({ status: 'NOT_FOUND', input: null, result: null, errorCode: null, method: 'tolue-engineering-run-load-ipc-response-v1' });
     const listEngineeringRuns = vi.fn().mockResolvedValue({ status: 'SUCCESS', items: [], errorCode: null, method: 'tolue-engineering-run-history-ipc-response-v1' });
+    const compareEngineeringRuns = vi.fn().mockResolvedValue({ status: 'NOT_FOUND', comparison: null, errorCode: null, method: 'tolue-engineering-run-comparison-ipc-response-v1' });
     const exportEngineeringPdf = vi.fn().mockResolvedValue({ runId: pdfRequest.runId, engineVersion: pdfRequest.engineVersion, inputSnapshotHash: pdfRequest.inputSnapshotHash, status: 'CANCELLED', savedFileName: null, bytesWritten: null, errorCode: null, method: 'tolue-engineering-pdf-ipc-response-v1' });
-    const bridge: Readonly<TolueBridge> = Object.freeze({ executeEngineeringAnalysis, loadEngineeringRun, listEngineeringRuns, exportEngineeringPdf });
+    const bridge: Readonly<TolueBridge> = Object.freeze({ executeEngineeringAnalysis, loadEngineeringRun, listEngineeringRuns, compareEngineeringRuns, exportEngineeringPdf });
     const platform = createRendererPlatform(bridge);
-    expect(Object.keys(platform)).toEqual(['executeEngineeringAnalysis', 'loadEngineeringRun', 'listEngineeringRuns', 'exportEngineeringPdf']);
+    expect(Object.keys(platform)).toEqual(['executeEngineeringAnalysis', 'loadEngineeringRun', 'listEngineeringRuns', 'compareEngineeringRuns', 'exportEngineeringPdf']);
     await platform.executeEngineeringAnalysis(analysisInput); expect(executeEngineeringAnalysis).toHaveBeenCalledWith(analysisInput);
     await platform.loadEngineeringRun('run-analysis'); expect(loadEngineeringRun).toHaveBeenCalledWith('run-analysis');
     await platform.listEngineeringRuns(); expect(listEngineeringRuns).toHaveBeenCalledOnce();
+    await platform.compareEngineeringRuns('run-a', 'run-b'); expect(compareEngineeringRuns).toHaveBeenCalledWith('run-a', 'run-b');
     const result = await platform.exportEngineeringPdf(pdfRequest); expect(result).toMatchObject({ status: 'CANCELLED', runId: 'run-renderer' });
   });
   it('fails closed when any preload bridge operation is unavailable', () => { expect(() => createRendererPlatform({} as Readonly<TolueBridge>)).toThrow('RENDERER-BRIDGE-001'); });
