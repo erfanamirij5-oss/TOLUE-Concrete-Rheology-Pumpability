@@ -1,6 +1,7 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { createNavigationState, TOLUE_SECTIONS, type TolueSectionId } from './navigation';
 import { renderMaterialsView } from './materialView';
+import { renderPipelineView } from './pipelineView';
 import { renderProjectView } from './projectView';
 import { renderRheologyView } from './rheologyView';
 
@@ -96,6 +97,8 @@ export function renderApplicationShell(root: HTMLElement): void {
       renderMaterialsView(content);
     } else if (section.id === 'rheology') {
       renderRheologyView(content);
+    } else if (section.id === 'pipeline') {
+      renderPipelineView(content);
     } else {
       const placeholder = document.createElement('section');
       placeholder.textContent = 'این بخش در مرحله بعد به قراردادهای داده و خروجی‌های Engineering Core متصل خواهد شد.';
