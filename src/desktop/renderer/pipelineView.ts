@@ -1,5 +1,7 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import type { PipelinePresentation } from './pipelinePresentation';
+import type { PressureProfilePresentation } from './pressureProfilePresentation';
+import { renderPressureProfileView } from './pressureProfileView';
 
 const EMPTY_PIPELINE: Readonly<PipelinePresentation> = Object.freeze({
   completeness: 'incomplete',
@@ -17,7 +19,11 @@ function formatPressure(valuePa: number | null): string {
   return valuePa === null ? '— Pa' : `${valuePa} Pa`;
 }
 
-export function renderPipelineView(root: HTMLElement, presentation: Readonly<PipelinePresentation> = EMPTY_PIPELINE): void {
+export function renderPipelineView(
+  root: HTMLElement,
+  presentation: Readonly<PipelinePresentation> = EMPTY_PIPELINE,
+  pressureProfile?: Readonly<PressureProfilePresentation>,
+): void {
   const panel = document.createElement('section');
   panel.setAttribute('aria-label', 'اجزای فشار خط لوله');
   panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
@@ -64,4 +70,5 @@ export function renderPipelineView(root: HTMLElement, presentation: Readonly<Pip
 
   panel.append(title, note, grid, meta);
   root.appendChild(panel);
+  renderPressureProfileView(root, pressureProfile);
 }
