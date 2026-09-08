@@ -1,10 +1,30 @@
-import type { EngineeringVisualization3DData } from '../../engineering/core/visualization3d';
+import type { EngineeringVisualization3DData, VisualizationSegment3D } from '../../engineering/core/visualization3d';
+
+export type Visualization3DSegmentPresentation = Readonly<Omit<VisualizationSegment3D,
+  | 'flowRateM3s'
+  | 'frictionPressureLossPa'
+  | 'elevationPressurePa'
+  | 'totalPressureChangePa'
+  | 'inletRemainingPressurePa'
+  | 'outletRemainingPressurePa'
+  | 'lubricationLayerThicknessM'
+  | 'diagnosticFindingIds'
+> & {
+  readonly flowRateM3s: Readonly<VisualizationSegment3D['flowRateM3s']>;
+  readonly frictionPressureLossPa: Readonly<VisualizationSegment3D['frictionPressureLossPa']>;
+  readonly elevationPressurePa: Readonly<VisualizationSegment3D['elevationPressurePa']>;
+  readonly totalPressureChangePa: Readonly<VisualizationSegment3D['totalPressureChangePa']>;
+  readonly inletRemainingPressurePa: Readonly<VisualizationSegment3D['inletRemainingPressurePa']>;
+  readonly outletRemainingPressurePa: Readonly<VisualizationSegment3D['outletRemainingPressurePa']>;
+  readonly lubricationLayerThicknessM: Readonly<VisualizationSegment3D['lubricationLayerThicknessM']>;
+  readonly diagnosticFindingIds: readonly string[];
+}>;
 
 export interface Visualization3DPresentation {
   readonly runId: string;
   readonly inputSnapshotHash: string;
-  readonly segments: EngineeringVisualization3DData['segments'];
-  readonly pumpabilityDecision: EngineeringVisualization3DData['pumpabilityDecision'];
+  readonly segments: readonly Visualization3DSegmentPresentation[];
+  readonly pumpabilityDecision: Readonly<NonNullable<EngineeringVisualization3DData['pumpabilityDecision']>> | null;
   readonly completeness: EngineeringVisualization3DData['completeness'];
   readonly representation: 'engineering_visualization';
   readonly physicalSimulationClaim: false;
