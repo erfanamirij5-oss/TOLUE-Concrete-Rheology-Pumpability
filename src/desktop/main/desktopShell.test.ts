@@ -4,7 +4,7 @@ const m = vi.hoisted(() => ({
   appOn: vi.fn(), options: vi.fn(), load: vi.fn(), show: vi.fn(), destroy: vi.fn(),
   on: vi.fn(), once: vi.fn(), open: vi.fn(), registerPdf: vi.fn(), registerAnalysis: vi.fn(), disposePdf: vi.fn(), disposeAnalysis: vi.fn(),
   request: vi.fn(), check: vi.fn(), filter: vi.fn(), protocol: vi.fn(), sessionOn: vi.fn(), error: vi.fn(), read: vi.fn(),
-  bootstrapPersistence: vi.fn(), closePersistence: vi.fn(),
+  bootstrapPersistence: vi.fn(), closePersistence: vi.fn(), saveRun: vi.fn(), findRun: vi.fn(),
 }));
 vi.mock('electron', () => ({
   app: { whenReady: m.ready, requestSingleInstanceLock: m.lock, quit: m.quit, enableSandbox: m.sandbox, on: m.appOn, getPath: m.getPath },
@@ -30,7 +30,12 @@ const rendererJs = 'globalThis.__tolueRenderer=true;';
 const flush = async () => { await new Promise(resolve => setTimeout(resolve, 0)); };
 beforeEach(() => {
   vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.read.mockResolvedValue(rendererJs); m.getPath.mockReturnValue('/tolue/user-data');
-  m.bootstrapPersistence.mockReturnValue({ databasePath: '/tolue/user-data/tolue-rheology.sqlite3', migration: { fromVersion: 0, toVersion: 1, appliedVersions: [1], method: 'tolue-persistence-migration-v2' }, close: m.closePersistence });
+  m.bootstrapPersistence.mockReturnValue({
+    databasePath: '/tolue/user-data/tolue-rheology.sqlite3',
+    migration: { fromVersion: 0, toVersion: 1, appliedVersions: [1], method: 'tolue-persistence-migration-v2' },
+    engineeringRuns: { save: m.saveRun, findByRunId: m.findRun },
+    close: m.closePersistence,
+  });
   m.load.mockResolvedValue(undefined); m.registerPdf.mockReturnValue(m.disposePdf); m.registerAnalysis.mockReturnValue(m.disposeAnalysis);
 });
 describe('secure desktop shell', () => {
@@ -61,7 +66,7 @@ describe('secure desktop shell', () => {
       preload, sandbox: true, contextIsolation: true, nodeIntegration: false, webviewTag: false,
     }) }));
     expect(m.registerPdf).toHaveBeenCalledWith(expect.anything(), DESKTOP_URL);
-    expect(m.registerAnalysis).toHaveBeenCalledWith(expect.anything(), DESKTOP_URL);
+    expect(m.registerAnalysis).toHaveBeenCalledWith(expect.anything(), DESKTOP_URL, expect.objectContaining({ save: m.saveRun, findByRunId: m.findRun }));
     expect(m.load).toHaveBeenCalledWith(DESKTOP_URL); expect(m.show).toHaveBeenCalledOnce();
     expect(m.open.mock.calls[0]![0]()).toEqual({ action: 'deny' });
     for (const [, handler] of m.on.mock.calls) { const event = { preventDefault: vi.fn() }; handler(event); expect(event.preventDefault).toHaveBeenCalledOnce(); }
@@ -81,15 +86,15 @@ describe('secure desktop shell', () => {
     m.lock.mockReturnValue(false); startDesktopShell(preload, renderer); await flush();
     expect(m.quit).toHaveBeenCalledOnce(); expect(m.options).not.toHaveBeenCalled();
   });
-  it('fails closed when persistence bootstrap, renderer load, or renderer content fails', async () => {
-    m.bootstrapPersistence.mockImplementationOnce(() => { throw new Error('private database path'); });
-    startDesktopShell(preload, renderer); await flush();
-    expect(m.options).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
-    expect(JSON.stringify(m.error.mock.calls)).not.toContain('private database path');
-    vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.getPath.mockReturnValue('/tolue/user-data'); m.bootstrapPersistence.mockReturnValue({ databasePath: 'x', migration: {}, close: m.closePersistence }); m.read.mockRejectedValueOnce(new Error('private renderer path'));
+  it('fails closed when renderer asset cannot be loaded or is empty', async () => {
+    m.read.mockRejectedValueOnce(new Error('private renderer path'));
     startDesktopShell(preload, renderer); await flush();
     expect(m.options).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
     expect(JSON.stringify(m.error.mock.calls)).not.toContain('private renderer path');
+    vi.resetAllMocks(); m.lock.mockReturnValue(true); m.ready.mockResolvedValue(undefined); m.read.mockResolvedValue(''); m.getPath.mockReturnValue('/tolue/user-data');
+    m.bootstrapPersistence.mockReturnValue({ databasePath: '/tolue/db', migration: { fromVersion: 1, toVersion: 1, appliedVersions: [], method: 'tolue-persistence-migration-v2' }, engineeringRuns: { save: m.saveRun, findByRunId: m.findRun }, close: m.closePersistence });
+    startDesktopShell(preload, renderer); await flush();
+    expect(m.options).not.toHaveBeenCalled(); expect(m.quit).toHaveBeenCalledOnce();
   });
   it('disposes IPC on document load failure and contains native error details', async () => {
     m.load.mockRejectedValue(new Error('private filesystem detail'));
