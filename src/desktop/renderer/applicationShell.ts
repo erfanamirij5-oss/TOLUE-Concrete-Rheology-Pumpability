@@ -7,6 +7,7 @@ import { renderPipelineView } from './pipelineView';
 import { renderProjectView } from './projectView';
 import { renderPumpView } from './pumpView';
 import { renderRheologyView } from './rheologyView';
+import { renderReportView } from './reportView';
 import { renderResultView } from './resultView';
 
 const SECTION_DESCRIPTIONS: Readonly<Record<TolueSectionId, string>> = Object.freeze({
@@ -103,6 +104,7 @@ export function renderApplicationShell(root: HTMLElement): void {
     else if (section.id === 'evidence') renderEvidenceView(content);
     else if (section.id === 'results') renderResultView(content);
     else if (section.id === 'diagnostics') renderDiagnosticsView(content);
+    else if (section.id === 'report') renderReportView(content);
     else {
       const placeholder = document.createElement('section');
       placeholder.textContent = 'این بخش در مرحله بعد به قراردادهای داده و خروجی‌های Engineering Core متصل خواهد شد.';
