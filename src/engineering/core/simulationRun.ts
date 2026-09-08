@@ -3,8 +3,14 @@ import { PressureProfileResult, buildPressureProfile } from './pressureProfile';
 import { PumpCapabilityInput, PumpCapabilityResult, assessPumpCapability } from './pumpCapability';
 import { HydraulicInvariantResult, verifyHydraulicInvariants } from './hydraulicInvariants';
 import { SimulationInputProvenance } from './inputProvenance';
+import { ProjectQualifiedPumpabilityEvidenceInput } from './projectQualifiedPumpabilityEvidence';
 
 export type SimulationRunStatus = 'complete' | 'incomplete';
+
+export interface PumpabilityEvidenceSetInput {
+  stability?: Omit<ProjectQualifiedPumpabilityEvidenceInput, 'domain' | 'targetFlowRateM3s'>;
+  blockage?: Omit<ProjectQualifiedPumpabilityEvidenceInput, 'domain' | 'targetFlowRateM3s'>;
+}
 
 export interface SimulationRunInput {
   runId: string;
@@ -12,6 +18,7 @@ export interface SimulationRunInput {
   createdAtIso: string;
   pipeline: PipelineAnalysisInput;
   pumpCapability?: Omit<PumpCapabilityInput, 'targetFlowRateM3s' | 'requiredPressurePa' | 'pipelineCompleteness'>;
+  pumpabilityEvidence?: PumpabilityEvidenceSetInput;
   provenance?: SimulationInputProvenance;
   assumptions?: string[];
 }
