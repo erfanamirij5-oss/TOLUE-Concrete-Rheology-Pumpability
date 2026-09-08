@@ -1,5 +1,6 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { createNavigationState, TOLUE_SECTIONS, type TolueSectionId } from './navigation';
+import { renderMaterialsView } from './materialView';
 import { renderProjectView } from './projectView';
 
 const SECTION_DESCRIPTIONS: Readonly<Record<TolueSectionId, string>> = Object.freeze({
@@ -90,6 +91,8 @@ export function renderApplicationShell(root: HTMLElement): void {
     content.replaceChildren();
     if (section.id === 'project') {
       renderProjectView(content);
+    } else if (section.id === 'materials') {
+      renderMaterialsView(content);
     } else {
       const placeholder = document.createElement('section');
       placeholder.textContent = 'این بخش در مرحله بعد به قراردادهای داده و خروجی‌های Engineering Core متصل خواهد شد.';
