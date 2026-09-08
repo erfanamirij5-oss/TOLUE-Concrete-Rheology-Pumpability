@@ -29,14 +29,20 @@ const blocked = {
 
 describe('engineering run repository', () => {
   it('persists and restores the exact input/result pair', () => {
-    let row: Readonly<PersistedEngineeringRunRow> | null = null;
+    const rows: PersistedEngineeringRunRow[] = [];
     const repository = createEngineeringRunRepository({
-      upsertEngineeringRun: value => { row = value; },
-      readEngineeringRun: () => row,
+      upsertEngineeringRun: value => {
+        const index = rows.findIndex(row => row.runId === value.runId);
+        if (index >= 0) rows[index] = value;
+        else rows.push(value);
+      },
+      readEngineeringRun: runId => rows.find(row => row.runId === runId) ?? null,
     });
     repository.save(input, blocked);
-    expect(row?.runId).toBe('run-001');
-    expect(row?.inputSnapshotHash).toBeNull();
+    const persisted = rows[0];
+    expect(persisted).toBeDefined();
+    expect(persisted!.runId).toBe('run-001');
+    expect(persisted!.inputSnapshotHash).toBeNull();
     const restored = repository.findByRunId('run-001');
     expect(restored?.input.runId).toBe(input.runId);
     expect(restored?.result).toEqual(blocked);
