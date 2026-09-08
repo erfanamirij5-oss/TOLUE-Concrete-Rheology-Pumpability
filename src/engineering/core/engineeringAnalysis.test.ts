@@ -103,12 +103,14 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.reportExport.report.locale).toBe('fa-IR');
     expect(result.reportExport.report.direction).toBe('rtl');
     expect(result.reportExport.report.scientificClaim).toBe('presentation_only_no_new_engineering_inference');
+    expect(result.reportExport.html.mediaType).toBe('text/html');
+    expect(result.reportExport.html.content).toContain('<html lang="fa" dir="rtl">');
     expect(JSON.parse(result.reportExport.json.content)).toEqual(result.finalOutput);
     expect(result.visualization3d.pumpabilityDecision?.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
     expect(result.resultCenter.method).toBe('tolue-engineering-result-center-v4');
     expect(result.diagnostics.method).toBe('tolue-diagnostics-v2');
     expect(result.finalOutput.method).toBe('tolue-final-engineering-output-v1');
-    expect(result.reportExport.method).toBe('tolue-engineering-report-export-bundle-v1');
+    expect(result.reportExport.method).toBe('tolue-engineering-report-export-bundle-v2');
     expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v2');
     expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v6');
   });
@@ -142,6 +144,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.reportExport.report.decision.overallStatus).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
     expect(result.reportExport.report.decision.overallStatusFa).toContain('پروژه');
     expect(result.reportExport.report.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
+    expect(result.reportExport.html.content).toContain('قابل قبول در دامنه شواهد تأییدشده پروژه');
     expect(result.visualization3d.pumpabilityDecision).toEqual(expect.objectContaining({
       pressureFeasibility: 'PASS',
       stability: 'ACCEPTABLE',
