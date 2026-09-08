@@ -23,7 +23,10 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
   const platform = createRendererPlatform(window.tolue);
   const root = target.getElementById('app');
   if (!root) throw new Error('RENDERER-ROOT-001');
-  renderApplicationShell(root, undefined, { exportEngineeringPdf: platform.exportEngineeringPdf });
+  renderApplicationShell(root, undefined, {
+    executeEngineeringAnalysis: platform.executeEngineeringAnalysis,
+    exportEngineeringPdf: platform.exportEngineeringPdf,
+  });
   root.dataset.rendererReady = 'true';
   return platform;
 }
