@@ -17,6 +17,7 @@ export interface ApplicationDataFlowState {
 }
 
 function freezeInput(input: SimulationRunInput): Readonly<SimulationRunInput> { return Object.freeze(structuredClone(input)); }
+const rejectedLoadState = (errorCode: string): Readonly<ApplicationDataFlowState> => Object.freeze({ status: 'REJECTED', input: null, analysis: null, activeRunId: null, activeInputSnapshotHash: null, errorCode, isStale: false });
 
 export function createApplicationDataFlowState(analysis?: EngineeringAnalysisResult): Readonly<ApplicationDataFlowState> {
   const presentation = analysis ? createEngineeringAnalysisPresentation(analysis) : null;
@@ -41,15 +42,12 @@ export function applyEngineeringAnalysisResponse(state: Readonly<ApplicationData
 }
 
 export function hydratePersistedEngineeringRun(response: EngineeringRunLoadIpcResponse): Readonly<ApplicationDataFlowState> {
-  if (response.status !== 'SUCCESS') throw new Error(response.status === 'NOT_FOUND' ? 'APPLICATION-DATA-FLOW-LOAD-404' : response.errorCode);
-  if (response.input.runId !== response.result.runId) throw new Error('APPLICATION-DATA-FLOW-LOAD-RUN-001');
-  if (response.input.engineVersion !== response.result.engineVersion) throw new Error('APPLICATION-DATA-FLOW-LOAD-ENGINE-001');
+  if (response.status === 'NOT_FOUND') return rejectedLoadState('APPLICATION-DATA-FLOW-LOAD-404');
+  if (response.status === 'REJECTED') return rejectedLoadState(response.errorCode);
+  if (response.input.runId !== response.result.runId) return rejectedLoadState('APPLICATION-DATA-FLOW-LOAD-RUN-001');
+  if (response.input.engineVersion !== response.result.engineVersion) return rejectedLoadState('APPLICATION-DATA-FLOW-LOAD-ENGINE-001');
   const analysis = createEngineeringAnalysisPresentation(response.result);
-  return Object.freeze({
-    status: 'SUCCEEDED', input: freezeInput(response.input), analysis,
-    activeRunId: analysis.runId, activeInputSnapshotHash: analysis.inputSnapshotHash,
-    errorCode: null, isStale: false,
-  });
+  return Object.freeze({ status: 'SUCCEEDED', input: freezeInput(response.input), analysis, activeRunId: analysis.runId, activeInputSnapshotHash: analysis.inputSnapshotHash, errorCode: null, isStale: false });
 }
 
 export function getExportablePdfRequest(state: Readonly<ApplicationDataFlowState>) {
