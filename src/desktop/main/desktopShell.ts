@@ -4,6 +4,7 @@ import { isAbsolute } from 'node:path';
 import { registerEngineeringAnalysisIpc } from './electronAnalysisAdapter';
 import { registerEngineeringPdfIpc } from './electronPdfAdapter';
 import { bootstrapPersistence } from './persistence/persistenceBootstrap';
+import type { EngineeringRunRepository } from './persistence/engineeringRunRepository';
 
 export const DESKTOP_URL = 'tolue://desktop/index.html';
 export const DESKTOP_RENDERER_URL = 'tolue://desktop/renderer.js';
@@ -24,7 +25,12 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
   app.enableSandbox();
   protocol.registerSchemesAsPrivileged([{ scheme: 'tolue', privileges: { standard: true, secure: true } }]);
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
-  let owner: BrowserWindow | undefined; let opening = false; let ready = false; let rendererJavascript = ''; let closePersistence: (() => void) | undefined;
+  let owner: BrowserWindow | undefined;
+  let opening = false;
+  let ready = false;
+  let rendererJavascript = '';
+  let closePersistence: (() => void) | undefined;
+  let engineeringRuns: Readonly<EngineeringRunRepository> | undefined;
   const failStartup = () => { dialog.showErrorBox('طلوع', 'راه‌اندازی محیط مهندسی انجام نشد. برنامه را دوباره اجرا کنید.'); app.quit(); };
   const open = async (): Promise<void> => {
     if (!ready || opening || owner) return;
@@ -40,7 +46,7 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
       win.webContents.on('will-redirect', event => event.preventDefault());
       win.webContents.on('will-attach-webview', event => event.preventDefault());
       const disposePdf = registerEngineeringPdfIpc(win, DESKTOP_URL);
-      const disposeAnalysis = registerEngineeringAnalysisIpc(win, DESKTOP_URL);
+      const disposeAnalysis = registerEngineeringAnalysisIpc(win, DESKTOP_URL, engineeringRuns);
       win.once('closed', () => { disposeAnalysis(); disposePdf(); owner = undefined; });
       try { await win.loadURL(DESKTOP_URL); if (!win.isDestroyed()) win.show(); }
       catch { if (!win.isDestroyed()) win.destroy(); throw new Error('DESKTOP-LOAD-001'); }
@@ -48,11 +54,12 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
   };
   app.on('second-instance', () => { if (owner) { if (owner.isMinimized()) owner.restore(); owner.focus(); } });
   app.on('activate', () => { void open().catch(failStartup); });
-  app.on('before-quit', () => { const close = closePersistence; closePersistence = undefined; close?.(); });
+  app.on('before-quit', () => { const close = closePersistence; closePersistence = undefined; engineeringRuns = undefined; close?.(); });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
   void app.whenReady().then(async () => {
     const persistence = bootstrapPersistence(app.getPath('userData'));
     closePersistence = persistence.close;
+    engineeringRuns = persistence.engineeringRuns;
     rendererJavascript = await readFile(rendererPath, 'utf8');
     if (rendererJavascript.length === 0) throw new Error('DESKTOP-RENDERER-EMPTY-001');
     const isolated = session.fromPartition('tolue-desktop');
