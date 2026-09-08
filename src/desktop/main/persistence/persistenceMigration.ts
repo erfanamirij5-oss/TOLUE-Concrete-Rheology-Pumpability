@@ -6,16 +6,17 @@ import {
 } from './persistenceSchema';
 
 export interface PersistenceMigrationStore {
+  /** Return 0 when schema_meta does not exist yet. */
   readonly readSchemaVersion: () => number;
-  readonly executeTransaction: (statements: readonly string[]) => void;
-  readonly writeSchemaVersion: (version: number, migratedAtIso: string) => void;
+  /** Apply migration SQL and persist its schema version in one atomic transaction. */
+  readonly applyMigrationAtomically: (migration: Readonly<PersistenceMigration>, migratedAtIso: string) => void;
 }
 
 export interface PersistenceMigrationResult {
   readonly fromVersion: number;
   readonly toVersion: number;
   readonly appliedVersions: readonly number[];
-  readonly method: 'tolue-persistence-migration-v1';
+  readonly method: 'tolue-persistence-migration-v2';
 }
 
 export function migratePersistenceSchema(
@@ -34,8 +35,7 @@ export function migratePersistenceSchema(
   const appliedVersions: number[] = [];
 
   for (const migration of pending) {
-    store.executeTransaction(migration.statements);
-    store.writeSchemaVersion(migration.version, migratedAtIso);
+    store.applyMigrationAtomically(migration, migratedAtIso);
     appliedVersions.push(migration.version);
   }
 
@@ -43,6 +43,6 @@ export function migratePersistenceSchema(
     fromVersion: currentVersion,
     toVersion: pending.at(-1)?.version ?? currentVersion,
     appliedVersions: Object.freeze(appliedVersions),
-    method: 'tolue-persistence-migration-v1',
+    method: 'tolue-persistence-migration-v2',
   });
 }
