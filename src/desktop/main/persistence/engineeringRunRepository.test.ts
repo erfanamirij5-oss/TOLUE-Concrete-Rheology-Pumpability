@@ -11,9 +11,9 @@ const blocked = {
 } as EngineeringAnalysisResult;
 
 const store = (rows: PersistedEngineeringRunRow[]) => ({
-  upsertEngineeringRun: (value: Readonly<PersistedEngineeringRunRow>) => {
-    const index = rows.findIndex(row => row.runId === value.runId);
-    if (index >= 0) rows[index] = value; else rows.push(value);
+  insertEngineeringRun: (value: Readonly<PersistedEngineeringRunRow>) => {
+    if (rows.some(row => row.runId === value.runId)) throw new Error('SQLITE-CONSTRAINT-RUN-ID');
+    rows.push(value);
   },
   readEngineeringRun: (runId: string) => rows.find(row => row.runId === runId) ?? null,
   listEngineeringRuns: () => rows,
@@ -27,6 +27,23 @@ describe('engineering run repository', () => {
     expect(rows[0]!.runId).toBe('run-001'); expect(rows[0]!.inputSnapshotHash).toBeNull();
     const restored = repository.findByRunId('run-001');
     expect(restored?.input.runId).toBe(input.runId); expect(restored?.result).toEqual(blocked);
+  });
+
+  it('treats an exact duplicate save as idempotent without rewriting history', () => {
+    const rows: PersistedEngineeringRunRow[] = [];
+    const repository = createEngineeringRunRepository(store(rows));
+    repository.save(input, blocked);
+    repository.save(input, blocked);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('fails closed when an existing runId is reused with different content', () => {
+    const rows: PersistedEngineeringRunRow[] = [];
+    const repository = createEngineeringRunRepository(store(rows));
+    repository.save(input, blocked);
+    expect(() => repository.save({ ...input, createdAtIso: '2026-09-09T00:00:01.000Z' }, blocked)).toThrow('PERSISTENCE-RUN-IMMUTABLE-001');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.createdAtIso).toBe(input.createdAtIso);
   });
 
   it('returns detached metadata-only history in store order', () => {
