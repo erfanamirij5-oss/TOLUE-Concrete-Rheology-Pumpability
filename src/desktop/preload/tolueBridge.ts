@@ -2,9 +2,11 @@ import type { EngineeringPdfExportRequest } from '../../engineering/core/enginee
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import { ENGINEERING_ANALYSIS_CHANNEL, type EngineeringAnalysisIpcResponse } from '../ipc/engineeringAnalysisIpc';
 import { ENGINEERING_PDF_EXPORT_CHANNEL, type EngineeringPdfIpcResponse } from '../ipc/engineeringPdfIpc';
+import { ENGINEERING_RUN_LOAD_CHANNEL, type EngineeringRunLoadIpcResponse } from '../ipc/engineeringRunIpc';
 
 export interface TolueBridge {
   executeEngineeringAnalysis(input: SimulationRunInput): Promise<EngineeringAnalysisIpcResponse>;
+  loadEngineeringRun(runId: string): Promise<EngineeringRunLoadIpcResponse>;
   exportEngineeringPdf(request: EngineeringPdfExportRequest): Promise<EngineeringPdfIpcResponse>;
 }
 
@@ -13,6 +15,9 @@ export function createTolueBridge(invoke: (channel: string, payload: unknown) =>
     executeEngineeringAnalysis: (input: SimulationRunInput) => invoke(ENGINEERING_ANALYSIS_CHANNEL, {
       channel: ENGINEERING_ANALYSIS_CHANNEL, payload: input,
     }) as Promise<EngineeringAnalysisIpcResponse>,
+    loadEngineeringRun: (runId: string) => invoke(ENGINEERING_RUN_LOAD_CHANNEL, {
+      channel: ENGINEERING_RUN_LOAD_CHANNEL, runId,
+    }) as Promise<EngineeringRunLoadIpcResponse>,
     exportEngineeringPdf: (request: EngineeringPdfExportRequest) => invoke(ENGINEERING_PDF_EXPORT_CHANNEL, {
       channel: ENGINEERING_PDF_EXPORT_CHANNEL, payload: request,
     }) as Promise<EngineeringPdfIpcResponse>,
