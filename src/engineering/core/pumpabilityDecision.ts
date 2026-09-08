@@ -78,7 +78,9 @@ export function assessPumpabilityDecision(run: SimulationRunResult): Pumpability
   else if (stability === 'ACCEPTABLE' || blockageRisk === 'ACCEPTABLE') status = 'PARTIALLY_QUALIFIED_ACCEPTABLE';
   else status = 'PRESSURE_ONLY_ACCEPTABLE';
 
-  const evidenceMethods = [stabilityEvidence?.method, blockageEvidence?.method].filter((id): id is string => Boolean(id));
+  const evidenceMethods: string[] = [];
+  if (stabilityEvidence) evidenceMethods.push(stabilityEvidence.method);
+  if (blockageEvidence) evidenceMethods.push(blockageEvidence.method);
 
   return {
     runId: run.runId,
@@ -88,7 +90,7 @@ export function assessPumpabilityDecision(run: SimulationRunResult): Pumpability
     stabilityEvidence,
     blockageEvidence,
     status,
-    sourceMethodIds: [...new Set([...run.methods, ...evidenceMethods])],
+    sourceMethodIds: [...new Set<string>([...run.methods, ...evidenceMethods])],
     limitations: [
       'Pressure feasibility alone is not a complete pumpability assessment.',
       'Stability and blockage conclusions are project-qualified evidence statements, not universal concrete behavior models.',
