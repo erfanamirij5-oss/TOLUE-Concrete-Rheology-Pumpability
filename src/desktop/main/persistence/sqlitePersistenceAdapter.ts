@@ -62,7 +62,7 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
   };
 
   const listEngineeringRuns = (): readonly Readonly<PersistedEngineeringRunRow>[] => {
-    const rows = database.prepare(`${rowSelect} ORDER BY created_at_iso DESC, run_id ASC`).all() as PersistedEngineeringRunRow[];
+    const rows = database.prepare(`${rowSelect} ORDER BY created_at_iso DESC, run_id ASC`).all() as unknown as PersistedEngineeringRunRow[];
     return Object.freeze(rows.map(row => Object.freeze(row)));
   };
 
