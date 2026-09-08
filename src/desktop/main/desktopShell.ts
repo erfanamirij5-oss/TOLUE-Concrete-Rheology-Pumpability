@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, protocol, session } from 'electron';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { registerEngineeringAnalysisIpc } from './electronAnalysisAdapter';
 import { registerEngineeringPdfIpc } from './electronPdfAdapter';
 import { registerEngineeringRunLoadIpc } from './electronRunAdapter';
@@ -9,6 +9,8 @@ import type { EngineeringRunRepository } from './persistence/engineeringRunRepos
 
 export const DESKTOP_URL = 'tolue://desktop/index.html';
 export const DESKTOP_RENDERER_URL = 'tolue://desktop/renderer.js';
+export const DESKTOP_APPLICATION_NAME = 'TOLUE Concrete Rheology & Pumpability';
+export const DESKTOP_USER_DATA_DIRECTORY = 'TOLUE-Concrete-Rheology-Pumpability';
 const CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'none'; img-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'";
 const HTML = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>طلوع | رئولوژی و پمپ‌پذیری بتن</title><style>body{margin:0;background:#f4f5f2;color:#172635;font:18px Vazirmatn,Vazir,Tahoma,sans-serif}main{max-width:900px;margin:12vh auto;padding:40px}small{color:#526575}h1{line-height:1.7}p{line-height:2}</style></head><body><main id="app"><small>TOLUE Concrete Rheology &amp; Pumpability</small><h1>طلوع؛ رئولوژی و پمپ‌پذیری بتن</h1><p>محیط مهندسی طلوع</p><p>فرم‌های ورود اطلاعات و نمایش نتایج در مرحله توسعه هستند.</p></main><script src="${DESKTOP_RENDERER_URL}" defer></script></body></html>`;
 
@@ -23,6 +25,9 @@ export function desktopResponse(url: string, method: string, rendererJavascript:
 export function startDesktopShell(preloadPath: string, rendererPath: string): void {
   if (!isAbsolute(preloadPath)) throw new Error('DESKTOP-PRELOAD-PATH-001');
   if (!isAbsolute(rendererPath)) throw new Error('DESKTOP-RENDERER-PATH-001');
+  app.setName(DESKTOP_APPLICATION_NAME);
+  const defaultUserDataPath = app.getPath('userData');
+  app.setPath('userData', join(defaultUserDataPath, DESKTOP_USER_DATA_DIRECTORY));
   app.enableSandbox();
   protocol.registerSchemesAsPrivileged([{ scheme: 'tolue', privileges: { standard: true, secure: true } }]);
   if (!app.requestSingleInstanceLock()) { app.quit(); return; }
