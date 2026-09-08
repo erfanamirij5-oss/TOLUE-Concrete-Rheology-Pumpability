@@ -1,5 +1,6 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import type { PumpCapabilityPresentation } from './pumpPresentation';
+import { renderPumpPressureChartView } from './pumpPressureChartView';
 
 function pressureText(value: number | null): string {
   return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} MPa`;
@@ -30,6 +31,7 @@ export function renderPumpView(root: HTMLElement, result?: Readonly<PumpCapabili
     empty.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
     panel.appendChild(empty);
     root.appendChild(panel);
+    renderPumpPressureChartView(root);
     return;
   }
 
@@ -65,4 +67,5 @@ export function renderPumpView(root: HTMLElement, result?: Readonly<PumpCapabili
   }
   panel.appendChild(grid);
   root.appendChild(panel);
+  renderPumpPressureChartView(root, result);
 }
