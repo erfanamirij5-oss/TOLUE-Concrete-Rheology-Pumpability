@@ -1,4 +1,5 @@
 import { DiagnosticsResult } from './diagnostics';
+import { PumpabilityDecisionResult } from './pumpabilityDecision';
 import { EngineeringResultCenter } from './resultCenter';
 import { SimulationRunResult } from './simulationRun';
 
@@ -30,16 +31,26 @@ export interface VisualizationSegment3D {
   diagnosticFindingIds: string[];
 }
 
+export interface VisualizationPumpabilityDecision {
+  pressureFeasibility: PumpabilityDecisionResult['pressureFeasibility'];
+  stability: PumpabilityDecisionResult['stability'];
+  blockageRisk: PumpabilityDecisionResult['blockageRisk'];
+  status: PumpabilityDecisionResult['status'];
+  sourceResultId: 'pumpability.decisionStatus';
+  method: PumpabilityDecisionResult['method'];
+}
+
 export interface EngineeringVisualization3DData {
   runId: string;
   engineVersion: string;
   inputSnapshotHash: string;
   segments: VisualizationSegment3D[];
+  pumpabilityDecision: VisualizationPumpabilityDecision | null;
   completeness: 'complete' | 'incomplete';
   representation: 'engineering_visualization';
   physicalSimulationClaim: false;
   pressureProfileAssumption: 'stationary-segment-properties';
-  method: 'tolue-3d-visualization-contract-v1';
+  method: 'tolue-3d-visualization-contract-v2';
   warnings: string[];
 }
 
@@ -47,20 +58,15 @@ function scalar(value: number | null, unit: string, sourceResultId: string | nul
   return { value, unit, status: value === null ? 'not_computed' : 'computed', sourceResultId };
 }
 
-/**
- * Maps deterministic Engineering Core outputs to a renderer-neutral 3D data
- * contract. This function performs no new hydraulic/rheological inference.
- * Unknown hydraulic contributions remain not_computed. The resulting dataset
- * is explicitly an engineering visualization, not CFD/DEM or a new physical
- * simulation.
- */
 export function buildEngineeringVisualization3DData(
   run: SimulationRunResult,
   center: EngineeringResultCenter,
   diagnostics: DiagnosticsResult,
+  pumpabilityDecision?: PumpabilityDecisionResult,
 ): EngineeringVisualization3DData {
   if (run.runId !== center.runId || run.runId !== diagnostics.runId) throw new Error('runId mismatch between visualization sources');
   if (center.inputSnapshotHash !== diagnostics.inputSnapshotHash) throw new Error('inputSnapshotHash mismatch between visualization sources');
+  if (pumpabilityDecision && pumpabilityDecision.runId !== run.runId) throw new Error('runId mismatch between visualization and pumpability decision');
 
   const segments: VisualizationSegment3D[] = [];
   let stationKnown = true;
@@ -115,11 +121,19 @@ export function buildEngineeringVisualization3DData(
     engineVersion: run.engineVersion,
     inputSnapshotHash: center.inputSnapshotHash,
     segments,
+    pumpabilityDecision: pumpabilityDecision ? {
+      pressureFeasibility: pumpabilityDecision.pressureFeasibility,
+      stability: pumpabilityDecision.stability,
+      blockageRisk: pumpabilityDecision.blockageRisk,
+      status: pumpabilityDecision.status,
+      sourceResultId: 'pumpability.decisionStatus',
+      method: pumpabilityDecision.method,
+    } : null,
     completeness: run.status,
     representation: 'engineering_visualization',
     physicalSimulationClaim: false,
     pressureProfileAssumption: run.pressureProfile.assumption,
-    method: 'tolue-3d-visualization-contract-v1',
+    method: 'tolue-3d-visualization-contract-v2',
     warnings: [...run.warnings],
   };
 }
