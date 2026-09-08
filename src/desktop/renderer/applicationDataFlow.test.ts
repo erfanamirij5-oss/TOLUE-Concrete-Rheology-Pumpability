@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { EngineeringAnalysisResult } from '../../engineering/core/engineeringAnalysis';
+import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { EngineeringAnalysisIpcResponse } from '../ipc/engineeringAnalysisIpc';
 import type { EngineeringRunLoadIpcResponse } from '../ipc/engineeringRunIpc';
-import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import {
   applyEngineeringAnalysisResponse,
   createApplicationDataFlowState,
@@ -25,7 +26,7 @@ const input: SimulationRunInput = {
   },
 };
 
-const blockedResult = {
+const blockedResult: EngineeringAnalysisResult = {
   runId: 'run-session-1',
   engineVersion: 'v1',
   readiness: { status: 'BLOCKED', canExecute: false, findings: [], method: 'tolue-engineering-readiness-gate-v2' },
@@ -41,7 +42,7 @@ const blockedResult = {
   visualization3d: null,
   completeness: 'incomplete',
   method: 'tolue-engineering-analysis-orchestrator-v6',
-} as const;
+};
 
 const blockedSuccess: EngineeringAnalysisIpcResponse = {
   status: 'SUCCESS', errorCode: null, method: 'tolue-engineering-analysis-ipc-response-v1', result: blockedResult,
