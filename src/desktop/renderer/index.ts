@@ -6,22 +6,18 @@ import { renderApplicationShell } from './applicationShell';
 export interface RendererPlatform {
   readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
   readonly loadEngineeringRun: TolueBridge['loadEngineeringRun'];
+  readonly listEngineeringRuns: TolueBridge['listEngineeringRuns'];
   readonly exportEngineeringPdf: TolueBridge['exportEngineeringPdf'];
 }
 
-/** Renderer receives only the narrow preload contract; privileged APIs stay outside. */
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
-  if (
-    !bridge ||
-    typeof bridge.executeEngineeringAnalysis !== 'function' ||
-    typeof bridge.loadEngineeringRun !== 'function' ||
-    typeof bridge.exportEngineeringPdf !== 'function'
-  ) {
+  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function') {
     throw new Error('RENDERER-BRIDGE-001');
   }
   return Object.freeze({
     executeEngineeringAnalysis: (input: SimulationRunInput) => bridge.executeEngineeringAnalysis(input),
     loadEngineeringRun: (runId: string) => bridge.loadEngineeringRun(runId),
+    listEngineeringRuns: () => bridge.listEngineeringRuns(),
     exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
   });
 }
@@ -30,10 +26,7 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
   const platform = createRendererPlatform(window.tolue);
   const root = target.getElementById('app');
   if (!root) throw new Error('RENDERER-ROOT-001');
-  renderApplicationShell(root, undefined, {
-    executeEngineeringAnalysis: platform.executeEngineeringAnalysis,
-    exportEngineeringPdf: platform.exportEngineeringPdf,
-  });
+  renderApplicationShell(root, undefined, { executeEngineeringAnalysis: platform.executeEngineeringAnalysis, exportEngineeringPdf: platform.exportEngineeringPdf });
   root.dataset.rendererReady = 'true';
   return platform;
 }
