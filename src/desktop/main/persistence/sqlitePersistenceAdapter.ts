@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
+import type { EngineeringRunRowStore, PersistedEngineeringRunRow } from './engineeringRunRepository';
 import type { PersistenceMigrationStore } from './persistenceMigration';
 import type { PersistenceMigration } from './persistenceSchema';
 
-export interface SqlitePersistenceAdapter extends PersistenceMigrationStore {
+export interface SqlitePersistenceAdapter extends PersistenceMigrationStore, EngineeringRunRowStore {
   readonly databasePath: string;
   readonly close: () => void;
 }
@@ -35,10 +36,43 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
     }
   };
 
+  const upsertEngineeringRun = (row: Readonly<PersistedEngineeringRunRow>): void => {
+    database.prepare(`INSERT INTO engineering_runs (
+      run_id, engine_version, created_at_iso, input_snapshot_hash, execution_status, completeness, input_json, result_json, method
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(run_id) DO UPDATE SET
+      engine_version=excluded.engine_version,
+      created_at_iso=excluded.created_at_iso,
+      input_snapshot_hash=excluded.input_snapshot_hash,
+      execution_status=excluded.execution_status,
+      completeness=excluded.completeness,
+      input_json=excluded.input_json,
+      result_json=excluded.result_json,
+      method=excluded.method`)
+      .run(row.runId, row.engineVersion, row.createdAtIso, row.inputSnapshotHash, row.executionStatus, row.completeness, row.inputJson, row.resultJson, row.method);
+  };
+
+  const readEngineeringRun = (runId: string): Readonly<PersistedEngineeringRunRow> | null => {
+    const row = database.prepare(`SELECT
+      run_id AS runId,
+      engine_version AS engineVersion,
+      created_at_iso AS createdAtIso,
+      input_snapshot_hash AS inputSnapshotHash,
+      execution_status AS executionStatus,
+      completeness,
+      input_json AS inputJson,
+      result_json AS resultJson,
+      method
+      FROM engineering_runs WHERE run_id = ?`).get(runId) as PersistedEngineeringRunRow | undefined;
+    return row ? Object.freeze(row) : null;
+  };
+
   return Object.freeze({
     databasePath,
     readSchemaVersion,
     applyMigrationAtomically,
+    upsertEngineeringRun,
+    readEngineeringRun,
     close: () => database.close(),
   });
 }
