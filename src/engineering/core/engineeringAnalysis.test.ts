@@ -87,20 +87,26 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.resultCenter.runId).toBe(result.runId);
     expect(result.diagnostics.runId).toBe(result.runId);
     expect(result.pumpabilityDecision.runId).toBe(result.runId);
+    expect(result.finalOutput.runId).toBe(result.runId);
     expect(result.visualization3d.runId).toBe(result.runId);
     expect(result.resultCenter.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.diagnostics.inputSnapshotHash).toBe(result.inputSnapshotHash);
+    expect(result.finalOutput.traceability.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.visualization3d.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.pumpabilityDecision.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
     expect(result.resultCenter.results.find(r => r.id === 'pumpability.decisionStatus')?.value).toBe('PRESSURE_ONLY_ACCEPTABLE');
+    expect(result.finalOutput.decision.qualificationScope).toBe('pressure_only');
+    expect(result.finalOutput.renderTargets).toEqual(['desktop_ui', 'pdf_report', 'json_export']);
+    expect(result.finalOutput.scientificClaim).toBe('derived_from_engineering_core_only');
     expect(result.visualization3d.pumpabilityDecision?.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
     expect(result.resultCenter.method).toBe('tolue-engineering-result-center-v4');
     expect(result.diagnostics.method).toBe('tolue-diagnostics-v2');
+    expect(result.finalOutput.method).toBe('tolue-final-engineering-output-v1');
     expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v2');
-    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v4');
+    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v5');
   });
 
-  it('propagates project-qualified three-axis pumpability evidence through Result Center, Diagnostics and 3D', () => {
+  it('propagates project-qualified three-axis pumpability evidence into final reporting traceability', () => {
     const input = fixture();
     input.pumpabilityEvidence = {
       stability: qualifiedEvidence('STAB-001', 'PROV-STAB-001'),
@@ -115,6 +121,17 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.resultCenter.results.find(r => r.id === 'pumpability.blockageEvidence')?.value).toBe('ACCEPTABLE');
     expect(result.resultCenter.results.find(r => r.id === 'pumpability.decisionStatus')?.value).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
     expect(result.diagnostics.findings.some(f => f.kind === 'PUMPABILITY_PROJECT_QUALIFIED')).toBe(true);
+    expect(result.finalOutput.decision).toEqual(expect.objectContaining({
+      overallStatus: 'PROJECT_QUALIFIED_ACCEPTABLE',
+      pressureFeasibility: 'PASS',
+      stability: 'ACCEPTABLE',
+      blockageRisk: 'ACCEPTABLE',
+      qualificationScope: 'project_qualified',
+    }));
+    expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.stabilityEvidence')).toBe(true);
+    expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.blockageEvidence')).toBe(true);
+    expect(result.finalOutput.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
+    expect(result.finalOutput.traceability.sourceMethodIds).toContain('tolue-pumpability-decision-v2');
     expect(result.visualization3d.pumpabilityDecision).toEqual(expect.objectContaining({
       pressureFeasibility: 'PASS',
       stability: 'ACCEPTABLE',
@@ -134,6 +151,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed pump-fail analysis');
     expect(result.simulation.pumpAssessment?.status).toBe('FAIL');
     expect(result.pumpabilityDecision.status).toBe('FAIL_PRESSURE');
+    expect(result.finalOutput.decision.qualificationScope).toBe('failed');
     expect(result.diagnostics.findings.some(f => f.kind === 'PUMP_PRESSURE_INSUFFICIENT' && f.severity === 'critical')).toBe(true);
   });
 
@@ -148,6 +166,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.resultCenter).toBeNull();
     expect(result.diagnostics).toBeNull();
     expect(result.pumpabilityDecision).toBeNull();
+    expect(result.finalOutput).toBeNull();
     expect(result.visualization3d).toBeNull();
   });
 
