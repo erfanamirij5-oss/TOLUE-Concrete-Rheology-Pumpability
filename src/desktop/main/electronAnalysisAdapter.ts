@@ -5,13 +5,18 @@ import {
   type EngineeringAnalysisIpcResponse,
   validateEngineeringAnalysisIpcRequest,
 } from '../ipc/engineeringAnalysisIpc';
+import type { EngineeringRunRepository } from './persistence/engineeringRunRepository';
 
 const rejected = (errorCode: string): EngineeringAnalysisIpcResponse => ({
   status: 'REJECTED', result: null, errorCode,
   method: 'tolue-engineering-analysis-ipc-response-v1',
 });
 
-export function registerEngineeringAnalysisIpc(owner: BrowserWindow, trustedDocumentUrl: string): () => void {
+export function registerEngineeringAnalysisIpc(
+  owner: BrowserWindow,
+  trustedDocumentUrl: string,
+  engineeringRuns?: Readonly<EngineeringRunRepository>,
+): () => void {
   let busy = false;
   ipcMain.handle(ENGINEERING_ANALYSIS_CHANNEL, async (event: IpcMainInvokeEvent, request: unknown): Promise<EngineeringAnalysisIpcResponse> => {
     if (owner.isDestroyed() || event.sender !== owner.webContents || event.senderFrame !== owner.webContents.mainFrame || event.senderFrame.url !== trustedDocumentUrl) {
@@ -23,8 +28,13 @@ export function registerEngineeringAnalysisIpc(owner: BrowserWindow, trustedDocu
       try { validateEngineeringAnalysisIpcRequest(request); }
       catch (error) { return rejected(error instanceof Error ? error.message : 'ANALYSIS-IPC-VALIDATION-001'); }
       try {
+        const result = executeEngineeringAnalysis(request.payload);
+        if (engineeringRuns) {
+          try { engineeringRuns.save(request.payload, result); }
+          catch { return rejected('ANALYSIS-IPC-PERSISTENCE-001'); }
+        }
         return {
-          status: 'SUCCESS', result: executeEngineeringAnalysis(request.payload), errorCode: null,
+          status: 'SUCCESS', result, errorCode: null,
           method: 'tolue-engineering-analysis-ipc-response-v1',
         };
       } catch {
