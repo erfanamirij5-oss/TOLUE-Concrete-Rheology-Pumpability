@@ -1,0 +1,58 @@
+name: Windows Package CI
+
+on:
+  push:
+    branches:
+      - stage-0-scientific-reference-matrix
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package:
+    name: Build Windows NSIS Installer
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Run engineering golden tests
+        run: npm test
+
+      - name: Build Windows NSIS installer
+        run: npm run package:win
+
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File
+          if ($installer.Count -ne 1) { throw "WINDOWS-PACKAGE-ARTIFACT-001: expected exactly one NSIS installer, found $($installer.Count)" }
+          if ($installer[0].Length -le 0) { throw 'WINDOWS-PACKAGE-ARTIFACT-002: installer is empty' }
+          Write-Host "Installer: $($installer[0].FullName)"
+          Write-Host "Bytes: $($installer[0].Length)"
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: tolue-windows-installer
+          path: release/windows/TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
