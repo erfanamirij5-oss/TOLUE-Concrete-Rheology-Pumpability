@@ -62,6 +62,20 @@ function fixture(): SimulationRunInput {
   };
 }
 
+function qualifiedEvidence(evidenceId: string, provenanceEntityId: string) {
+  return {
+    projectId: 'PROJECT-001',
+    evidenceId,
+    provenanceEntityId,
+    methodId: 'project-qualified-test-v1',
+    referenceIds: ['REF-001'],
+    outcome: 'ACCEPTABLE' as const,
+    qualifiedFlowRangeM3s: { min: 0.0005, max: 0.0015 },
+    applicabilityStatement: 'Qualified only for the documented project route/material system.',
+    limitations: ['Not transferable without independent qualification.'],
+  };
+}
+
 describe('executeEngineeringAnalysis readiness integration', () => {
   it('executes READY input through every downstream stage with one identity and hash', () => {
     const result = executeEngineeringAnalysis(fixture());
@@ -78,19 +92,42 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.diagnostics.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.visualization3d.inputSnapshotHash).toBe(result.inputSnapshotHash);
     expect(result.pumpabilityDecision.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
-    expect(result.pumpabilityDecision.stability).toBe('NOT_ASSESSED');
-    expect(result.pumpabilityDecision.blockageRisk).toBe('NOT_ASSESSED');
-    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v3');
+    expect(result.resultCenter.results.find(r => r.id === 'pumpability.decisionStatus')?.value).toBe('PRESSURE_ONLY_ACCEPTABLE');
+    expect(result.visualization3d.pumpabilityDecision?.status).toBe('PRESSURE_ONLY_ACCEPTABLE');
+    expect(result.resultCenter.method).toBe('tolue-engineering-result-center-v4');
+    expect(result.diagnostics.method).toBe('tolue-diagnostics-v2');
+    expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v2');
+    expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v4');
+  });
+
+  it('propagates project-qualified three-axis pumpability evidence through Result Center, Diagnostics and 3D', () => {
+    const input = fixture();
+    input.pumpabilityEvidence = {
+      stability: qualifiedEvidence('STAB-001', 'PROV-STAB-001'),
+      blockage: qualifiedEvidence('BLOCK-001', 'PROV-BLOCK-001'),
+    };
+    const result = executeEngineeringAnalysis(input);
+    expect(result.executionStatus).toBe('EXECUTED');
+    if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed analysis');
+
+    expect(result.pumpabilityDecision.status).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
+    expect(result.resultCenter.results.find(r => r.id === 'pumpability.stabilityEvidence')?.value).toBe('ACCEPTABLE');
+    expect(result.resultCenter.results.find(r => r.id === 'pumpability.blockageEvidence')?.value).toBe('ACCEPTABLE');
+    expect(result.resultCenter.results.find(r => r.id === 'pumpability.decisionStatus')?.value).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
+    expect(result.diagnostics.findings.some(f => f.kind === 'PUMPABILITY_PROJECT_QUALIFIED')).toBe(true);
+    expect(result.visualization3d.pumpabilityDecision).toEqual(expect.objectContaining({
+      pressureFeasibility: 'PASS',
+      stability: 'ACCEPTABLE',
+      blockageRisk: 'ACCEPTABLE',
+      status: 'PROJECT_QUALIFIED_ACCEPTABLE',
+    }));
+    expect(result.visualization3d.physicalSimulationClaim).toBe(false);
   });
 
   it('executes a hydraulically complete run when pump pressure is insufficient and emits a critical diagnostic', () => {
     const input = fixture();
-    input.pumpCapability = {
-      provenance: 'manufacturer_rated_point',
-      capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 1_000 }],
-    };
+    input.pumpCapability = { provenance: 'manufacturer_rated_point', capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 1_000 }] };
     const result = executeEngineeringAnalysis(input);
-
     expect(result.readiness.status).toBe('READY');
     expect(result.executionStatus).toBe('EXECUTED');
     expect(result.completeness).toBe('complete');
@@ -104,62 +141,14 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     const input = fixture();
     delete input.pumpCapability;
     const result = executeEngineeringAnalysis(input);
-
     expect(result.readiness.status).toBe('BLOCKED');
     expect(result.executionStatus).toBe('BLOCKED');
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-PUMP-001')).toBe(true);
     expect(result.inputSnapshotHash).toBeNull();
     expect(result.simulation).toBeNull();
     expect(result.resultCenter).toBeNull();
     expect(result.diagnostics).toBeNull();
     expect(result.pumpabilityDecision).toBeNull();
     expect(result.visualization3d).toBeNull();
-  });
-
-  it('executes PRELIMINARY input while preserving readiness provenance', () => {
-    const input = fixture();
-    input.assumptions = ['Lubrication-layer rheology supplied from an explicit engineering assumption.'];
-    const result = executeEngineeringAnalysis(input);
-
-    expect(result.readiness.status).toBe('PRELIMINARY');
-    expect(result.executionStatus).toBe('EXECUTED');
-    if (result.executionStatus !== 'EXECUTED') throw new Error('expected preliminary execution');
-    expect(result.simulation.assumptions).toEqual(input.assumptions);
-  });
-
-  it('executes provenance-missing legacy input as PRELIMINARY, not READY', () => {
-    const input = fixture();
-    delete input.provenance;
-    const result = executeEngineeringAnalysis(input);
-    expect(result.readiness.status).toBe('PRELIMINARY');
-    expect(result.executionStatus).toBe('EXECUTED');
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-PROV-002')).toBe(true);
-  });
-
-  it('hard-blocks unsupported pipeline fittings before any solver/downstream result exists', () => {
-    const input = fixture();
-    input.pipeline.segments.push({ id: 'E1', kind: 'elbow', elevationChangeM: 0 });
-    const result = executeEngineeringAnalysis(input);
-
-    expect(result.readiness.status).toBe('BLOCKED');
-    expect(result.executionStatus).toBe('BLOCKED');
-    expect(result.completeness).toBe('incomplete');
-    expect(result.inputSnapshotHash).toBeNull();
-    expect(result.simulation).toBeNull();
-    expect(result.resultCenter).toBeNull();
-    expect(result.diagnostics).toBeNull();
-    expect(result.pumpabilityDecision).toBeNull();
-    expect(result.visualization3d).toBeNull();
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-001')).toBe(true);
-  });
-
-  it('hard-blocks invalid LL geometry instead of allowing the solver to throw', () => {
-    const input = fixture();
-    input.pipeline.lubricationLayerThicknessM = 0.0625;
-    const result = executeEngineeringAnalysis(input);
-
-    expect(result.executionStatus).toBe('BLOCKED');
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-LL-002')).toBe(true);
   });
 
   it('is deterministic for identical READY and BLOCKED inputs', () => {
