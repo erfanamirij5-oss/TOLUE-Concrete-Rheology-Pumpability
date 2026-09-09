@@ -1,0 +1,303 @@
+name: Release RC
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v0.9.0-rc.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-rc-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release request
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Require main branch
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "RELEASE-GATE-001: releases must be dispatched from main"
+            exit 1
+          fi
+
+      - name: Checkout exact main commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag and package metadata
+        id: meta
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "RELEASE-GATE-002: tag must match vX.Y.Z-rc.N"
+            exit 1
+          fi
+          VERSION="${REQUESTED_TAG#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
+          ROOT_LOCK_VERSION="$(node -p "require('./package-lock.json').packages[''].version")"
+          NOTES_FILE="docs/RELEASE_CANDIDATE_v${VERSION}.md"
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "RELEASE-GATE-003: package.json version $PACKAGE_VERSION != requested $VERSION"
+            exit 1
+          fi
+          if [ "$LOCK_VERSION" != "$VERSION" ] || [ "$ROOT_LOCK_VERSION" != "$VERSION" ]; then
+            echo "RELEASE-GATE-004: package-lock version metadata is not synchronized"
+            exit 1
+          fi
+          if [ ! -f "$NOTES_FILE" ]; then
+            echo "RELEASE-GATE-005: release notes missing at $NOTES_FILE"
+            exit 1
+          fi
+          if git rev-parse "$REQUESTED_TAG" >/dev/null 2>&1; then
+            echo "RELEASE-GATE-006: tag already exists"
+            exit 1
+          fi
+          if gh release view "$REQUESTED_TAG" >/dev/null 2>&1; then
+            echo "RELEASE-GATE-007: release already exists"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+
+  licensing-acceptance:
+    name: Licensing E2E with ephemeral CI key
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Run engineering and regression tests
+        run: npm test
+
+      - name: Prepare ephemeral machine-bound CI license
+        run: node scripts/create-windows-ci-license.mjs
+
+      - name: Build disposable CI acceptance installer
+        run: npm run package:win
+
+      - name: Silent install disposable CI build
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
+          if ($installer.Count -ne 1) { throw "RELEASE-GATE-101: expected exactly one CI installer, found $($installer.Count)" }
+          $process = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "RELEASE-GATE-102: CI installer exited with $($process.ExitCode)" }
+          $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
+          $installed = @(Get-ChildItem -Path $programsRoot -Filter 'TOLUE Concrete Rheology & Pumpability.exe' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($installed.Count -ne 1) { throw "RELEASE-GATE-103: expected exactly one installed executable, found $($installed.Count)" }
+          "TOLUE_INSTALLED_EXE=$($installed[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Activation-only and licensed launch acceptance
+        shell: pwsh
+        run: |
+          $userData = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability'
+          $license = Join-Path $userData 'tolue-license.json'
+          $fixtures = Join-Path $userData '.ci-license-fixtures'
+          $valid = Join-Path $fixtures 'valid.json'
+          $expired = Join-Path $fixtures 'expired.json'
+          $wrongMachine = Join-Path $fixtures 'wrong-machine.json'
+          $db = Join-Path $userData 'tolue-rheology.sqlite3'
+          foreach ($fixture in @($valid, $expired, $wrongMachine)) {
+            if (-not (Test-Path $fixture -PathType Leaf)) { throw "RELEASE-GATE-104: missing fixture $fixture" }
+          }
+          if (Test-Path $db) { Remove-Item $db -Force }
+          function Assert-ActivationOnly([string]$name, [string]$fixture) {
+            if (Test-Path $license) { Remove-Item $license -Force }
+            if ($fixture) { Copy-Item $fixture $license -Force }
+            $p = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+            Start-Sleep -Seconds 6
+            if ($p.HasExited) { throw "RELEASE-GATE-105: $name activation process exited early" }
+            if (Test-Path $db -PathType Leaf) { Stop-Process -Id $p.Id -Force; throw "RELEASE-GATE-106: $name opened engineering persistence" }
+            Stop-Process -Id $p.Id -Force
+            Start-Sleep -Seconds 1
+          }
+          Assert-ActivationOnly 'missing-license' ''
+          Assert-ActivationOnly 'expired-license' $expired
+          Assert-ActivationOnly 'wrong-machine-license' $wrongMachine
+          Copy-Item $valid $license -Force
+          $p = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw 'RELEASE-GATE-107: licensed application exited early' }
+          if (-not (Test-Path $db -PathType Leaf)) { Stop-Process -Id $p.Id -Force; throw 'RELEASE-GATE-108: licensed application did not create persistence database' }
+          Stop-Process -Id $p.Id -Force
+          $beforeLength = (Get-Item $db).Length
+          $p = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw 'RELEASE-GATE-109: application exited early after restart' }
+          if ((Get-Item $db).Length -lt $beforeLength) { Stop-Process -Id $p.Id -Force; throw 'RELEASE-GATE-110: persistence database shrank across restart' }
+          Stop-Process -Id $p.Id -Force
+
+  build-production-rc:
+    name: Build production-keyed Windows RC
+    needs: [validate, licensing-acceptance]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PROD_PUBLIC_KEY_PEM: ${{ secrets.TOLUE_PRODUCTION_LICENSE_PUBLIC_KEY_PEM }}
+      PROD_PUBLIC_KEYRING_JSON: ${{ secrets.TOLUE_PRODUCTION_LICENSE_PUBLIC_KEYRING_JSON }}
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Require externally provisioned production public key material
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PROD_PUBLIC_KEY_PEM)) { throw 'RELEASE-GATE-201: TOLUE_PRODUCTION_LICENSE_PUBLIC_KEY_PEM is missing' }
+          if ([string]::IsNullOrWhiteSpace($env:PROD_PUBLIC_KEYRING_JSON)) { throw 'RELEASE-GATE-202: TOLUE_PRODUCTION_LICENSE_PUBLIC_KEYRING_JSON is missing' }
+          New-Item -ItemType Directory -Path 'build/license' -Force | Out-Null
+          [IO.File]::WriteAllText((Join-Path $PWD 'build/license/tolue-license-public-key.pem'), $env:PROD_PUBLIC_KEY_PEM, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText((Join-Path $PWD 'build/license/tolue-license-public-keyring.json'), $env:PROD_PUBLIC_KEYRING_JSON, [Text.UTF8Encoding]::new($false))
+
+      - name: Validate production public key material
+        shell: pwsh
+        run: |
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; import {createPublicKey} from 'node:crypto'; const pem=readFileSync('build/license/tolue-license-public-key.pem','utf8'); const key=createPublicKey(pem); if(key.asymmetricKeyType!=='ed25519') throw new Error('RELEASE-GATE-203: production public key must be Ed25519'); const r=JSON.parse(readFileSync('build/license/tolue-license-public-keyring.json','utf8')); if(r.method!=='tolue-license-public-keyring-v1'||typeof r.activeKeyId!=='string'||!Array.isArray(r.keys)) throw new Error('RELEASE-GATE-204: invalid production keyring shape'); const active=r.keys.filter(k=>k?.status==='ACTIVE'); if(active.length!==1||active[0].keyId!==r.activeKeyId) throw new Error('RELEASE-GATE-205: keyring must contain exactly one matching ACTIVE key'); const resolved=createPublicKey(active[0].publicKeyPem); if(resolved.asymmetricKeyType!=='ed25519') throw new Error('RELEASE-GATE-206: active keyring key must be Ed25519');"
+
+      - name: Build production RC installer
+        run: npm run package:win
+
+      - name: Verify exact production RC installer and checksum
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $expectedName = "TOLUE-Concrete-Rheology-Pumpability-$env:EXPECTED_VERSION-Setup.exe"
+          $installer = Join-Path 'release/windows' $expectedName
+          if (-not (Test-Path $installer -PathType Leaf)) { throw "RELEASE-GATE-207: exact installer not found at $installer" }
+          if ((Get-Item $installer).Length -le 0) { throw 'RELEASE-GATE-208: installer is empty' }
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $expectedName" | Set-Content -Path 'release/windows/SHA256SUMS.txt' -Encoding ascii
+          Write-Host "Production RC installer: $installer"
+          Write-Host "SHA256: $hash"
+
+      - name: Missing-license production RC smoke test
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
+          if ($installer.Count -ne 1) { throw 'RELEASE-GATE-209: production installer count mismatch' }
+          $process = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "RELEASE-GATE-210: production installer exited with $($process.ExitCode)" }
+          $installed = @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Programs') -Filter 'TOLUE Concrete Rheology & Pumpability.exe' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($installed.Count -ne 1) { throw 'RELEASE-GATE-211: installed production executable not found uniquely' }
+          $userData = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability'
+          $license = Join-Path $userData 'tolue-license.json'
+          $db = Join-Path $userData 'tolue-rheology.sqlite3'
+          if (Test-Path $license) { Remove-Item $license -Force }
+          if (Test-Path $db) { Remove-Item $db -Force }
+          $p = Start-Process -FilePath $installed[0].FullName -PassThru
+          Start-Sleep -Seconds 6
+          if ($p.HasExited) { throw 'RELEASE-GATE-212: production activation shell exited early' }
+          if (Test-Path $db -PathType Leaf) { Stop-Process -Id $p.Id -Force; throw 'RELEASE-GATE-213: missing-license production build opened engineering persistence' }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Upload production RC payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: tolue-production-rc-payload
+          path: |
+            release/windows/TOLUE-Concrete-Rheology-Pumpability-${{ needs.validate.outputs.version }}-Setup.exe
+            release/windows/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Tag and publish GitHub prerelease
+    needs: [validate, build-production-rc]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download production RC payload
+        uses: actions/download-artifact@v5
+        with:
+          name: tolue-production-rc-payload
+          path: release-payload
+
+      - name: Revalidate immutable publication target
+        shell: bash
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          git fetch origin main --tags
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "RELEASE-GATE-301: main advanced after release workflow started; refusing stale release"
+            exit 1
+          fi
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "RELEASE-GATE-302: tag appeared during run; refusing duplicate release"
+            exit 1
+          fi
+
+      - name: Create annotated tag and GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          NOTES_FILE="docs/RELEASE_CANDIDATE_v${VERSION}.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "TOLUE Concrete Rheology & Pumpability $TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            "release-payload/TOLUE-Concrete-Rheology-Pumpability-$VERSION-Setup.exe" \
+            "release-payload/SHA256SUMS.txt" \
+            --title "TOLUE Concrete Rheology & Pumpability $TAG" \
+            --notes-file "$NOTES_FILE" \
+            --prerelease \
+            --verify-tag
+
+      - name: Verify published prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          gh release view "$TAG" --json tagName,isPrerelease,assets,targetCommitish > release.json
+          node -e "const r=require('./release.json'); if(r.tagName!==process.env.TAG||r.isPrerelease!==true||r.assets.length!==2){process.exit(1)}"
+          echo "Published prerelease $TAG with production installer and checksum."
