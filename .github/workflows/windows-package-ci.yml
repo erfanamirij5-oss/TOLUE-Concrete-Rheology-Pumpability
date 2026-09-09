@@ -1,0 +1,158 @@
+name: Windows Package CI
+
+on:
+  push:
+    branches:
+      - main
+      - stage-0-scientific-reference-matrix
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package:
+    name: Build Windows NSIS Installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Run engineering golden tests
+        run: npm test
+
+      - name: Prepare ephemeral machine-bound CI license
+        run: node scripts/create-windows-ci-license.mjs
+
+      - name: Build Windows NSIS installer
+        run: npm run package:win
+
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
+          if ($installer.Count -ne 1) { throw "WINDOWS-PACKAGE-ARTIFACT-001: expected exactly one NSIS installer, found $($installer.Count)" }
+          if ($installer[0].Length -le 0) { throw 'WINDOWS-PACKAGE-ARTIFACT-002: installer is empty' }
+          Write-Host "Installer: $($installer[0].FullName)"
+          Write-Host "Bytes: $($installer[0].Length)"
+
+      - name: Silent install smoke test
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)[0]
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "WINDOWS-INSTALL-SMOKE-001: installer exited with $($process.ExitCode)" }
+          $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
+          $installed = @(Get-ChildItem -Path $programsRoot -Filter 'TOLUE Concrete Rheology & Pumpability.exe' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($installed.Count -ne 1) { throw "WINDOWS-INSTALL-SMOKE-002: expected exactly one installed executable under $programsRoot, found $($installed.Count)" }
+          if ($installed[0].Length -le 0) { throw 'WINDOWS-INSTALL-SMOKE-003: installed executable is empty' }
+          "TOLUE_INSTALLED_EXE=$($installed[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Installed executable: $($installed[0].FullName)"
+
+      - name: Validate installer shortcuts
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:TOLUE_INSTALLED_EXE -PathType Leaf)) { throw 'WINDOWS-SHORTCUT-000: installed executable context missing' }
+          $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'TOLUE Concrete Rheology & Pumpability.lnk'
+          $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\TOLUE Concrete Rheology & Pumpability.lnk'
+          if (-not (Test-Path $desktopShortcut -PathType Leaf)) { throw "WINDOWS-SHORTCUT-001: desktop shortcut not found at $desktopShortcut" }
+          if (-not (Test-Path $startMenuShortcut -PathType Leaf)) { throw "WINDOWS-SHORTCUT-002: Start Menu shortcut not found at $startMenuShortcut" }
+          $shell = New-Object -ComObject WScript.Shell
+          foreach ($shortcutPath in @($desktopShortcut, $startMenuShortcut)) {
+            $shortcut = $shell.CreateShortcut($shortcutPath)
+            if (-not (Test-Path $shortcut.TargetPath -PathType Leaf)) { throw "WINDOWS-SHORTCUT-003: shortcut target missing: $($shortcut.TargetPath)" }
+            if ([IO.Path]::GetFullPath($shortcut.TargetPath) -ne [IO.Path]::GetFullPath($env:TOLUE_INSTALLED_EXE)) { throw "WINDOWS-SHORTCUT-004: shortcut target mismatch: $($shortcut.TargetPath)" }
+          }
+
+      - name: Activation-only licensing acceptance
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:TOLUE_INSTALLED_EXE -PathType Leaf)) { throw 'WINDOWS-LICENSE-E2E-000: installed executable context missing' }
+          $userData = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability'
+          $license = Join-Path $userData 'tolue-license.json'
+          $fixtures = Join-Path $userData '.ci-license-fixtures'
+          $valid = Join-Path $fixtures 'valid.json'
+          $expired = Join-Path $fixtures 'expired.json'
+          $wrongMachine = Join-Path $fixtures 'wrong-machine.json'
+          $db = Join-Path $userData 'tolue-rheology.sqlite3'
+          foreach ($fixture in @($valid, $expired, $wrongMachine)) {
+            if (-not (Test-Path $fixture -PathType Leaf)) { throw "WINDOWS-LICENSE-E2E-001: missing fixture $fixture" }
+          }
+          if (Test-Path $db) { Remove-Item $db -Force }
+
+          function Assert-ActivationOnly([string]$caseName, [string]$fixturePath) {
+            if (Test-Path $license) { Remove-Item $license -Force }
+            if ($fixturePath) { Copy-Item $fixturePath $license -Force }
+            $process = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+            Start-Sleep -Seconds 6
+            if ($process.HasExited) { throw "WINDOWS-LICENSE-E2E-002: $caseName activation process exited early with code $($process.ExitCode)" }
+            if (Test-Path $db -PathType Leaf) { Stop-Process -Id $process.Id -Force; throw "WINDOWS-LICENSE-E2E-003: $caseName incorrectly opened engineering shell and created persistence DB" }
+            Stop-Process -Id $process.Id -Force
+            Start-Sleep -Seconds 1
+            Write-Host "$caseName correctly remained activation-only."
+          }
+
+          Assert-ActivationOnly 'missing-license' ''
+          Assert-ActivationOnly 'expired-license' $expired
+          Assert-ActivationOnly 'wrong-machine-license' $wrongMachine
+          Copy-Item $valid $license -Force
+          if (Test-Path $db) { throw 'WINDOWS-LICENSE-E2E-004: engineering DB appeared before valid-license launch' }
+          Write-Host 'Activation-only acceptance passed for missing, expired, and wrong-machine licenses.'
+
+      - name: Launch licensed installed executable smoke test
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:TOLUE_INSTALLED_EXE -PathType Leaf)) { throw 'WINDOWS-LAUNCH-SMOKE-000: installed executable context missing' }
+          $license = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability\tolue-license.json'
+          if (-not (Test-Path $license -PathType Leaf)) { throw 'WINDOWS-LICENSE-SMOKE-001: machine-bound CI license missing' }
+          $process = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "WINDOWS-LAUNCH-SMOKE-001: licensed application exited early with code $($process.ExitCode)" }
+          $db = @(Get-ChildItem -Path $env:APPDATA -Filter 'tolue-rheology.sqlite3' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($db.Count -ne 1) { throw "WINDOWS-USERDATA-001: expected exactly one persistence database under APPDATA, found $($db.Count)" }
+          if ($db[0].Length -le 0) { throw 'WINDOWS-USERDATA-002: persistence database is empty' }
+          "TOLUE_USERDATA_DB=$($db[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Persistence database: $($db[0].FullName)"
+          Stop-Process -Id $process.Id -Force
+          Write-Host 'Licensed installed application remained alive through launch smoke window.'
+
+      - name: Restart persistence smoke test
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:TOLUE_USERDATA_DB -PathType Leaf)) { throw 'WINDOWS-USERDATA-003: persistence database context missing before restart' }
+          $beforePath = [IO.Path]::GetFullPath($env:TOLUE_USERDATA_DB)
+          $beforeLength = (Get-Item $beforePath).Length
+          $process = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "WINDOWS-RESTART-SMOKE-001: installed application exited early after restart with code $($process.ExitCode)" }
+          $db = @(Get-ChildItem -Path $env:APPDATA -Filter 'tolue-rheology.sqlite3' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($db.Count -ne 1) { throw "WINDOWS-USERDATA-004: expected exactly one persistence database after restart, found $($db.Count)" }
+          if ([IO.Path]::GetFullPath($db[0].FullName) -ne $beforePath) { throw "WINDOWS-USERDATA-005: persistence database path changed across restart" }
+          if ($db[0].Length -lt $beforeLength) { throw "WINDOWS-USERDATA-006: persistence database shrank across restart" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host 'Persistence database survived licensed installed-app restart at the same userData path.'
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: tolue-windows-installer
+          path: release/windows/TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
