@@ -55,6 +55,8 @@ export function registerLicenseIpc(input: Readonly<ElectronLicenseAdapterInput>)
     }
     const selected = await dialog.showOpenDialog(input.owner, { title: 'انتخاب فایل مجوز طلوع', properties: ['openFile'], filters: [{ name: 'TOLUE License', extensions: ['json'] }] });
     if (selected.canceled || selected.filePaths.length !== 1) return { status: 'CANCELLED', licenseStatus: status(input).status, licenseId: null, validUntilIso: null, errorCode: null, method: 'tolue-license-import-ipc-response-v1' };
+    const sourceLicensePath = selected.filePaths[0];
+    if (!sourceLicensePath) return { status: 'REJECTED', licenseStatus: 'INVALID', licenseId: null, validUntilIso: null, errorCode: 'LICENSE-IMPORT-FILE-001', method: 'tolue-license-import-ipc-response-v1' };
     const current = status(input);
     if (!current.machineCode) return { status: 'REJECTED', licenseStatus: 'INVALID', licenseId: null, validUntilIso: null, errorCode: 'LICENSE-IMPORT-MACHINE-001', method: 'tolue-license-import-ipc-response-v1' };
     const provisioned = provisionSignedLicense({
@@ -62,7 +64,7 @@ export function registerLicenseIpc(input: Readonly<ElectronLicenseAdapterInput>)
       publicKeyPath: join(input.resourcesPath, 'license', 'tolue-license-public-key.pem'),
       machineId: current.machineCode,
       nowIso: input.nowIso(),
-      sourceLicensePath: selected.filePaths[0],
+      sourceLicensePath,
     });
     if (provisioned.status !== 'IMPORTED') return { status: 'REJECTED', licenseStatus: status(input).status, licenseId: null, validUntilIso: null, errorCode: provisioned.errorCode, method: 'tolue-license-import-ipc-response-v1' };
     const refreshed = status(input);
