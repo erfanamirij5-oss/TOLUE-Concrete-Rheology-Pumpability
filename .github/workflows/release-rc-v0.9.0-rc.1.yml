@@ -1,0 +1,162 @@
+name: Release RC v0.9.0-rc.1
+
+on:
+  workflow_run:
+    workflows: ["Windows Package CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-rc-v0.9.0-rc.1
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: v0.9.0-rc.1
+  RELEASE_VERSION: 0.9.0-rc.1
+  RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+  RC_KEY_DIR: release/rc/v0.9.0-rc.1
+
+jobs:
+  gate-and-publish:
+    name: Verify main, build keyed RC, tag and publish
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Require exact main Windows CI success
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'workflow_run') { throw 'RC-RELEASE-001: workflow_run event required' }
+          if ('${{ github.event.workflow_run.name }}' -ne 'Windows Package CI') { throw 'RC-RELEASE-002: unexpected source workflow' }
+          if ('${{ github.event.workflow_run.head_branch }}' -ne 'main') { throw 'RC-RELEASE-003: source run must be main' }
+          if ('${{ github.event.workflow_run.conclusion }}' -ne 'success') { throw 'RC-RELEASE-004: Windows CI must succeed' }
+
+      - name: Checkout exact verified main commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify immutable publication target and Engineering Core CI
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main --tags
+          $head = (git rev-parse HEAD).Trim()
+          $main = (git rev-parse origin/main).Trim()
+          if ($head -ne $env:RELEASE_COMMIT) { throw 'RC-RELEASE-005: checkout does not match source run SHA' }
+          if ($head -ne $main) { throw 'RC-RELEASE-006: main advanced; refusing stale release' }
+          $coreJson = gh api "repos/${{ github.repository }}/actions/runs?head_sha=$head&per_page=20"
+          $core = ($coreJson | ConvertFrom-Json).workflow_runs | Where-Object { $_.name -eq 'Engineering Core CI' -and $_.event -eq 'push' -and $_.head_branch -eq 'main' } | Select-Object -First 1
+          if (-not $core) { throw 'RC-RELEASE-007: Engineering Core CI run not found for exact main SHA' }
+          if ($core.status -ne 'completed' -or $core.conclusion -ne 'success') { throw "RC-RELEASE-008: Engineering Core CI not successful; status=$($core.status) conclusion=$($core.conclusion)" }
+          if (git rev-parse $env:RELEASE_TAG 2>$null) { throw 'RC-RELEASE-009: tag already exists' }
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'RC-RELEASE-010: GitHub release already exists' }
+
+      - name: Verify package and lockfile version
+        shell: pwsh
+        run: |
+          $packageVersion = node -p "require('./package.json').version"
+          $lockVersion = node -p "require('./package-lock.json').version"
+          $rootLockVersion = node -p "require('./package-lock.json').packages[''].version"
+          if ($packageVersion -ne $env:RELEASE_VERSION) { throw "RC-RELEASE-011: package version mismatch: $packageVersion" }
+          if ($lockVersion -ne $env:RELEASE_VERSION -or $rootLockVersion -ne $env:RELEASE_VERSION) { throw 'RC-RELEASE-012: lockfile version mismatch' }
+          $notes = "docs/RELEASE_CANDIDATE_v$($env:RELEASE_VERSION).md"
+          if (-not (Test-Path $notes -PathType Leaf)) { throw 'RC-RELEASE-013: release notes missing' }
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Run engineering and regression tests
+        run: npm test
+
+      - name: Provision committed RC public key material
+        shell: pwsh
+        run: |
+          $pemSource = Join-Path $env:RC_KEY_DIR 'tolue-license-public-key.pem'
+          $ringSource = Join-Path $env:RC_KEY_DIR 'tolue-license-public-keyring.json'
+          if (-not (Test-Path $pemSource -PathType Leaf)) { throw 'RC-RELEASE-201: RC public key missing' }
+          if (-not (Test-Path $ringSource -PathType Leaf)) { throw 'RC-RELEASE-202: RC keyring missing' }
+          New-Item -ItemType Directory -Path 'build/license' -Force | Out-Null
+          Copy-Item $pemSource 'build/license/tolue-license-public-key.pem' -Force
+          Copy-Item $ringSource 'build/license/tolue-license-public-keyring.json' -Force
+
+      - name: Validate RC public key and keyring consistency
+        shell: pwsh
+        run: |
+          node --input-type=module -e "import {readFileSync} from 'node:fs'; import {createPublicKey} from 'node:crypto'; const pem=readFileSync('build/license/tolue-license-public-key.pem','utf8'); const key=createPublicKey(pem); if(key.asymmetricKeyType!=='ed25519') throw new Error('RC-RELEASE-203: PEM must be Ed25519'); const r=JSON.parse(readFileSync('build/license/tolue-license-public-keyring.json','utf8')); if(r.method!=='tolue-license-public-keyring-v1'||r.activeKeyId!=='tolue-rc-2026-01'||!Array.isArray(r.keys)) throw new Error('RC-RELEASE-204: invalid RC keyring'); const active=r.keys.filter(k=>k?.status==='ACTIVE'); if(active.length!==1||active[0].keyId!==r.activeKeyId) throw new Error('RC-RELEASE-205: exactly one ACTIVE key required'); if(active[0].publicKeyPem.trim()!==pem.trim()) throw new Error('RC-RELEASE-206: keyring PEM does not match packaged PEM'); const resolved=createPublicKey(active[0].publicKeyPem); if(resolved.asymmetricKeyType!=='ed25519') throw new Error('RC-RELEASE-207: active key must be Ed25519');"
+
+      - name: Build exact RC installer
+        run: npm run package:win
+
+      - name: Verify installer and create checksum
+        shell: pwsh
+        run: |
+          $expectedName = "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $installer = Join-Path 'release/windows' $expectedName
+          if (-not (Test-Path $installer -PathType Leaf)) { throw "RC-RELEASE-301: installer missing at $installer" }
+          if ((Get-Item $installer).Length -le 0) { throw 'RC-RELEASE-302: installer is empty' }
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $expectedName" | Set-Content -Path 'release/windows/SHA256SUMS.txt' -Encoding ascii
+          "RC_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Missing-license activation smoke test
+        shell: pwsh
+        run: |
+          $installer = Join-Path 'release/windows' "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $process = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "RC-RELEASE-303: installer exited with $($process.ExitCode)" }
+          $installed = @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Programs') -Filter 'TOLUE Concrete Rheology & Pumpability.exe' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($installed.Count -ne 1) { throw 'RC-RELEASE-304: installed executable not found uniquely' }
+          $userData = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability'
+          $license = Join-Path $userData 'tolue-license.json'
+          $db = Join-Path $userData 'tolue-rheology.sqlite3'
+          if (Test-Path $license) { Remove-Item $license -Force }
+          if (Test-Path $db) { Remove-Item $db -Force }
+          $p = Start-Process -FilePath $installed[0].FullName -PassThru
+          Start-Sleep -Seconds 6
+          if ($p.HasExited) { throw 'RC-RELEASE-305: activation shell exited early' }
+          if (Test-Path $db -PathType Leaf) { Stop-Process -Id $p.Id -Force; throw 'RC-RELEASE-306: missing-license build opened engineering persistence' }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Create annotated tag and GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main --tags
+          if ((git rev-parse HEAD).Trim() -ne (git rev-parse origin/main).Trim()) { throw 'RC-RELEASE-401: main advanced before publication' }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a $env:RELEASE_TAG -m "TOLUE Concrete Rheology & Pumpability $($env:RELEASE_TAG)"
+          git push origin $env:RELEASE_TAG
+          $installer = "release/windows/TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $notes = "docs/RELEASE_CANDIDATE_v$($env:RELEASE_VERSION).md"
+          gh release create $env:RELEASE_TAG $installer 'release/windows/SHA256SUMS.txt' --title "TOLUE Concrete Rheology & Pumpability $($env:RELEASE_TAG)" --notes-file $notes --prerelease --verify-tag
+
+      - name: Verify published prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r = gh release view $env:RELEASE_TAG --json tagName,isPrerelease,assets,targetCommitish | ConvertFrom-Json
+          if ($r.tagName -ne $env:RELEASE_TAG -or -not $r.isPrerelease) { throw 'RC-RELEASE-402: release verification failed' }
+          if ($r.assets.Count -ne 2) { throw "RC-RELEASE-403: expected 2 release assets, found $($r.assets.Count)" }
+          Write-Host "Published $($env:RELEASE_TAG)"
+          Write-Host "SHA256 $env:RC_SHA256"
