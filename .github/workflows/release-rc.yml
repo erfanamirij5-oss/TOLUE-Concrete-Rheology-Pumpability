@@ -1,0 +1,261 @@
+name: Release RC
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v0.9.0-rc.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-rc-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release request
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Require main branch
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "RELEASE-GATE-001: releases must be dispatched from main"
+            exit 1
+          fi
+
+      - name: Checkout exact main commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag and package metadata
+        id: meta
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if ! [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "RELEASE-GATE-002: tag must match vX.Y.Z-rc.N"
+            exit 1
+          fi
+          VERSION="${REQUESTED_TAG#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          LOCK_VERSION="$(node -p "require('./package-lock.json').version")"
+          ROOT_LOCK_VERSION="$(node -p "require('./package-lock.json').packages[''].version")"
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "RELEASE-GATE-003: package.json version $PACKAGE_VERSION != requested $VERSION"
+            exit 1
+          fi
+          if [ "$LOCK_VERSION" != "$VERSION" ] || [ "$ROOT_LOCK_VERSION" != "$VERSION" ]; then
+            echo "RELEASE-GATE-004: package-lock version metadata is not synchronized"
+            exit 1
+          fi
+          if git rev-parse "$REQUESTED_TAG" >/dev/null 2>&1; then
+            echo "RELEASE-GATE-005: tag already exists"
+            exit 1
+          fi
+          if gh release view "$REQUESTED_TAG" >/dev/null 2>&1; then
+            echo "RELEASE-GATE-006: release already exists"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build-and-accept:
+    name: Build and accept Windows RC
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Run engineering and regression tests
+        run: npm test
+
+      - name: Prepare ephemeral machine-bound CI license
+        run: node scripts/create-windows-ci-license.mjs
+
+      - name: Build Windows NSIS installer
+        run: npm run package:win
+
+      - name: Verify exact RC installer artifact
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $expectedName = "TOLUE-Concrete-Rheology-Pumpability-$env:EXPECTED_VERSION-Setup.exe"
+          $installer = Join-Path 'release/windows' $expectedName
+          if (-not (Test-Path $installer -PathType Leaf)) { throw "RELEASE-GATE-101: exact installer not found at $installer" }
+          if ((Get-Item $installer).Length -le 0) { throw 'RELEASE-GATE-102: installer is empty' }
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "TOLUE_RELEASE_INSTALLER=$installer" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TOLUE_RELEASE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Installer: $installer"
+          Write-Host "SHA256: $hash"
+
+      - name: Silent install smoke test
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath $env:TOLUE_RELEASE_INSTALLER -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "RELEASE-GATE-103: installer exited with $($process.ExitCode)" }
+          $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
+          $installed = @(Get-ChildItem -Path $programsRoot -Filter 'TOLUE Concrete Rheology & Pumpability.exe' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($installed.Count -ne 1) { throw "RELEASE-GATE-104: expected exactly one installed executable, found $($installed.Count)" }
+          "TOLUE_INSTALLED_EXE=$($installed[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Validate installer shortcuts
+        shell: pwsh
+        run: |
+          $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'TOLUE Concrete Rheology & Pumpability.lnk'
+          $startMenuShortcut = Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs\TOLUE Concrete Rheology & Pumpability.lnk'
+          foreach ($shortcutPath in @($desktopShortcut, $startMenuShortcut)) {
+            if (-not (Test-Path $shortcutPath -PathType Leaf)) { throw "RELEASE-GATE-105: shortcut missing: $shortcutPath" }
+          }
+
+      - name: Activation-only and licensed launch acceptance
+        shell: pwsh
+        run: |
+          $userData = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability'
+          $license = Join-Path $userData 'tolue-license.json'
+          $fixtures = Join-Path $userData '.ci-license-fixtures'
+          $valid = Join-Path $fixtures 'valid.json'
+          $expired = Join-Path $fixtures 'expired.json'
+          $wrongMachine = Join-Path $fixtures 'wrong-machine.json'
+          $db = Join-Path $userData 'tolue-rheology.sqlite3'
+          foreach ($fixture in @($valid, $expired, $wrongMachine)) {
+            if (-not (Test-Path $fixture -PathType Leaf)) { throw "RELEASE-GATE-106: missing fixture $fixture" }
+          }
+          if (Test-Path $db) { Remove-Item $db -Force }
+          function Assert-ActivationOnly([string]$name, [string]$fixture) {
+            if (Test-Path $license) { Remove-Item $license -Force }
+            if ($fixture) { Copy-Item $fixture $license -Force }
+            $p = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+            Start-Sleep -Seconds 6
+            if ($p.HasExited) { throw "RELEASE-GATE-107: $name activation process exited early" }
+            if (Test-Path $db -PathType Leaf) { Stop-Process -Id $p.Id -Force; throw "RELEASE-GATE-108: $name opened engineering persistence" }
+            Stop-Process -Id $p.Id -Force
+            Start-Sleep -Seconds 1
+          }
+          Assert-ActivationOnly 'missing-license' ''
+          Assert-ActivationOnly 'expired-license' $expired
+          Assert-ActivationOnly 'wrong-machine-license' $wrongMachine
+          Copy-Item $valid $license -Force
+          $p = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw 'RELEASE-GATE-109: licensed application exited early' }
+          if (-not (Test-Path $db -PathType Leaf)) { Stop-Process -Id $p.Id -Force; throw 'RELEASE-GATE-110: licensed application did not create persistence database' }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Restart persistence acceptance
+        shell: pwsh
+        run: |
+          $db = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability\tolue-rheology.sqlite3'
+          if (-not (Test-Path $db -PathType Leaf)) { throw 'RELEASE-GATE-111: persistence database missing before restart' }
+          $beforeLength = (Get-Item $db).Length
+          $p = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw 'RELEASE-GATE-112: application exited early after restart' }
+          if ((Get-Item $db).Length -lt $beforeLength) { Stop-Process -Id $p.Id -Force; throw 'RELEASE-GATE-113: persistence database shrank across restart' }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Write SHA256 checksum file
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $name = "TOLUE-Concrete-Rheology-Pumpability-$env:EXPECTED_VERSION-Setup.exe"
+          "$env:TOLUE_RELEASE_SHA256  $name" | Set-Content -Path 'release/windows/SHA256SUMS.txt' -Encoding ascii
+
+      - name: Upload accepted RC payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: tolue-rc-release-payload
+          path: |
+            release/windows/TOLUE-Concrete-Rheology-Pumpability-${{ needs.validate.outputs.version }}-Setup.exe
+            release/windows/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Tag and publish GitHub prerelease
+    needs: [validate, build-and-accept]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download accepted RC payload
+        uses: actions/download-artifact@v5
+        with:
+          name: tolue-rc-release-payload
+          path: release-payload
+
+      - name: Revalidate immutable publication target
+        shell: bash
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          git fetch origin main --tags
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "RELEASE-GATE-201: main advanced after release workflow started; refusing stale release"
+            exit 1
+          fi
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "RELEASE-GATE-202: tag appeared during run; refusing duplicate release"
+            exit 1
+          fi
+
+      - name: Create annotated tag and GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "TOLUE Concrete Rheology & Pumpability $TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            "release-payload/TOLUE-Concrete-Rheology-Pumpability-$VERSION-Setup.exe" \
+            "release-payload/SHA256SUMS.txt" \
+            --title "TOLUE Concrete Rheology & Pumpability $TAG" \
+            --notes-file docs/RELEASE_CANDIDATE_v0.9.0-rc.1.md \
+            --prerelease \
+            --verify-tag
+
+      - name: Verify published prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          gh release view "$TAG" --json tagName,isPrerelease,assets,targetCommitish > release.json
+          node -e "const r=require('./release.json'); if(r.tagName!==process.env.TAG||r.isPrerelease!==true||r.assets.length!==2){process.exit(1)}"
+          echo "Published prerelease $TAG with installer and checksum."
