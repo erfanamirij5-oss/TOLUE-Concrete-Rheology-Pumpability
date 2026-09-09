@@ -113,7 +113,7 @@ describe('Electron licensing IPC adapter', () => {
     await new Promise<void>(resolve => setImmediate(resolve));
     expect(mock.activated).toHaveBeenCalledOnce();
     expect(mock.provision).toHaveBeenLastCalledWith(expect.objectContaining({
-      userDataPath: '/user-data', resourcesPath: undefined, machineId: 'scoped-machine-code', sourceLicensePath: 'C:\\selected-by-main.json',
+      userDataPath: '/user-data', publicKeyPath: expect.stringMatching(/resources[\\/]license[\\/]tolue-license-public-key\.pem$/u), machineId: 'scoped-machine-code', sourceLicensePath: 'C:\\selected-by-main.json',
     }));
   });
 
