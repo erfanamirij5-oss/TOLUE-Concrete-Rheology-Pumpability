@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { EngineeringAnalysisResult } from './engineeringAnalysis';
 import { compareEngineeringRuns } from './engineeringRunComparison';
 
-function blocked(runId: string): EngineeringAnalysisResult {
+function blocked(runId: string, engineVersion = 'v1'): EngineeringAnalysisResult {
   return {
     runId,
-    engineVersion: 'v1',
+    engineVersion,
     readiness: { status: 'BLOCKED', canExecute: false, findings: [], method: 'tolue-engineering-readiness-gate-v2' },
     executionStatus: 'BLOCKED',
     inputSnapshotHash: null,
@@ -71,5 +71,14 @@ describe('engineering run comparison', () => {
 
   it('requires distinct run identities', () => {
     expect(() => compareEngineeringRuns(blocked('A'), blocked('A'))).toThrow('RUN-COMPARISON-DISTINCT-001');
+  });
+
+  it('rejects cross-engine comparisons instead of implying comparable semantics', () => {
+    expect(() => compareEngineeringRuns(blocked('A', 'v1'), blocked('B', 'v2'))).toThrow('RUN-COMPARISON-ENGINE-VERSION-001');
+  });
+
+  it('rejects inconsistent persisted execution identity before comparison', () => {
+    const corrupt = { ...executed('A', 1_000_000, 1_500_000, 500_000), inputSnapshotHash: null } as unknown as EngineeringAnalysisResult;
+    expect(() => compareEngineeringRuns(corrupt, executed('B', 1_200_000, 1_600_000, 400_000))).toThrow('RUN-COMPARISON-BASELINE-HASH-001');
   });
 });
