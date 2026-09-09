@@ -14,6 +14,10 @@ export interface LicensePublicKeyring {
 
 const METHOD = 'tolue-license-public-keyring-v1' as const;
 
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function validateKeyId(value: string): string {
   const keyId = value.trim();
   if (!/^[a-z0-9][a-z0-9._-]{2,63}$/u.test(keyId)) throw new Error('LICENSE-KEYRING-KEYID-001');
@@ -47,6 +51,23 @@ export function createLicensePublicKeyring(activeKeyId: string, records: readonl
   if (!active || active.status !== 'ACTIVE') throw new Error('LICENSE-KEYRING-ACTIVE-001');
   if (keys.filter(key => key.status === 'ACTIVE').length !== 1) throw new Error('LICENSE-KEYRING-ACTIVE-002');
   return Object.freeze({ activeKeyId: normalizedActive, keys: Object.freeze(keys), method: METHOD });
+}
+
+export function parseLicensePublicKeyring(value: unknown): Readonly<LicensePublicKeyring> | null {
+  try {
+    if (!record(value) || Object.keys(value).some(key => !['activeKeyId', 'keys', 'method'].includes(key))) return null;
+    if (value.method !== METHOD || typeof value.activeKeyId !== 'string' || !Array.isArray(value.keys)) return null;
+    const records: LicensePublicKeyRecord[] = [];
+    for (const entry of value.keys) {
+      if (!record(entry) || Object.keys(entry).some(key => !['keyId', 'publicKeyPem', 'status'].includes(key))) return null;
+      if (typeof entry.keyId !== 'string' || typeof entry.publicKeyPem !== 'string') return null;
+      if (entry.status !== 'ACTIVE' && entry.status !== 'LEGACY_VERIFY_ONLY') return null;
+      records.push({ keyId: entry.keyId, publicKeyPem: entry.publicKeyPem, status: entry.status });
+    }
+    return createLicensePublicKeyring(value.activeKeyId, records);
+  } catch {
+    return null;
+  }
 }
 
 export function resolveLicensePublicKey(keyring: Readonly<LicensePublicKeyring>, keyId: string): string | null {
