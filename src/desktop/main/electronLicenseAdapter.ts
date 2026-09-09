@@ -17,6 +17,7 @@ export interface ElectronLicenseAdapterInput {
   readonly userDataPath: string;
   readonly resourcesPath: string;
   readonly nowIso: () => string;
+  readonly onActivated?: () => void;
 }
 
 const trusted = (input: Readonly<ElectronLicenseAdapterInput>, event: IpcMainInvokeEvent): boolean =>
@@ -68,7 +69,12 @@ export function registerLicenseIpc(input: Readonly<ElectronLicenseAdapterInput>)
     });
     if (provisioned.status !== 'IMPORTED') return { status: 'REJECTED', licenseStatus: status(input).status, licenseId: null, validUntilIso: null, errorCode: provisioned.errorCode, method: 'tolue-license-import-ipc-response-v1' };
     const refreshed = status(input);
-    return { status: 'IMPORTED', licenseStatus: refreshed.status, licenseId: provisioned.licenseId, validUntilIso: provisioned.validUntilIso, errorCode: refreshed.canUseApplication ? null : 'LICENSE-IMPORT-POSTVERIFY-001', method: 'tolue-license-import-ipc-response-v1' };
+    if (!refreshed.canUseApplication || refreshed.status !== 'ACTIVE') {
+      return { status: 'REJECTED', licenseStatus: refreshed.status, licenseId: provisioned.licenseId, validUntilIso: provisioned.validUntilIso, errorCode: 'LICENSE-IMPORT-POSTVERIFY-001', method: 'tolue-license-import-ipc-response-v1' };
+    }
+    const response: LicenseImportIpcResponse = { status: 'IMPORTED', licenseStatus: refreshed.status, licenseId: provisioned.licenseId, validUntilIso: provisioned.validUntilIso, errorCode: null, method: 'tolue-license-import-ipc-response-v1' };
+    if (input.onActivated) setImmediate(input.onActivated);
+    return response;
   });
 
   return () => { ipcMain.removeHandler(LICENSE_IMPORT_CHANNEL); ipcMain.removeHandler(LICENSE_STATUS_CHANNEL); };
