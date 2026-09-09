@@ -22,6 +22,9 @@
       "dist/desktop/**/*",
       "package.json"
     ],
+    "extraResources": [
+      { "from": "build/license/tolue-license-public-key.pem", "to": "license/tolue-license-public-key.pem" }
+    ],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
       "artifactName": "TOLUE-Concrete-Rheology-Pumpability-${version}-Setup.${ext}"
