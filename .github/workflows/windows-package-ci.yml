@@ -80,6 +80,41 @@ jobs:
             if ([IO.Path]::GetFullPath($shortcut.TargetPath) -ne [IO.Path]::GetFullPath($env:TOLUE_INSTALLED_EXE)) { throw "WINDOWS-SHORTCUT-004: shortcut target mismatch: $($shortcut.TargetPath)" }
           }
 
+      - name: Activation-only licensing acceptance
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:TOLUE_INSTALLED_EXE -PathType Leaf)) { throw 'WINDOWS-LICENSE-E2E-000: installed executable context missing' }
+          $userData = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability'
+          $license = Join-Path $userData 'tolue-license.json'
+          $fixtures = Join-Path $userData '.ci-license-fixtures'
+          $valid = Join-Path $fixtures 'valid.json'
+          $expired = Join-Path $fixtures 'expired.json'
+          $wrongMachine = Join-Path $fixtures 'wrong-machine.json'
+          $db = Join-Path $userData 'tolue-rheology.sqlite3'
+          foreach ($fixture in @($valid, $expired, $wrongMachine)) {
+            if (-not (Test-Path $fixture -PathType Leaf)) { throw "WINDOWS-LICENSE-E2E-001: missing fixture $fixture" }
+          }
+          if (Test-Path $db) { Remove-Item $db -Force }
+
+          function Assert-ActivationOnly([string]$caseName, [string]$fixturePath) {
+            if (Test-Path $license) { Remove-Item $license -Force }
+            if ($fixturePath) { Copy-Item $fixturePath $license -Force }
+            $process = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
+            Start-Sleep -Seconds 6
+            if ($process.HasExited) { throw "WINDOWS-LICENSE-E2E-002: $caseName activation process exited early with code $($process.ExitCode)" }
+            if (Test-Path $db -PathType Leaf) { Stop-Process -Id $process.Id -Force; throw "WINDOWS-LICENSE-E2E-003: $caseName incorrectly opened engineering shell and created persistence DB" }
+            Stop-Process -Id $process.Id -Force
+            Start-Sleep -Seconds 1
+            Write-Host "$caseName correctly remained activation-only."
+          }
+
+          Assert-ActivationOnly 'missing-license' ''
+          Assert-ActivationOnly 'expired-license' $expired
+          Assert-ActivationOnly 'wrong-machine-license' $wrongMachine
+          Copy-Item $valid $license -Force
+          if (Test-Path $db) { throw 'WINDOWS-LICENSE-E2E-004: engineering DB appeared before valid-license launch' }
+          Write-Host 'Activation-only acceptance passed for missing, expired, and wrong-machine licenses.'
+
       - name: Launch licensed installed executable smoke test
         shell: pwsh
         run: |
