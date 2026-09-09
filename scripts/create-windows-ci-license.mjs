@@ -20,10 +20,16 @@ const canonical = JSON.stringify(entitlement);
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
 const signatureBase64 = sign(null, Buffer.from(canonical, 'utf8'), privateKey).toString('base64');
 const resourceDir = join(process.cwd(), 'build', 'license');
-const userDataDir = join(process.env.APPDATA ?? '', 'TOLUE-Concrete-Rheology-Pumpability');
 if (!process.env.APPDATA) throw new Error('CI-LICENSE-APPDATA-001');
+// Mirror desktopShell exactly: app.setName() changes Electron's default userData,
+// then the shell appends its stable product-specific userData directory.
+const userDataDir = join(
+  process.env.APPDATA,
+  'TOLUE Concrete Rheology & Pumpability',
+  'TOLUE-Concrete-Rheology-Pumpability',
+);
 mkdirSync(resourceDir, { recursive: true });
 mkdirSync(userDataDir, { recursive: true });
 writeFileSync(join(resourceDir, 'tolue-license-public-key.pem'), publicKey.export({ format: 'pem', type: 'spki' }).toString(), 'utf8');
 writeFileSync(join(userDataDir, 'tolue-license.json'), JSON.stringify({ schemaVersion: 'tolue-license-v1', entitlement, signatureBase64 }), 'utf8');
-console.log(`Prepared ephemeral CI license for machine ${machineId.slice(0, 12)}…`);
+console.log(`Prepared ephemeral CI license for machine ${machineId.slice(0, 12)}… at ${userDataDir}`);
