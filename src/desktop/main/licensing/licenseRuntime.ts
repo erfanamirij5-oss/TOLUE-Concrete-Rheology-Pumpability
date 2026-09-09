@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
+import { evaluateLicenseClockGuard, type LicenseClockGuardResult } from './licenseClockGuard';
 import { deriveMachineId, type MachineGuidReader, windowsRegistryMachineGuidReader } from './machineIdentity';
 import { evaluateLicenseStartupGate, type LicenseStartupGateResult } from './licenseStartupGate';
 
@@ -14,18 +15,26 @@ export interface LicenseRuntimeResult {
   readonly licenseFilePath: string;
   readonly publicKeyPath: string;
   readonly machineId: string;
+  readonly clock: Readonly<LicenseClockGuardResult>;
   readonly gate: Readonly<LicenseStartupGateResult>;
-  readonly method: 'tolue-license-runtime-v1';
+  readonly method: 'tolue-license-runtime-v2';
 }
 
 const LICENSE_FILE_NAME = 'tolue-license.json';
 const PUBLIC_KEY_RESOURCE = 'license/tolue-license-public-key.pem';
-const METHOD = 'tolue-license-runtime-v1' as const;
+const METHOD = 'tolue-license-runtime-v2' as const;
 
 function requireAbsolute(path: string, code: string): string {
   if (!path.trim() || !isAbsolute(path)) throw new Error(code);
   return path;
 }
+
+const rejectedGate = (): Readonly<LicenseStartupGateResult> => Object.freeze({
+  canStartApplication: false,
+  evaluation: Object.freeze({ status: 'INVALID' as const, canUseApplication: false, licenseId: null, method: 'tolue-commercial-license-policy-v1' as const }),
+  verificationStatus: 'INVALID_SIGNATURE_OR_ENVELOPE' as const,
+  method: 'tolue-license-startup-gate-v1' as const,
+});
 
 export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInput>): Readonly<LicenseRuntimeResult> {
   const userDataPath = requireAbsolute(input.userDataPath, 'LICENSE-RUNTIME-USERDATA-001');
@@ -49,14 +58,10 @@ export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInp
 
   const reader = input.machineGuidReader ?? windowsRegistryMachineGuidReader;
   const machineId = deriveMachineId(reader);
-  const gate = publicKeyPem.trim()
+  const clock = evaluateLicenseClockGuard(userDataPath, input.nowIso);
+  const gate = clock.accepted && publicKeyPem.trim()
     ? evaluateLicenseStartupGate({ signedEnvelope, publicKeyPem, machineId, nowIso: input.nowIso })
-    : Object.freeze({
-        canStartApplication: false,
-        evaluation: Object.freeze({ status: 'INVALID' as const, canUseApplication: false, licenseId: null, method: 'tolue-commercial-license-policy-v1' as const }),
-        verificationStatus: 'INVALID_SIGNATURE_OR_ENVELOPE' as const,
-        method: 'tolue-license-startup-gate-v1' as const,
-      });
+    : rejectedGate();
 
-  return Object.freeze({ licenseFilePath, publicKeyPath, machineId, gate, method: METHOD });
+  return Object.freeze({ licenseFilePath, publicKeyPath, machineId, clock, gate, method: METHOD });
 }
