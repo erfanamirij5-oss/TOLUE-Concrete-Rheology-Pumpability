@@ -34,6 +34,7 @@ describe('packaged license runtime', () => {
     const f = fixture();
     const result = evaluatePackagedLicenseRuntime({ ...f, nowIso: '2026-09-09T00:00:00.000Z' });
     expect(result.machineId).toBe(f.machineId);
+    expect(result.clock.accepted).toBe(true);
     expect(result.gate.canStartApplication).toBe(true);
     expect(result.gate.evaluation.status).toBe('ACTIVE');
     expect(result.publicKeyPath.endsWith('license/tolue-license-public-key.pem') || result.publicKeyPath.endsWith('license\\tolue-license-public-key.pem')).toBe(true);
@@ -53,6 +54,15 @@ describe('packaged license runtime', () => {
     });
     expect(result.gate.canStartApplication).toBe(false);
     expect(result.gate.evaluation.status).toBe('INVALID');
+  });
+
+  it('blocks an otherwise valid license after wall-clock rollback', () => {
+    const f = fixture();
+    expect(evaluatePackagedLicenseRuntime({ ...f, nowIso: '2026-09-09T10:00:00.000Z' }).gate.canStartApplication).toBe(true);
+    const rolledBack = evaluatePackagedLicenseRuntime({ ...f, nowIso: '2026-09-09T09:59:59.999Z' });
+    expect(rolledBack.clock.status).toBe('ROLLBACK_DETECTED');
+    expect(rolledBack.gate.canStartApplication).toBe(false);
+    expect(rolledBack.gate.evaluation.status).toBe('INVALID');
   });
 
   it('rejects non-absolute runtime paths', () => {
