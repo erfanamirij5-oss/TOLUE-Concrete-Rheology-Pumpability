@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { join } from 'node:path';
 import {
   LICENSE_IMPORT_CHANNEL,
   LICENSE_STATUS_CHANNEL,
@@ -58,7 +59,7 @@ export function registerLicenseIpc(input: Readonly<ElectronLicenseAdapterInput>)
     if (!current.machineCode) return { status: 'REJECTED', licenseStatus: 'INVALID', licenseId: null, validUntilIso: null, errorCode: 'LICENSE-IMPORT-MACHINE-001', method: 'tolue-license-import-ipc-response-v1' };
     const provisioned = provisionSignedLicense({
       userDataPath: input.userDataPath,
-      publicKeyPath: `${input.resourcesPath}/license/tolue-license-public-key.pem`,
+      publicKeyPath: join(input.resourcesPath, 'license', 'tolue-license-public-key.pem'),
       machineId: current.machineCode,
       nowIso: input.nowIso(),
       sourceLicensePath: selected.filePaths[0],
