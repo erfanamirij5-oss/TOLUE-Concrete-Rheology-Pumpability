@@ -62,10 +62,11 @@ jobs:
           $core = ($coreJson | ConvertFrom-Json).workflow_runs | Where-Object { $_.name -eq 'Engineering Core CI' -and $_.event -eq 'push' -and $_.head_branch -eq 'main' } | Select-Object -First 1
           if (-not $core) { throw 'RC-RELEASE-007: Engineering Core CI run not found for exact main SHA' }
           if ($core.status -ne 'completed' -or $core.conclusion -ne 'success') { throw "RC-RELEASE-008: Engineering Core CI not successful; status=$($core.status) conclusion=$($core.conclusion)" }
-          git show-ref --verify --quiet "refs/tags/$env:RELEASE_TAG"
-          if ($LASTEXITCODE -eq 0) { throw 'RC-RELEASE-009: tag already exists' }
-          gh release view $env:RELEASE_TAG *> $null
-          if ($LASTEXITCODE -eq 0) { throw 'RC-RELEASE-010: GitHub release already exists' }
+          $tagMatch = @(git tag --list $env:RELEASE_TAG)
+          if ($tagMatch -contains $env:RELEASE_TAG) { throw 'RC-RELEASE-009: tag already exists' }
+          $releasesJson = gh api "repos/${{ github.repository }}/releases?per_page=100"
+          $existingRelease = ($releasesJson | ConvertFrom-Json) | Where-Object { $_.tag_name -eq $env:RELEASE_TAG } | Select-Object -First 1
+          if ($existingRelease) { throw 'RC-RELEASE-010: GitHub release already exists' }
 
       - name: Verify package and lockfile version
         shell: pwsh
