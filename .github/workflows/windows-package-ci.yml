@@ -84,7 +84,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path $env:TOLUE_INSTALLED_EXE -PathType Leaf)) { throw 'WINDOWS-LAUNCH-SMOKE-000: installed executable context missing' }
-          $license = Join-Path $env:APPDATA 'TOLUE-Concrete-Rheology-Pumpability\tolue-license.json'
+          $license = Join-Path $env:APPDATA 'TOLUE Concrete Rheology & Pumpability\TOLUE-Concrete-Rheology-Pumpability\tolue-license.json'
           if (-not (Test-Path $license -PathType Leaf)) { throw 'WINDOWS-LICENSE-SMOKE-001: machine-bound CI license missing' }
           $process = Start-Process -FilePath $env:TOLUE_INSTALLED_EXE -PassThru
           Start-Sleep -Seconds 8
