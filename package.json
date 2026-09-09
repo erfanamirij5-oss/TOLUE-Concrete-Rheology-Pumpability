@@ -23,7 +23,8 @@
       "package.json"
     ],
     "extraResources": [
-      { "from": "build/license/tolue-license-public-key.pem", "to": "license/tolue-license-public-key.pem" }
+      { "from": "build/license/tolue-license-public-key.pem", "to": "license/tolue-license-public-key.pem" },
+      { "from": "build/license/tolue-license-public-keyring.json", "to": "license/tolue-license-public-keyring.json" }
     ],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
