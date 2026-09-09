@@ -3,6 +3,7 @@ name: Windows Package CI
 on:
   push:
     branches:
+      - main
       - stage-0-scientific-reference-matrix
   pull_request:
     branches:
