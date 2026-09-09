@@ -10,6 +10,7 @@ const guid = match?.[1]?.trim() ?? '';
 if (!guid) throw new Error('CI-LICENSE-MACHINE-001');
 const machineId = createHash('sha256').update(`tolue-concrete-rheology-pumpability\n${guid}`, 'utf8').digest('hex');
 const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' }).toString();
 const resourceDir = join(process.cwd(), 'build', 'license');
 if (!process.env.APPDATA) throw new Error('CI-LICENSE-APPDATA-001');
 const userDataDir = join(process.env.APPDATA, 'TOLUE Concrete Rheology & Pumpability', 'TOLUE-Concrete-Rheology-Pumpability');
@@ -17,7 +18,12 @@ const fixtureDir = join(userDataDir, '.ci-license-fixtures');
 mkdirSync(resourceDir, { recursive: true });
 mkdirSync(userDataDir, { recursive: true });
 mkdirSync(fixtureDir, { recursive: true });
-writeFileSync(join(resourceDir, 'tolue-license-public-key.pem'), publicKey.export({ format: 'pem', type: 'spki' }).toString(), 'utf8');
+writeFileSync(join(resourceDir, 'tolue-license-public-key.pem'), publicKeyPem, 'utf8');
+writeFileSync(join(resourceDir, 'tolue-license-public-keyring.json'), JSON.stringify({
+  activeKeyId: 'legacy-v1',
+  keys: [{ keyId: 'legacy-v1', publicKeyPem, status: 'ACTIVE' }],
+  method: 'tolue-license-public-keyring-v1',
+}), 'utf8');
 
 function envelope(name, entitlement) {
   const signatureBase64 = sign(null, Buffer.from(JSON.stringify(entitlement), 'utf8'), privateKey).toString('base64');
@@ -48,4 +54,4 @@ envelope('wrong-machine', {
   validUntilIso: '2030-01-01T00:00:00.000Z',
 });
 writeFileSync(join(userDataDir, 'tolue-license.json'), valid, 'utf8');
-console.log(`Prepared ephemeral CI license and acceptance fixtures for machine ${machineId.slice(0, 12)}… at ${userDataDir}`);
+console.log(`Prepared ephemeral CI license, versioned public keyring, and acceptance fixtures for machine ${machineId.slice(0, 12)}… at ${userDataDir}`);
