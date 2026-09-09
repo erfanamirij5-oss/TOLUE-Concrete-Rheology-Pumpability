@@ -55,12 +55,23 @@ function decision(baseline: EngineeringRunComparisonDecisionAxis['baseline'], ca
   return Object.freeze({ baseline, candidate });
 }
 
+function validateComparableRun(result: Readonly<EngineeringAnalysisResult>, side: 'BASELINE' | 'CANDIDATE'): void {
+  if (!result.runId.trim()) throw new Error(`RUN-COMPARISON-${side}-ID-001`);
+  if (!result.engineVersion.trim()) throw new Error(`RUN-COMPARISON-${side}-ENGINE-001`);
+  if (result.executionStatus === 'EXECUTED' && !result.inputSnapshotHash) throw new Error(`RUN-COMPARISON-${side}-HASH-001`);
+  if (result.executionStatus === 'BLOCKED' && result.inputSnapshotHash !== null) throw new Error(`RUN-COMPARISON-${side}-HASH-002`);
+  if (result.executionStatus === 'EXECUTED' && result.completeness !== 'complete') throw new Error(`RUN-COMPARISON-${side}-COMPLETENESS-001`);
+  if (result.executionStatus === 'BLOCKED' && result.completeness !== 'incomplete') throw new Error(`RUN-COMPARISON-${side}-COMPLETENESS-002`);
+}
+
 export function compareEngineeringRuns(
   baseline: Readonly<EngineeringAnalysisResult>,
   candidate: Readonly<EngineeringAnalysisResult>,
 ): Readonly<EngineeringRunComparisonResult> {
-  if (!baseline.runId.trim() || !candidate.runId.trim()) throw new Error('RUN-COMPARISON-ID-001');
+  validateComparableRun(baseline, 'BASELINE');
+  validateComparableRun(candidate, 'CANDIDATE');
   if (baseline.runId === candidate.runId) throw new Error('RUN-COMPARISON-DISTINCT-001');
+  if (baseline.engineVersion !== candidate.engineVersion) throw new Error('RUN-COMPARISON-ENGINE-VERSION-001');
 
   const baselinePump = baseline.executionStatus === 'EXECUTED' ? baseline.simulation.pumpAssessment : null;
   const candidatePump = candidate.executionStatus === 'EXECUTED' ? candidate.simulation.pumpAssessment : null;
