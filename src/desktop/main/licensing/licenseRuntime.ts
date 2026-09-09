@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { evaluateLicenseClockGuard, type LicenseClockGuardResult } from './licenseClockGuard';
+import { parseLicensePublicKeyring, resolveLicensePublicKey } from './licenseKeyring';
 import { deriveMachineId, type MachineGuidReader, windowsRegistryMachineGuidReader } from './machineIdentity';
 import { recoverProvisionedLicenseState } from './licenseProvisioning';
 import { evaluateLicenseStartupGate, type LicenseStartupGateResult } from './licenseStartupGate';
@@ -15,6 +16,8 @@ export interface LicenseRuntimeInput {
 export interface LicenseRuntimeResult {
   readonly licenseFilePath: string;
   readonly publicKeyPath: string;
+  readonly publicKeyringPath: string;
+  readonly resolvedKeyId: string | null;
   readonly machineId: string;
   readonly clock: Readonly<LicenseClockGuardResult>;
   readonly gate: Readonly<LicenseStartupGateResult>;
@@ -23,6 +26,8 @@ export interface LicenseRuntimeResult {
 
 const LICENSE_FILE_NAME = 'tolue-license.json';
 const PUBLIC_KEY_RESOURCE = 'license/tolue-license-public-key.pem';
+const PUBLIC_KEYRING_RESOURCE = 'license/tolue-license-public-keyring.json';
+const LEGACY_V1_KEY_ID = 'legacy-v1';
 const METHOD = 'tolue-license-runtime-v3' as const;
 
 function requireAbsolute(path: string, code: string): string {
@@ -46,17 +51,34 @@ export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInp
 
   const licenseFilePath = join(userDataPath, LICENSE_FILE_NAME);
   const publicKeyPath = join(resourcesPath, PUBLIC_KEY_RESOURCE);
+  const publicKeyringPath = join(resourcesPath, PUBLIC_KEYRING_RESOURCE);
   let signedEnvelope: unknown;
   let publicKeyPem = '';
+  let resolvedKeyId: string | null = null;
   try {
     signedEnvelope = JSON.parse(readFileSync(licenseFilePath, 'utf8')) as unknown;
   } catch {
     signedEnvelope = null;
   }
+
   try {
-    publicKeyPem = readFileSync(publicKeyPath, 'utf8');
+    const parsed = parseLicensePublicKeyring(JSON.parse(readFileSync(publicKeyringPath, 'utf8')) as unknown);
+    if (parsed) {
+      publicKeyPem = resolveLicensePublicKey(parsed, LEGACY_V1_KEY_ID) ?? '';
+      resolvedKeyId = publicKeyPem ? LEGACY_V1_KEY_ID : null;
+    }
   } catch {
     publicKeyPem = '';
+  }
+
+  if (!publicKeyPem) {
+    try {
+      publicKeyPem = readFileSync(publicKeyPath, 'utf8');
+      resolvedKeyId = publicKeyPem.trim() ? LEGACY_V1_KEY_ID : null;
+    } catch {
+      publicKeyPem = '';
+      resolvedKeyId = null;
+    }
   }
 
   const reader = input.machineGuidReader ?? windowsRegistryMachineGuidReader;
@@ -66,5 +88,5 @@ export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInp
     ? evaluateLicenseStartupGate({ signedEnvelope, publicKeyPem, machineId, nowIso: input.nowIso })
     : rejectedGate();
 
-  return Object.freeze({ licenseFilePath, publicKeyPath, machineId, clock, gate, method: METHOD });
+  return Object.freeze({ licenseFilePath, publicKeyPath, publicKeyringPath, resolvedKeyId, machineId, clock, gate, method: METHOD });
 }
