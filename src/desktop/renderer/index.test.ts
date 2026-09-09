@@ -18,7 +18,9 @@ describe('renderer application boundary', () => {
     const listEngineeringRuns = vi.fn().mockResolvedValue({ status: 'SUCCESS', items: [], errorCode: null, method: 'tolue-engineering-run-history-ipc-response-v1' });
     const compareEngineeringRuns = vi.fn().mockResolvedValue({ status: 'NOT_FOUND', comparison: null, errorCode: null, method: 'tolue-engineering-run-comparison-ipc-response-v1' });
     const exportEngineeringPdf = vi.fn().mockResolvedValue({ runId: pdfRequest.runId, engineVersion: pdfRequest.engineVersion, inputSnapshotHash: pdfRequest.inputSnapshotHash, status: 'CANCELLED', savedFileName: null, bytesWritten: null, errorCode: null, method: 'tolue-engineering-pdf-ipc-response-v1' });
-    const bridge: Readonly<TolueBridge> = Object.freeze({ executeEngineeringAnalysis, loadEngineeringRun, listEngineeringRuns, compareEngineeringRuns, exportEngineeringPdf });
+    const getLicenseStatus = vi.fn().mockResolvedValue({ status: 'ACTIVE', machineCode: 'machine', licenseId: 'license', validUntilIso: null, canUseApplication: true, errorCode: null, method: 'tolue-license-status-ipc-response-v1' });
+    const importLicense = vi.fn().mockResolvedValue({ status: 'CANCELLED', licenseStatus: 'ACTIVE', licenseId: null, validUntilIso: null, errorCode: null, method: 'tolue-license-import-ipc-response-v1' });
+    const bridge: Readonly<TolueBridge> = Object.freeze({ executeEngineeringAnalysis, loadEngineeringRun, listEngineeringRuns, compareEngineeringRuns, exportEngineeringPdf, getLicenseStatus, importLicense });
     const platform = createRendererPlatform(bridge);
     expect(Object.keys(platform)).toEqual(['executeEngineeringAnalysis', 'loadEngineeringRun', 'listEngineeringRuns', 'compareEngineeringRuns', 'exportEngineeringPdf']);
     await platform.executeEngineeringAnalysis(analysisInput); expect(executeEngineeringAnalysis).toHaveBeenCalledWith(analysisInput);
