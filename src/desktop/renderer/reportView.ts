@@ -5,6 +5,62 @@ export interface ReportExportActions {
   readonly exportActiveEngineeringPdf: () => Promise<unknown>;
 }
 
+export interface PdfExportStatusPresentation {
+  readonly status: 'SUCCESS' | 'CANCELLED' | 'FAILED' | 'REJECTED';
+  readonly message: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function presentEngineeringPdfExportResponse(
+  report: Readonly<ReportExportPresentation>,
+  response: unknown,
+): Readonly<PdfExportStatusPresentation> {
+  if (!isRecord(response)) throw new Error('REPORT-PDF-RESPONSE-SHAPE-001');
+  const status = response.status;
+  if (status !== 'SUCCESS' && status !== 'CANCELLED' && status !== 'FAILED' && status !== 'REJECTED') {
+    throw new Error('REPORT-PDF-RESPONSE-STATUS-001');
+  }
+
+  const errorCode = typeof response.errorCode === 'string' ? response.errorCode : null;
+  if (status === 'REJECTED') {
+    return Object.freeze({
+      status,
+      message: `درخواست صدور PDF رد شد${errorCode ? ` · ${errorCode}` : ''}`,
+    });
+  }
+
+  if (
+    response.runId !== report.runId ||
+    response.engineVersion !== report.engineVersion ||
+    response.inputSnapshotHash !== report.inputSnapshotHash
+  ) {
+    throw new Error('REPORT-PDF-RESPONSE-IDENTITY-001');
+  }
+
+  if (status === 'CANCELLED') {
+    return Object.freeze({ status, message: 'صدور PDF توسط کاربر لغو شد؛ فایلی نوشته نشد.' });
+  }
+  if (status === 'FAILED') {
+    return Object.freeze({
+      status,
+      message: `صدور PDF انجام نشد${errorCode ? ` · ${errorCode}` : ''}`,
+    });
+  }
+
+  const savedFileName = typeof response.savedFileName === 'string' && response.savedFileName.trim() ? response.savedFileName : null;
+  const bytesWritten = typeof response.bytesWritten === 'number' && Number.isFinite(response.bytesWritten) && response.bytesWritten > 0
+    ? response.bytesWritten
+    : null;
+  if (!savedFileName || bytesWritten === null || errorCode !== null) throw new Error('REPORT-PDF-RESPONSE-SUCCESS-001');
+  return Object.freeze({
+    status,
+    message: `PDF با موفقیت ذخیره شد: ${savedFileName} · ${bytesWritten.toLocaleString('fa-IR')} بایت`,
+  });
+}
+
 export function renderReportView(
   root: HTMLElement,
   report?: Readonly<ReportExportPresentation>,
@@ -85,8 +141,12 @@ export function renderReportView(
       pdf.disabled = true;
       exportStatus.textContent = 'در حال صدور PDF Run فعال…';
       void actions.exportActiveEngineeringPdf()
-        .then(() => { exportStatus.textContent = 'درخواست صدور PDF Run فعال تکمیل شد.'; })
-        .catch(() => { exportStatus.textContent = 'صدور PDF رد شد؛ هویت Run/Hash یا وضعیت Session معتبر نیست.'; })
+        .then(response => {
+          exportStatus.textContent = presentEngineeringPdfExportResponse(report, response).message;
+        })
+        .catch(() => {
+          exportStatus.textContent = 'پاسخ صدور PDF معتبر نیست یا هویت Run/Hash با Session فعال تطابق ندارد.';
+        })
         .finally(() => { pdf.disabled = false; });
     });
   }
