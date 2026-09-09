@@ -1,12 +1,12 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { canonicalLicensePayload, type LicenseEntitlementPayload } from './licenseEnvelope';
-import { provisionSignedLicense } from './licenseProvisioning';
+import { provisionSignedLicense, recoverProvisionedLicenseState } from './licenseProvisioning';
 
-function fixture(machineId = 'machine-001') {
+function fixture(machineId = 'machine-001', licenseId = 'license-001') {
   const root = mkdtempSync(join(tmpdir(), 'tolue-license-provision-'));
   const userDataPath = join(root, 'userData');
   const resources = join(root, 'resources', 'license');
@@ -15,7 +15,7 @@ function fixture(machineId = 'machine-001') {
   const publicKeyPath = join(resources, 'tolue-license-public-key.pem');
   writeFileSync(publicKeyPath, publicKey.export({ format: 'pem', type: 'spki' }).toString(), 'utf8');
   const entitlement: LicenseEntitlementPayload = {
-    licenseId: 'license-001', productId: 'tolue-concrete-rheology-pumpability', machineId,
+    licenseId, productId: 'tolue-concrete-rheology-pumpability', machineId,
     validFromIso: '2026-01-01T00:00:00.000Z', validUntilIso: '2027-01-01T00:00:00.000Z',
   };
   const signatureBase64 = sign(null, Buffer.from(canonicalLicensePayload(entitlement), 'utf8'), privateKey).toString('base64');
@@ -26,13 +26,36 @@ function fixture(machineId = 'machine-001') {
 }
 
 describe('license provisioning', () => {
-  it('persists an active cryptographically verified machine-bound envelope atomically', () => {
+  it('persists an active cryptographically verified machine-bound envelope without stale temp files', () => {
     const f = fixture();
     const result = provisionSignedLicense({ ...f, nowIso: '2026-09-09T00:00:00.000Z' });
     expect(result.status).toBe('IMPORTED');
+    expect(result.method).toBe('tolue-license-provisioning-v2');
     expect(result.licenseId).toBe('license-001');
     expect(readFileSync(join(f.userDataPath, 'tolue-license.json'), 'utf8')).toBe(f.raw);
-    expect(existsSync(join(f.userDataPath, 'tolue-license.json.tmp'))).toBe(false);
+    expect(readdirSync(f.userDataPath).some(name => name.endsWith('.tmp'))).toBe(false);
+  });
+
+  it('replaces an existing verified license for renewal and removes the backup after success', () => {
+    const f = fixture();
+    mkdirSync(f.userDataPath, { recursive: true });
+    writeFileSync(join(f.userDataPath, 'tolue-license.json'), '{"old":true}', 'utf8');
+    const result = provisionSignedLicense({ ...f, nowIso: '2026-09-09T00:00:00.000Z' });
+    expect(result.status).toBe('IMPORTED');
+    expect(readFileSync(join(f.userDataPath, 'tolue-license.json'), 'utf8')).toBe(f.raw);
+    expect(existsSync(join(f.userDataPath, 'tolue-license.json.bak'))).toBe(false);
+  });
+
+  it('recovers the previous license after an interrupted replacement state', () => {
+    const f = fixture();
+    mkdirSync(f.userDataPath, { recursive: true });
+    const destination = join(f.userDataPath, 'tolue-license.json');
+    writeFileSync(destination, 'previous-license', 'utf8');
+    renameSync(destination, `${destination}.bak`);
+    const recovery = recoverProvisionedLicenseState(f.userDataPath);
+    expect(recovery.recovered).toBe(true);
+    expect(readFileSync(destination, 'utf8')).toBe('previous-license');
+    expect(existsSync(`${destination}.bak`)).toBe(false);
   });
 
   it('does not persist a tampered envelope', () => {
