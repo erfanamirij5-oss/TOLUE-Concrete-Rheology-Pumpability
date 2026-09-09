@@ -1,6 +1,7 @@
-import { app, dialog } from 'electron';
+import { app } from 'electron';
 import { join } from 'node:path';
 import { DESKTOP_USER_DATA_DIRECTORY, startDesktopShell } from './desktopShell';
+import { startLicenseActivationShell } from './licenseActivationShell';
 import { evaluatePackagedLicenseRuntime } from './licensing/licenseRuntime';
 import { resolveDesktopRuntimePaths } from './runtimePaths';
 
@@ -20,9 +21,8 @@ try {
   licensed = false;
 }
 
-if (!licensed) {
-  dialog.showErrorBox('طلوع', 'مجوز معتبر برای این دستگاه یافت نشد. برنامه اجرا نشد.');
-  app.quit();
-} else {
+if (licensed) {
   startDesktopShell(runtime.preloadBundlePath, runtime.rendererBundlePath);
+} else {
+  startLicenseActivationShell(runtime.preloadBundlePath, userDataPath);
 }
