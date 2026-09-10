@@ -23,14 +23,11 @@ env:
   STABLE_ICON: build/icons/tolue.ico
 
 jobs:
-  gate-build-sign-publish:
-    name: Fail-closed stable gate, Authenticode build and publication
+  gate-build-publish:
+    name: Fail-closed stable gate, Windows build and publication
     runs-on: windows-latest
     timeout-minutes: 60
     env:
-      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-      EXPECTED_AUTHENTICODE_PUBLISHER: ${{ secrets.TOLUE_WINDOWS_PUBLISHER }}
       CONFIRM_RELEASE: ${{ inputs.confirm_release }}
     steps:
       - name: Require explicit immutable stable invocation
@@ -95,13 +92,6 @@ jobs:
           $configured = node -p "require('./package.json').build?.win?.icon || ''"
           if ($configured -ne $env:STABLE_ICON) { throw "STABLE-RELEASE-031: package build.win.icon must equal $env:STABLE_ICON" }
 
-      - name: Require Authenticode signing identity
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK)) { throw 'STABLE-RELEASE-040: WIN_CSC_LINK secret is required' }
-          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) { throw 'STABLE-RELEASE-041: WIN_CSC_KEY_PASSWORD secret is required' }
-          if ([string]::IsNullOrWhiteSpace($env:EXPECTED_AUTHENTICODE_PUBLISHER)) { throw 'STABLE-RELEASE-042: TOLUE_WINDOWS_PUBLISHER secret is required' }
-
       - name: Require and validate production licensing trust root
         shell: pwsh
         run: |
@@ -123,22 +113,19 @@ jobs:
       - name: Engineering and regression suite
         run: npm test
 
-      - name: Build stable Windows installer with Authenticode signing
+      - name: Build stable Windows installer
         run: npm run package:win
 
-      - name: Verify Authenticode signatures, publisher and timestamp
+      - name: Verify exact Windows artifacts
         shell: pwsh
         run: |
           $installer = Join-Path 'release/windows' "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
           $appExe = Join-Path 'release/windows/win-unpacked' 'TOLUE Concrete Rheology & Pumpability.exe'
           foreach ($path in @($installer, $appExe)) {
-            if (-not (Test-Path $path -PathType Leaf)) { throw "STABLE-RELEASE-060: expected signed binary missing: $path" }
-            $sig = Get-AuthenticodeSignature -FilePath $path
-            if ($sig.Status -ne 'Valid') { throw "STABLE-RELEASE-061: invalid Authenticode signature for $path; status=$($sig.Status)" }
-            if (-not $sig.SignerCertificate) { throw "STABLE-RELEASE-062: signer certificate missing for $path" }
-            if ($sig.SignerCertificate.Subject -ne $env:EXPECTED_AUTHENTICODE_PUBLISHER) { throw "STABLE-RELEASE-063: unexpected Authenticode publisher for $path" }
-            if (-not $sig.TimeStamperCertificate) { throw "STABLE-RELEASE-064: timestamp certificate missing for $path" }
+            if (-not (Test-Path $path -PathType Leaf)) { throw "STABLE-RELEASE-060: expected Windows artifact missing: $path" }
+            if ((Get-Item $path).Length -le 0) { throw "STABLE-RELEASE-061: Windows artifact is empty: $path" }
           }
+          Write-Host 'Windows v1.0.0 publication policy: Authenticode signing deferred; no signing identity is asserted.'
 
       - name: Create stable checksum
         shell: pwsh
