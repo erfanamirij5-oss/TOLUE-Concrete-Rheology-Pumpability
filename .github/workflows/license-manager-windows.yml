@@ -52,16 +52,16 @@ jobs:
       - name: Verify exact installer and create checksum
         shell: pwsh
         run: |
-          $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.1-Setup.exe'
+          $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.2-Setup.exe'
           if (-not (Test-Path $installer -PathType Leaf)) { throw 'LICENSE-MANAGER-GATE-101: exact installer missing' }
           if ((Get-Item $installer).Length -lt 1000000) { throw 'LICENSE-MANAGER-GATE-102: installer unexpectedly small' }
           $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  TOLUE-Rheology-License-Manager-1.0.1-Setup.exe" | Set-Content -Path 'release/license-manager/SHA256SUMS.txt' -Encoding ascii
+          "$hash  TOLUE-Rheology-License-Manager-1.0.2-Setup.exe" | Set-Content -Path 'release/license-manager/SHA256SUMS.txt' -Encoding ascii
           Write-Host "License Manager installer SHA256: $hash"
       - name: Silent install and launch smoke
         shell: pwsh
         run: |
-          $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.1-Setup.exe'
+          $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.2-Setup.exe'
           # NSIS System.dll can very occasionally terminate with 0xC0000005 on
           # GitHub-hosted Windows runners. Retry only that known transient once;
           # every other exit code remains a hard failure.
@@ -91,7 +91,7 @@ jobs:
         with:
           name: TOLUE-Rheology-License-Manager-Windows
           path: |
-            release/license-manager/TOLUE-Rheology-License-Manager-1.0.1-Setup.exe
+            release/license-manager/TOLUE-Rheology-License-Manager-1.0.2-Setup.exe
             release/license-manager/SHA256SUMS.txt
           if-no-files-found: error
           compression-level: 0
