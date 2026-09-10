@@ -60,14 +60,35 @@ jobs:
             exit 1
           fi
 
-      - name: Verify stable publication remains fail-closed
+      - name: Verify stable publication workflow policy
         shell: bash
         run: |
           set -euo pipefail
+          WF='.github/workflows/release-stable-v1.0.0.yml'
           test -f docs/STABLE_RELEASE_HARDENING_v1.0.0.md
-          if [ -f .github/workflows/release-stable-v1.0.0.yml ]; then
-            grep -q 'Authenticode' .github/workflows/release-stable-v1.0.0.yml || { echo 'STABLE-GATE-107: stable workflow lacks Authenticode gate'; exit 1; }
-            grep -q 'release/stable/v1.0.0' .github/workflows/release-stable-v1.0.0.yml || { echo 'STABLE-GATE-108: stable workflow does not require stable trust material'; exit 1; }
-          else
-            echo 'Stable publication workflow not present yet; publication remains blocked by S4.'
+          test -f "$WF" || { echo 'STABLE-GATE-107: stable publication workflow missing'; exit 1; }
+          grep -q 'workflow_dispatch:' "$WF" || { echo 'STABLE-GATE-108: stable publication must be explicit/manual'; exit 1; }
+          grep -q 'release/stable/v1.0.0' "$WF" || { echo 'STABLE-GATE-109: stable workflow does not require stable trust material'; exit 1; }
+          grep -q 'WIN_CSC_LINK' "$WF" || { echo 'STABLE-GATE-110: Authenticode certificate gate missing'; exit 1; }
+          grep -q 'WIN_CSC_KEY_PASSWORD' "$WF" || { echo 'STABLE-GATE-111: Authenticode credential gate missing'; exit 1; }
+          grep -q 'EXPECTED_AUTHENTICODE_PUBLISHER' "$WF" || { echo 'STABLE-GATE-112: expected publisher verification missing'; exit 1; }
+          grep -q 'Get-AuthenticodeSignature' "$WF" || { echo 'STABLE-GATE-113: post-build Authenticode verification missing'; exit 1; }
+          grep -q 'TimeStamperCertificate' "$WF" || { echo 'STABLE-GATE-114: timestamp verification missing'; exit 1; }
+          grep -q 'build/icons/tolue.ico' "$WF" || { echo 'STABLE-GATE-115: owner-approved icon gate missing'; exit 1; }
+          grep -q 'LICENSED_RESTART_VERIFIED.txt' "$WF" || { echo 'STABLE-GATE-116: licensed restart evidence gate missing'; exit 1; }
+          grep -q 'RELEASE_VERSION: 1.0.0' "$WF" || { echo 'STABLE-GATE-117: immutable stable version missing'; exit 1; }
+          if [ -f .github/workflows/release-rc-v0.9.0-rc.1.yml ]; then
+            echo 'STABLE-GATE-118: completed one-shot RC workflow must be retired before stable transition'
+            exit 1
           fi
+
+      - name: Report external stable blockers without weakening PR readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          blockers=0
+          [ -f release/stable/v1.0.0/tolue-license-public-keyring.json ] && [ -f release/stable/v1.0.0/tolue-license-public-key.pem ] || { echo 'BLOCKED S1: production public licensing trust material not provisioned'; blockers=$((blockers+1)); }
+          [ -f build/icons/tolue.ico ] || { echo 'BLOCKED S3: owner-approved final TOLUE .ico not provisioned'; blockers=$((blockers+1)); }
+          [ -f release/stable/v1.0.0/LICENSED_RESTART_VERIFIED.txt ] || { echo 'BLOCKED S5: exact-commit production-compatible licensed restart evidence not provisioned'; blockers=$((blockers+1)); }
+          echo "Stable external blocker count: $blockers"
+          echo 'S2 Authenticode certificate/publisher secrets are intentionally checked only inside the manual stable publication workflow.'
