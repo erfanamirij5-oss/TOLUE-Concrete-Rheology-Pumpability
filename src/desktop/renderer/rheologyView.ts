@@ -41,7 +41,7 @@ export function renderRheologyView(
       const wrapper=document.createElement('label'); wrapper.style.display='grid'; wrapper.style.gap=TOLUE_DESIGN_TOKENS.spacing.sm;
       const caption=document.createElement('span'); caption.textContent=`${field.label} (${field.unit})`;
       const control=document.createElement('input'); control.type='number'; control.step=field.step; control.min=String(field.min); control.value=String(valueAt(engineeringInput,field.path)); control.dataset.inputPath=field.path; control.style.fontFamily='inherit'; control.style.padding=TOLUE_DESIGN_TOKENS.spacing.md; control.style.border=`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`; control.style.borderRadius=TOLUE_DESIGN_TOKENS.radius.sm;
-      const feedback=document.createElement('small'); feedback.style.minHeight='1.2em'; feedback.style.color=TOLUE_DESIGN_TOKENS.color.critical;
+      const feedback=document.createElement('small'); feedback.style.minHeight='1.2em'; feedback.style.color=TOLUE_DESIGN_TOKENS.color.statusCritical;
       control.addEventListener('change',()=>{const numeric=Number(control.value); try{const next=updateRheologyInputDraft(engineeringInput,field.path,numeric); feedback.textContent=''; control.setAttribute('aria-invalid','false'); actions.updateInput(next);}catch{feedback.textContent='مقدار واردشده برای این پارامتر معتبر نیست.';control.setAttribute('aria-invalid','true');}});
       wrapper.append(caption,control,feedback); form.appendChild(wrapper);
     }
