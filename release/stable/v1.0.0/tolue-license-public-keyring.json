@@ -1,0 +1,11 @@
+{
+  "method": "tolue-license-public-keyring-v1",
+  "activeKeyId": "tolue-prod-2026-01",
+  "keys": [
+    {
+      "keyId": "tolue-prod-2026-01",
+      "status": "ACTIVE",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAcnqQGo5uin4ve4JLYQFgcx+oiWpd0kWjeexpJjJpZNk=\n-----END PUBLIC KEY-----\n"
+    }
+  ]
+}
