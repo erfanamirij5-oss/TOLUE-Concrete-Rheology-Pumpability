@@ -17,18 +17,34 @@
     "appId": "ir.tolue.concrete.rheology.pumpability",
     "productName": "TOLUE Concrete Rheology & Pumpability",
     "asar": true,
-    "directories": { "output": "release/windows" },
+    "directories": {
+      "output": "release/windows"
+    },
     "files": [
       "dist/desktop/**/*",
       "package.json"
     ],
     "extraResources": [
-      { "from": "build/license/tolue-license-public-key.pem", "to": "license/tolue-license-public-key.pem" },
-      { "from": "build/license/tolue-license-public-keyring.json", "to": "license/tolue-license-public-keyring.json" }
+      {
+        "from": "build/license/tolue-license-public-key.pem",
+        "to": "license/tolue-license-public-key.pem"
+      },
+      {
+        "from": "build/license/tolue-license-public-keyring.json",
+        "to": "license/tolue-license-public-keyring.json"
+      }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "artifactName": "TOLUE-Concrete-Rheology-Pumpability-${version}-Setup.${ext}"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "TOLUE-Concrete-Rheology-Pumpability-${version}-Setup.${ext}",
+      "icon": "build/icons/tolue.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -37,7 +53,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "TOLUE Concrete Rheology & Pumpability",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icons/tolue.ico",
+      "uninstallerIcon": "build/icons/tolue.ico"
     }
   },
   "devDependencies": {
