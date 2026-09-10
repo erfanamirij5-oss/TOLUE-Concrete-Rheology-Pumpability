@@ -35,7 +35,7 @@ jobs:
         run: npm test
 
       - name: Stable trust validator regression suite
-        run: node --test scripts/validate-stable-license-trust.test.mjs
+        run: node --test scripts/validate-stable-license-trust.node-test.mjs
 
       - name: Verify provisioned stable trust material
         shell: bash
