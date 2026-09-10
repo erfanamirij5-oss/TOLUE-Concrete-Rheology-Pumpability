@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canCompareSelectedRuns, createRunHistoryComparisonSelection, selectRunForComparison } from './runHistorySelection';
+import { canCompareSelectedRuns, clearRunHistoryComparisonSelection, createRunHistoryComparisonSelection, runHistorySelectionSummary, selectRunForComparison } from './runHistorySelection';
 
 describe('run history comparison selection', () => {
   it('starts empty and non-comparable', () => {
@@ -7,6 +7,7 @@ describe('run history comparison selection', () => {
     expect(state).toEqual({ baselineRunId: null, candidateRunId: null });
     expect(Object.isFrozen(state)).toBe(true);
     expect(canCompareSelectedRuns(state)).toBe(false);
+    expect(runHistorySelectionSummary(state)).toContain('مبنا');
   });
 
   it('enables comparison only for two distinct selected run ids', () => {
@@ -14,9 +15,11 @@ describe('run history comparison selection', () => {
     expect(canCompareSelectedRuns(baseline)).toBe(false);
     const same = selectRunForComparison(baseline, 'candidate', 'run-a');
     expect(canCompareSelectedRuns(same)).toBe(false);
+    expect(runHistorySelectionSummary(same)).toContain('دو Run متفاوت');
     const distinct = selectRunForComparison(same, 'candidate', 'run-b');
     expect(distinct).toEqual({ baselineRunId: 'run-a', candidateRunId: 'run-b' });
     expect(canCompareSelectedRuns(distinct)).toBe(true);
+    expect(runHistorySelectionSummary(distinct)).toContain('آماده مقایسه');
   });
 
   it('updates one role without mutating the other selection', () => {
@@ -28,7 +31,16 @@ describe('run history comparison selection', () => {
     expect(Object.isFrozen(changed)).toBe(true);
   });
 
-  it('fails closed on an empty run id', () => {
+  it('clears one role or both roles immutably', () => {
+    const selected = selectRunForComparison(selectRunForComparison(createRunHistoryComparisonSelection(), 'baseline', 'run-a'), 'candidate', 'run-b');
+    const withoutBaseline = clearRunHistoryComparisonSelection(selected, 'baseline');
+    expect(withoutBaseline).toEqual({ baselineRunId: null, candidateRunId: 'run-b' });
+    expect(selected).toEqual({ baselineRunId: 'run-a', candidateRunId: 'run-b' });
+    expect(clearRunHistoryComparisonSelection(selected)).toEqual({ baselineRunId: null, candidateRunId: null });
+  });
+
+  it('trims ids and fails closed on an empty run id', () => {
+    expect(selectRunForComparison(createRunHistoryComparisonSelection(), 'baseline', '  run-a  ').baselineRunId).toBe('run-a');
     expect(() => selectRunForComparison(createRunHistoryComparisonSelection(), 'baseline', '   ')).toThrow('RUN-HISTORY-SELECTION-ID-001');
   });
 });
