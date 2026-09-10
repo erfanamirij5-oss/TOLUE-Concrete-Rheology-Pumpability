@@ -1,0 +1,186 @@
+name: Release Stable v1.0.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_release:
+        description: 'Type RELEASE-v1.0.0 to authorize the immutable stable publication attempt'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-stable-v1.0.0
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: v1.0.0
+  RELEASE_VERSION: 1.0.0
+  STABLE_TRUST_DIR: release/stable/v1.0.0
+  STABLE_ICON: build/icons/tolue.ico
+
+jobs:
+  gate-build-sign-publish:
+    name: Fail-closed stable gate, Authenticode build and publication
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      EXPECTED_AUTHENTICODE_PUBLISHER: ${{ secrets.TOLUE_WINDOWS_PUBLISHER }}
+      CONFIRM_RELEASE: ${{ inputs.confirm_release }}
+    steps:
+      - name: Require explicit immutable stable invocation
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') { throw 'STABLE-RELEASE-001: workflow_dispatch event required' }
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw "STABLE-RELEASE-002: stable release must run from main; ref=$env:GITHUB_REF" }
+          if ($env:CONFIRM_RELEASE -ne 'RELEASE-v1.0.0') { throw 'STABLE-RELEASE-003: exact release confirmation is required' }
+
+      - name: Checkout exact main candidate
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify immutable target and successful main CI
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main --tags
+          $head = (git rev-parse HEAD).Trim()
+          $main = (git rev-parse origin/main).Trim()
+          if ($head -ne $env:GITHUB_SHA) { throw 'STABLE-RELEASE-010: checkout does not match workflow SHA' }
+          if ($head -ne $main) { throw 'STABLE-RELEASE-011: main advanced; refusing stale stable release' }
+
+          $runsJson = gh api "repos/${{ github.repository }}/actions/runs?head_sha=$head&per_page=50"
+          $runs = ($runsJson | ConvertFrom-Json).workflow_runs
+          foreach ($required in @('Engineering Core CI', 'Windows Package CI', 'Stable v1.0.0 Readiness')) {
+            $run = $runs | Where-Object { $_.name -eq $required -and $_.event -eq 'push' -and $_.head_branch -eq 'main' } | Select-Object -First 1
+            if (-not $run) { throw "STABLE-RELEASE-012: required main CI '$required' not found for exact SHA" }
+            if ($run.status -ne 'completed' -or $run.conclusion -ne 'success') { throw "STABLE-RELEASE-013: required main CI '$required' is not successful" }
+          }
+
+          if (@(git tag --list $env:RELEASE_TAG) -contains $env:RELEASE_TAG) { throw 'STABLE-RELEASE-014: stable tag already exists' }
+          $existing = ((gh api "repos/${{ github.repository }}/releases?per_page=100") | ConvertFrom-Json) | Where-Object { $_.tag_name -eq $env:RELEASE_TAG } | Select-Object -First 1
+          if ($existing) { throw 'STABLE-RELEASE-015: stable GitHub release already exists' }
+
+      - name: Verify stable package metadata
+        shell: pwsh
+        run: |
+          $packageVersion = node -p "require('./package.json').version"
+          $lockVersion = node -p "require('./package-lock.json').version"
+          $rootLockVersion = node -p "require('./package-lock.json').packages[''].version"
+          if ($packageVersion -ne $env:RELEASE_VERSION) { throw "STABLE-RELEASE-020: package version must be $env:RELEASE_VERSION; found $packageVersion" }
+          if ($lockVersion -ne $env:RELEASE_VERSION -or $rootLockVersion -ne $env:RELEASE_VERSION) { throw 'STABLE-RELEASE-021: lockfile versions must match stable version' }
+
+      - name: Require owner-approved final icon configuration
+        shell: pwsh
+        run: |
+          if (-not (Test-Path $env:STABLE_ICON -PathType Leaf)) { throw "STABLE-RELEASE-030: owner-approved final .ico missing at $env:STABLE_ICON" }
+          $configured = node -p "require('./package.json').build?.win?.icon || ''"
+          if ($configured -ne $env:STABLE_ICON) { throw "STABLE-RELEASE-031: package build.win.icon must equal $env:STABLE_ICON" }
+
+      - name: Require Authenticode signing identity
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK)) { throw 'STABLE-RELEASE-040: WIN_CSC_LINK secret is required' }
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) { throw 'STABLE-RELEASE-041: WIN_CSC_KEY_PASSWORD secret is required' }
+          if ([string]::IsNullOrWhiteSpace($env:EXPECTED_AUTHENTICODE_PUBLISHER)) { throw 'STABLE-RELEASE-042: TOLUE_WINDOWS_PUBLISHER secret is required' }
+
+      - name: Require and validate production licensing trust root
+        shell: pwsh
+        run: |
+          $ring = Join-Path $env:STABLE_TRUST_DIR 'tolue-license-public-keyring.json'
+          $pem = Join-Path $env:STABLE_TRUST_DIR 'tolue-license-public-key.pem'
+          if (-not (Test-Path $ring -PathType Leaf)) { throw 'STABLE-RELEASE-050: production stable keyring missing' }
+          if (-not (Test-Path $pem -PathType Leaf)) { throw 'STABLE-RELEASE-051: production stable public PEM missing' }
+          node scripts/validate-stable-license-trust.mjs $ring $pem
+          New-Item -ItemType Directory -Path 'build/license' -Force | Out-Null
+          Copy-Item $ring 'build/license/tolue-license-public-keyring.json' -Force
+          Copy-Item $pem 'build/license/tolue-license-public-key.pem' -Force
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Engineering and regression suite
+        run: npm test
+
+      - name: Build stable Windows installer with Authenticode signing
+        run: npm run package:win
+
+      - name: Verify Authenticode signatures, publisher and timestamp
+        shell: pwsh
+        run: |
+          $installer = Join-Path 'release/windows' "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $appExe = Join-Path 'release/windows/win-unpacked' 'TOLUE Concrete Rheology & Pumpability.exe'
+          foreach ($path in @($installer, $appExe)) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "STABLE-RELEASE-060: expected signed binary missing: $path" }
+            $sig = Get-AuthenticodeSignature -FilePath $path
+            if ($sig.Status -ne 'Valid') { throw "STABLE-RELEASE-061: invalid Authenticode signature for $path; status=$($sig.Status)" }
+            if (-not $sig.SignerCertificate) { throw "STABLE-RELEASE-062: signer certificate missing for $path" }
+            if ($sig.SignerCertificate.Subject -ne $env:EXPECTED_AUTHENTICODE_PUBLISHER) { throw "STABLE-RELEASE-063: unexpected Authenticode publisher for $path" }
+            if (-not $sig.TimeStamperCertificate) { throw "STABLE-RELEASE-064: timestamp certificate missing for $path" }
+          }
+
+      - name: Create stable checksum
+        shell: pwsh
+        run: |
+          $expectedName = "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $installer = Join-Path 'release/windows' $expectedName
+          if ((Get-Item $installer).Length -le 0) { throw 'STABLE-RELEASE-070: stable installer is empty' }
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $expectedName" | Set-Content -Path 'release/windows/SHA256SUMS.txt' -Encoding ascii
+          "STABLE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Require production-compatible licensed restart verification evidence
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'release/stable/v1.0.0/LICENSED_RESTART_VERIFIED.txt' -PathType Leaf)) {
+            throw 'STABLE-RELEASE-080: production-compatible licensed restart verification evidence is missing; stable publication remains blocked'
+          }
+          $evidence = (Get-Content 'release/stable/v1.0.0/LICENSED_RESTART_VERIFIED.txt' -Raw).Trim()
+          if ($evidence -ne $env:GITHUB_SHA) { throw 'STABLE-RELEASE-081: licensed restart verification evidence must equal exact release commit SHA' }
+
+      - name: Re-verify main immutability before publication
+        shell: pwsh
+        run: |
+          git fetch origin main --tags
+          if ((git rev-parse HEAD).Trim() -ne (git rev-parse origin/main).Trim()) { throw 'STABLE-RELEASE-090: main advanced before stable publication' }
+
+      - name: Create annotated stable tag and GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a $env:RELEASE_TAG -m "TOLUE Concrete Rheology & Pumpability $($env:RELEASE_TAG)"
+          git push origin $env:RELEASE_TAG
+          $installer = "release/windows/TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          gh release create $env:RELEASE_TAG $installer 'release/windows/SHA256SUMS.txt' --title "TOLUE Concrete Rheology & Pumpability $($env:RELEASE_TAG)" --generate-notes --verify-tag
+
+      - name: Verify published stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r = gh release view $env:RELEASE_TAG --json tagName,isPrerelease,isDraft,assets | ConvertFrom-Json
+          if ($r.tagName -ne $env:RELEASE_TAG -or $r.isPrerelease -or $r.isDraft) { throw 'STABLE-RELEASE-100: published release is not a final stable release' }
+          if ($r.assets.Count -ne 2) { throw "STABLE-RELEASE-101: expected exactly two stable release assets; found $($r.assets.Count)" }
+          Write-Host "Published $($env:RELEASE_TAG)"
+          Write-Host "SHA256 $env:STABLE_SHA256"
