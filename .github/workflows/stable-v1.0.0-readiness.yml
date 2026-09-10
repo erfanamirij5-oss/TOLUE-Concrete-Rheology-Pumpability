@@ -1,0 +1,78 @@
+name: Stable v1.0.0 Readiness
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stable-readiness:
+    name: Verify stable release prerequisites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Engineering regression suite
+        run: npm test
+
+      - name: Verify stable trust-root separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          RC_KEY_ID='tolue-rc-2026-01'
+          if [ -f release/stable/v1.0.0/tolue-license-public-keyring.json ]; then
+            node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createPublicKey } from 'node:crypto';
+          const path = 'release/stable/v1.0.0/tolue-license-public-keyring.json';
+          const ring = JSON.parse(readFileSync(path, 'utf8'));
+          if (ring.method !== 'tolue-license-public-keyring-v1') throw new Error('STABLE-GATE-101: invalid keyring method');
+          if (!Array.isArray(ring.keys) || typeof ring.activeKeyId !== 'string') throw new Error('STABLE-GATE-102: invalid keyring shape');
+          if (ring.activeKeyId === 'tolue-rc-2026-01') throw new Error('STABLE-GATE-103: RC trust root cannot be active for stable');
+          const active = ring.keys.filter((k) => k?.status === 'ACTIVE');
+          if (active.length !== 1 || active[0].keyId !== ring.activeKeyId) throw new Error('STABLE-GATE-104: exactly one matching ACTIVE key is required');
+          if (createPublicKey(active[0].publicKeyPem).asymmetricKeyType !== 'ed25519') throw new Error('STABLE-GATE-105: stable ACTIVE key must be Ed25519');
+          NODE
+          else
+            echo 'Stable public trust material not provisioned yet; publication remains blocked by S1.'
+          fi
+
+      - name: Assert no production private key is committed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -n -I -E -- 'BEGIN (ED25519 |EC |RSA )?PRIVATE KEY|BEGIN PRIVATE KEY' -- ':!package-lock.json'; then
+            echo 'STABLE-GATE-106: private-key material detected in tracked source'
+            exit 1
+          fi
+
+      - name: Verify stable publication remains fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/STABLE_RELEASE_HARDENING_v1.0.0.md
+          if [ -f .github/workflows/release-stable-v1.0.0.yml ]; then
+            grep -q 'Authenticode' .github/workflows/release-stable-v1.0.0.yml || { echo 'STABLE-GATE-107: stable workflow lacks Authenticode gate'; exit 1; }
+            grep -q 'release/stable/v1.0.0' .github/workflows/release-stable-v1.0.0.yml || { echo 'STABLE-GATE-108: stable workflow does not require stable trust material'; exit 1; }
+          else
+            echo 'Stable publication workflow not present yet; publication remains blocked by S4.'
+          fi
