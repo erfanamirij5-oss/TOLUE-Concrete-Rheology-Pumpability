@@ -8,9 +8,9 @@ export interface RunHistoryViewActions {
 }
 
 function executionStatusLabel(status: EngineeringRunHistoryItem['executionStatus']): string {
-  if (status === 'SUCCESS') return 'تحلیل موفق';
-  if (status === 'REJECTED') return 'تحلیل ردشده';
-  return String(status);
+  if (status === 'EXECUTED') return 'اجراشده';
+  if (status === 'BLOCKED') return 'مسدودشده';
+  return status;
 }
 
 function completenessLabel(completeness: EngineeringRunHistoryItem['completeness']): string {
@@ -29,7 +29,7 @@ export function renderRunHistoryView(root: HTMLElement, items: readonly Readonly
 
   if (items.length === 0) {
     const empty = document.createElement('div');
-    empty.textContent = 'هنوز تحلیل ذخیره‌شده‌ای وجود ندارد. پس از اجرای موفق تحلیل، Runهای ذخیره‌شده در این فضا نمایش داده می‌شوند.';
+    empty.textContent = 'هنوز تحلیل ذخیره‌شده‌ای وجود ندارد. پس از اجرای تحلیل، Runهای ذخیره‌شده در این فضا نمایش داده می‌شوند.';
     empty.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
     empty.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
     empty.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
