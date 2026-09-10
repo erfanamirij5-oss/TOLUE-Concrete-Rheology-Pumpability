@@ -21,15 +21,13 @@ This document defines the fail-closed gates required before promoting the verifi
 - Key ID, status, keyring method, active-key uniqueness, and Ed25519 parsing must be validated before packaging.
 - Stable licensing material must preserve backward-verification policy explicitly; no implicit trust migration.
 
-### S2 — Windows Authenticode code signing
+### S2 — Windows Authenticode policy for v1.0.0
 
-- Stable Windows binaries and NSIS installer MUST be Authenticode-signed by an approved production publisher identity.
-- Signing credentials/private keys MUST NOT be committed to the repository.
-- CI must fail closed when stable signing credentials/configuration are absent.
-- Post-build verification must confirm a valid signature and expected publisher identity before publication.
-- Timestamping must be configured through the selected signing provider so signatures remain verifiable after certificate expiry where supported.
-
-Supported implementation paths are intentionally limited to a reviewed production mechanism such as a CI-accessible certificate/HSM or a managed cloud signing service. Selection and credential provisioning are external release prerequisites, not values to invent in source control.
+- Authenticode code signing is **not a blocking gate for v1.0.0**.
+- The v1.0.0 Windows installer and executable may be published unsigned, matching the established TOLUE Desktop release path.
+- No signing certificate, publisher identity, password, private key, or managed signing service is required to publish v1.0.0.
+- The release workflow MUST NOT fabricate, self-sign, or claim an Authenticode identity that is not backed by an approved production certificate.
+- Authenticode may be introduced in a later separately reviewed release without changing scientific/engineering behavior.
 
 ### S3 — Approved TOLUE application icon
 
@@ -41,8 +39,8 @@ Supported implementation paths are intentionally limited to a reviewed productio
 ### S4 — Release workflow separation
 
 - The one-shot `.github/workflows/release-rc-v0.9.0-rc.1.yml` workflow is RC-specific and must not be reused as the stable publication workflow.
-- Stable publication must use an explicit v1.0.0 workflow with immutable-target checks, exact-version checks, exact CI-head checks, signed production licensing material, Authenticode verification, checksum generation, and release-asset verification.
-- Stable publication must not silently fall back to unsigned binaries or RC licensing material.
+- Stable publication must use an explicit v1.0.0 workflow with immutable-target checks, exact-version checks, exact CI-head checks, signed production licensing material, approved icon verification, checksum generation, and release-asset verification.
+- Stable publication must not silently fall back to RC licensing material.
 
 ### S5 — Regression gates
 
@@ -55,18 +53,19 @@ Before stable publication, the exact candidate head must pass:
 5. Windows NSIS package build;
 6. silent install / shortcut / activation-shell acceptance;
 7. licensed-start and restart-persistence acceptance using production-compatible test fixtures without exposing a production private key;
-8. Authenticode verification;
-9. exact installer filename/version verification;
-10. SHA-256 checksum generation and verification.
+8. exact installer filename/version verification;
+9. SHA-256 checksum generation and verification.
 
 ## Current blockers after RC publication
 
-The v0.9.0-rc.1 engineering candidate is published and verified. Stable v1.0.0 remains blocked until all of the following are supplied/resolved:
+The v0.9.0-rc.1 engineering candidate is published and verified. Stable v1.0.0 remains blocked only until the following are demonstrably complete on the exact final release SHA:
 
-- production licensing trust root and secure private-key custody;
-- production Windows code-signing identity/credentials or managed signing service;
-- final owner-approved TOLUE `.ico` asset;
-- stable publication workflow and final stable acceptance run.
+- production public licensing trust material is provisioned and validated;
+- final owner-approved TOLUE `.ico` is packaged;
+- stable publication workflow gates pass;
+- licensed-start and restart-persistence acceptance passes for the exact final SHA.
+
+Windows Authenticode is intentionally deferred and is not a v1.0.0 publication blocker.
 
 ## Non-goals
 
@@ -74,4 +73,4 @@ Stable-release hardening must not introduce new rheology, pumpability, blockage,
 
 ## Release decision
 
-`v1.0.0` may be tagged and published only when every stable gate above is demonstrably satisfied on the exact immutable release commit. Until then, `v0.9.0-rc.1` remains the latest distributable candidate.
+`v1.0.0` may be tagged and published only when every applicable stable gate above is demonstrably satisfied on the exact immutable release commit. Until then, `v0.9.0-rc.1` remains the latest distributable candidate.
