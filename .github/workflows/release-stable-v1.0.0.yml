@@ -53,6 +53,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Prepare owner-approved Windows icon deterministically
+        run: npm run prepare:win-icon
+
       - name: Verify immutable target and successful main CI
         shell: pwsh
         env:
