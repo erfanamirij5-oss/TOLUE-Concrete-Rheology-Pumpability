@@ -9,7 +9,12 @@ describe('history workspace state', () => {
   });
 
   it('accepts successful history responses', () => {
-    const response = { status: 'SUCCESS', items: [] } as const;
+    const response = {
+      status: 'SUCCESS',
+      items: [],
+      errorCode: null,
+      method: 'tolue-engineering-run-history-ipc-response-v1',
+    } as const;
     const state = applyHistoryResponse(createHistoryWorkspaceState(), response);
     expect(state.status).toBe('READY');
     expect(state.history).toEqual(response);
@@ -18,7 +23,12 @@ describe('history workspace state', () => {
   it('tracks comparison independently from the active engineering run', () => {
     const comparing = beginRunComparison(createHistoryWorkspaceState());
     expect(comparing.status).toBe('COMPARING');
-    const failed = applyComparisonResponse(comparing, { status: 'NOT_FOUND', errorCode: 'ENGINEERING-RUN-NOT-FOUND-001' } as never);
+    const failed = applyComparisonResponse(comparing, {
+      status: 'NOT_FOUND',
+      comparison: null,
+      errorCode: null,
+      method: 'tolue-engineering-run-comparison-ipc-response-v1',
+    });
     expect(failed.status).toBe('ERROR');
     expect(failed.errorMessage).toContain('یافت نشد');
   });
