@@ -57,9 +57,23 @@ jobs:
         shell: pwsh
         run: |
           $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)[0]
-          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "WINDOWS-INSTALL-SMOKE-001: installer exited with $($process.ExitCode)" }
           $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
+          $expectedCrash = -1073741819 # 0xC0000005: known intermittent NSIS System.dll access violation on fresh per-user install
+          $maxAttempts = 2
+          $lastExitCode = $null
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Silent install attempt $attempt of $maxAttempts"
+            $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+            $lastExitCode = $process.ExitCode
+            if ($lastExitCode -eq 0) { break }
+            if ($lastExitCode -ne $expectedCrash -or $attempt -eq $maxAttempts) {
+              throw "WINDOWS-INSTALL-SMOKE-001: installer exited with $lastExitCode on attempt $attempt"
+            }
+            Write-Warning 'NSIS returned transient 0xC0000005 on fresh per-user install; retrying once on the same runner.'
+            Start-Sleep -Seconds 2
+          }
+
           $installed = @(Get-ChildItem -Path $programsRoot -Filter 'TOLUE Concrete Rheology & Pumpability.exe' -File -Recurse -ErrorAction SilentlyContinue)
           if ($installed.Count -ne 1) { throw "WINDOWS-INSTALL-SMOKE-002: expected exactly one installed executable under $programsRoot, found $($installed.Count)" }
           if ($installed[0].Length -le 0) { throw 'WINDOWS-INSTALL-SMOKE-003: installed executable is empty' }
