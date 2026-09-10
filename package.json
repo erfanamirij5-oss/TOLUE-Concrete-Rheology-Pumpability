@@ -1,7 +1,7 @@
 {
   "name": "tolue-concrete-rheology-pumpability",
   "productName": "TOLUE Concrete Rheology & Pumpability",
-  "version": "1.0.0",
+  "version": "1.1.0-rc.1",
   "description": "TOLUE engineering desktop platform for concrete rheology and pumpability analysis.",
   "author": "TOLUE Software",
   "private": true,
