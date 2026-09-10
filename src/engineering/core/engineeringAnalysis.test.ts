@@ -111,7 +111,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.diagnostics.method).toBe('tolue-diagnostics-v2');
     expect(result.finalOutput.method).toBe('tolue-final-engineering-output-v1');
     expect(result.reportExport.method).toBe('tolue-engineering-report-export-bundle-v2');
-    expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v2');
+    expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v3');
     expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v6');
   });
 
