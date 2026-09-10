@@ -26,4 +26,12 @@ describe('session UX copy', () => {
     expect(copy.title).toBe('نیاز به محاسبه مجدد');
     expect(copy.tone).toBe('warning');
   });
+
+  it('does not expose internal English state labels to the user copy', () => {
+    for (const status of ['IDLE', 'READY', 'RUNNING', 'SUCCEEDED', 'REJECTED', 'STALE'] as const) {
+      const copy = sessionUxCopy(state(status, status === 'STALE'));
+      expect(copy.title).not.toContain(status);
+      expect(copy.detail).not.toContain(status);
+    }
+  });
 });
