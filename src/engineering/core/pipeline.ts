@@ -4,12 +4,25 @@ import {
   evaluateProjectCalibratedLocalLoss,
 } from './projectCalibratedLocalLoss';
 
+export interface EngineeringPoint3D {
+  xM: number;
+  yM: number;
+  zM: number;
+}
+
+export interface PipelineSpatialMetadata {
+  startPoint: EngineeringPoint3D;
+  endPoint: EngineeringPoint3D;
+  connectedFromSegmentId?: string;
+}
+
 export interface StraightPipelineSegment {
   id: string;
   kind: 'straight';
   lengthM: number;
   pipeRadiusM: number;
   elevationChangeM: number;
+  spatial?: PipelineSpatialMetadata;
 }
 
 export interface ProjectCalibratedLocalLossContract {
@@ -23,6 +36,7 @@ export interface LocalPipelineSegment {
   kind: 'elbow' | 'reducer' | 'hose' | 'valve' | 'boom' | 'other';
   elevationChangeM: number;
   calibratedLocalLoss?: ProjectCalibratedLocalLossContract;
+  spatial?: PipelineSpatialMetadata;
 }
 
 export type PipelineSegment = StraightPipelineSegment | LocalPipelineSegment;
