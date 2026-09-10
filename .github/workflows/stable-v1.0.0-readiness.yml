@@ -1,6 +1,8 @@
 name: Stable v1.0.0 Readiness
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -37,7 +39,7 @@ jobs:
       - name: Stable trust validator regression suite
         run: node --test scripts/validate-stable-license-trust.node-test.mjs
 
-      - name: Stable public trust provisioning regression suite
+      - name: Stable trust provisioning regression suite
         run: node --test scripts/prepare-stable-license-trust.node-test.mjs
 
       - name: Verify provisioned stable trust material
@@ -70,7 +72,6 @@ jobs:
           WF='.github/workflows/release-stable-v1.0.0.yml'
           ACCEPT='.github/workflows/stable-licensed-restart-acceptance.yml'
           test -f docs/STABLE_RELEASE_HARDENING_v1.0.0.md
-          test -f scripts/prepare-stable-license-trust.mjs || { echo 'STABLE-GATE-124: stable public trust provisioning tool missing'; exit 1; }
           test -f "$WF" || { echo 'STABLE-GATE-107: stable publication workflow missing'; exit 1; }
           test -f "$ACCEPT" || { echo 'STABLE-GATE-116: licensed restart acceptance workflow missing'; exit 1; }
           grep -q 'workflow_dispatch:' "$WF" || { echo 'STABLE-GATE-108: stable publication must be explicit/manual'; exit 1; }
