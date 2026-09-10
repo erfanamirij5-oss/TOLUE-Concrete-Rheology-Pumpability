@@ -11,7 +11,7 @@
   ],
   "extraMetadata": {
     "main": "tools/owner-license-manager/main.cjs",
-    "version": "1.0.1"
+    "version": "1.0.2"
   },
   "win": {
     "target": [
@@ -20,7 +20,7 @@
         "arch": ["x64"]
       }
     ],
-    "artifactName": "TOLUE-Rheology-License-Manager-1.0.1-Setup.${ext}",
+    "artifactName": "TOLUE-Rheology-License-Manager-1.0.2-Setup.${ext}",
     "executableName": "TOLUERheologyLicenseManager",
     "icon": "build/icons/tolue.ico",
     "requestedExecutionLevel": "asInvoker"
@@ -33,7 +33,7 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "shortcutName": "TOLUE Rheology License Manager",
-    "uninstallDisplayName": "TOLUE Rheology License Manager 1.0.1",
+    "uninstallDisplayName": "TOLUE Rheology License Manager 1.0.2",
     "deleteAppDataOnUninstall": false,
     "runAfterFinish": true
   }
