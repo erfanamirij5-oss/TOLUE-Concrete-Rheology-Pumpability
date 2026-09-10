@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>مدیریت لایسنس طلوع</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">T</div><div><strong>TOLOUE</strong><span>OWNER CONSOLE</span></div></div>
+      <div class="product"><span>محصول فعال</span><strong>رئولوژی و پمپاژپذیری بتن</strong></div>
+      <div class="security-state"><i></i><div><strong>صدور کاملاً آفلاین</strong><span>Private Key از سیستم خارج نمی‌شود</span></div></div>
+      <div class="side-meta"><span id="version">نسخه —</span><span>Ed25519 • Machine-bound</span></div>
+    </aside>
+
+    <main class="workspace">
+      <header><div><span class="eyebrow">TOLUE LICENSE OPERATIONS</span><h1>صدور لایسنس جدید</h1><p>فایل مجوز امن و متصل به کد سیستم مشتری ایجاد کنید.</p></div><div class="status-pill">محیط مالک</div></header>
+
+      <section class="panel key-panel">
+        <div class="section-head"><div class="step">۱</div><div><h2>کلید امضای تولیدی</h2><p>فقط کلید رسمی <b id="keyId">—</b> پذیرفته می‌شود.</p></div></div>
+        <div class="key-row"><div class="key-info"><span id="keyName">هیچ کلیدی انتخاب نشده است</span><code id="fingerprint">Fingerprint پس از بررسی نمایش داده می‌شود</code></div><button class="secondary" id="chooseKey">انتخاب و بررسی کلید</button></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head"><div class="step">۲</div><div><h2>مشخصات مجوز</h2><p>اطلاعات دقیق مشتری و بازه اعتبار را وارد کنید.</p></div></div>
+        <div class="form-grid">
+          <label><span>شناسه لایسنس</span><input id="licenseId" autocomplete="off" maxlength="80" placeholder="RHEO-2026-0001"></label>
+          <label><span>کد سیستم مشتری</span><input id="machineCode" autocomplete="off" maxlength="64" spellcheck="false" placeholder="۶۴ کاراکتر hexadecimal"></label>
+          <label><span>شروع اعتبار</span><input id="validFrom" type="datetime-local"></label>
+          <label><span>پایان اعتبار</span><input id="validUntil" type="datetime-local"></label>
+        </div>
+        <div class="quick-row"><span>تنظیم سریع:</span><button class="chip" data-days="30">۳۰ روز</button><button class="chip" data-days="90">۹۰ روز</button><button class="chip" data-days="180">۶ ماه</button><button class="chip" data-days="365">یک سال</button></div>
+      </section>
+
+      <section class="issue-bar">
+        <div class="result" id="result"><strong>آماده صدور</strong><span>ابتدا کلید و مشخصات را تکمیل کنید.</span></div>
+        <button class="primary" id="issueLicense" disabled>ساخت فایل لایسنس</button>
+      </section>
+    </main>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

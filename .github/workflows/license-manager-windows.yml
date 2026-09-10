@@ -1,0 +1,84 @@
+name: Rheology License Manager Windows Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/owner-license-manager/**'
+      - 'electron-builder.license-manager.json'
+      - '.github/workflows/license-manager-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: License contract and security tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+      - name: Run offline contract and security tests
+        run: node --test tools/owner-license-manager/*.test.mjs
+      - name: Reject packaged private-key material
+        shell: bash
+        run: |
+          if grep -R -E -- '-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY-----' tools/owner-license-manager; then
+            echo 'LICENSE-MANAGER-GATE-001: embedded private key material detected'
+            exit 1
+          fi
+
+  windows-installer:
+    name: Windows NSIS install, launch and uninstall
+    needs: contract
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build License Manager NSIS installer
+        run: npx --yes electron-builder@26.0.12 --config electron-builder.license-manager.json --win nsis --x64 --publish never
+      - name: Verify exact installer and create checksum
+        shell: pwsh
+        run: |
+          $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.0-Setup.exe'
+          if (-not (Test-Path $installer -PathType Leaf)) { throw 'LICENSE-MANAGER-GATE-101: exact installer missing' }
+          if ((Get-Item $installer).Length -lt 1000000) { throw 'LICENSE-MANAGER-GATE-102: installer unexpectedly small' }
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  TOLUE-Rheology-License-Manager-1.0.0-Setup.exe" | Set-Content -Path 'release/license-manager/SHA256SUMS.txt' -Encoding ascii
+          Write-Host "License Manager installer SHA256: $hash"
+      - name: Silent install and launch smoke
+        shell: pwsh
+        run: |
+          $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.0-Setup.exe'
+          $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "LICENSE-MANAGER-GATE-103: installer exit $($install.ExitCode)" }
+          $exe = @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Programs') -Filter 'TOLUERheologyLicenseManager.exe' -File -Recurse -ErrorAction SilentlyContinue)
+          if ($exe.Count -ne 1) { throw "LICENSE-MANAGER-GATE-104: expected one installed executable, found $($exe.Count)" }
+          $process = Start-Process -FilePath $exe[0].FullName -PassThru
+          Start-Sleep -Seconds 7
+          if ($process.HasExited) { throw "LICENSE-MANAGER-GATE-105: application exited early with $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          $uninstaller = @(Get-ChildItem -Path $exe[0].Directory.FullName -Filter 'Uninstall*.exe' -File)
+          if ($uninstaller.Count -ne 1) { throw 'LICENSE-MANAGER-GATE-106: uninstaller missing' }
+          $uninstall = Start-Process -FilePath $uninstaller[0].FullName -ArgumentList '/S' -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "LICENSE-MANAGER-GATE-107: uninstaller exit $($uninstall.ExitCode)" }
+      - name: Upload verified Windows payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: TOLUE-Rheology-License-Manager-Windows
+          path: |
+            release/license-manager/TOLUE-Rheology-License-Manager-1.0.0-Setup.exe
+            release/license-manager/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
