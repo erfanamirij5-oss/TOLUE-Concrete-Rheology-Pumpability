@@ -28,6 +28,8 @@ This branch advances product metadata from `0.9.0-rc.1` to the stable target `1.
 2. `package-lock.json` root metadata is synchronized to `1.0.0`.
 3. The bounded one-shot `stable-lockfile-sync.yml` workflow completed its purpose and has been removed from `main`.
 4. Exact-head Engineering Core CI, Windows Package CI, and Stable v1.0.0 Readiness passed on the lockfile synchronization and cleanup PRs before merge.
+5. Stable production licensing keyring validation now enforces unique key IDs, explicit ACTIVE/RETIRED state, Ed25519 validity for every trusted key, and deterministic backward-verification rotation semantics.
+6. S5 evidence no longer relies on an impossible self-referential tracked SHA file. Exact-commit licensed restart/persistence acceptance is represented by a successful `Stable Licensed Restart Acceptance` workflow run bound to the final publication SHA and an immutable external evidence digest/reference.
 
 ## Remaining fail-closed blockers
 
@@ -36,7 +38,7 @@ Stable publication MUST remain blocked until all of the following are true on th
 1. Separate production Ed25519 public trust material exists under `release/stable/v1.0.0/` and passes `scripts/validate-stable-license-trust.mjs`.
 2. The owner-approved final TOLUE `.ico` is present and explicitly configured for Windows packaging.
 3. Authenticode signing credentials are available to CI and the signed installer/executable validate against the exact expected publisher with timestamp evidence.
-4. Exact-commit licensed restart/persistence verification evidence is available using production-compatible fixtures.
+4. A successful `Stable Licensed Restart Acceptance` workflow run exists on the exact publication SHA, with an immutable external evidence reference and SHA-256 digest confirming production-compatible licensed launch, restart, and persistence acceptance.
 5. Engineering Core CI, Windows Package CI, and Stable v1.0.0 Readiness are successful for the exact publication commit.
 6. The `v1.0.0` tag and stable GitHub release do not already exist.
 
