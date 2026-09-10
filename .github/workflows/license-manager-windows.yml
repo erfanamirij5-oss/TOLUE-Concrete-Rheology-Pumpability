@@ -45,6 +45,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install dependencies from committed lockfile
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare validated Windows icon
+        run: npm run prepare:win-icon
       - name: Build License Manager NSIS installer
         run: npx --yes electron-builder@26.0.12 --config electron-builder.license-manager.json --win nsis --x64 --publish never
       - name: Verify exact installer and create checksum
