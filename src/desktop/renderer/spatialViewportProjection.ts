@@ -19,6 +19,12 @@ export interface ProjectedPoint2D {
   readonly depth: number;
 }
 
+export interface SpatialGridLine3D {
+  readonly start: Readonly<EngineeringPoint3D>;
+  readonly end: Readonly<EngineeringPoint3D>;
+  readonly axis: 'x' | 'y';
+}
+
 export const DEFAULT_SPATIAL_CAMERA: Readonly<SpatialViewportCamera> = Object.freeze({
   yawRad: Math.PI / 4,
   pitchRad: -Math.PI / 6,
@@ -53,6 +59,33 @@ export function projectSpatialPoint(
   const y2=cp*y1-sp*z,z2=sp*y1+cp*z;
   const scale=(Math.min(widthPx,heightPx)*0.72/bounds.spanM)*camera.zoom;
   return Object.freeze({x:widthPx/2+x1*scale+camera.panXPx,y:heightPx/2-y2*scale+camera.panYPx,depth:z2});
+}
+
+export function projectedSegmentDepth(
+  start: Readonly<EngineeringPoint3D>,
+  end: Readonly<EngineeringPoint3D>,
+  bounds: Readonly<SpatialViewportBounds>,
+  camera: Readonly<SpatialViewportCamera>,
+  widthPx: number,
+  heightPx: number,
+): number {
+  const a=projectSpatialPoint(start,bounds,camera,widthPx,heightPx);
+  const b=projectSpatialPoint(end,bounds,camera,widthPx,heightPx);
+  return (a.depth+b.depth)/2;
+}
+
+export function spatialReferenceGrid(bounds:Readonly<SpatialViewportBounds>,divisions=10):readonly Readonly<SpatialGridLine3D>[] {
+  if(!Number.isInteger(divisions)||divisions<2||divisions>40)throw new Error('SPATIAL-VIEWPORT-GRID-001');
+  const half=bounds.spanM/2;
+  const step=bounds.spanM/divisions;
+  const zM=bounds.center.zM;
+  const lines:SpatialGridLine3D[]=[];
+  for(let i=0;i<=divisions;i+=1){
+    const offset=-half+i*step;
+    lines.push(Object.freeze({axis:'x',start:Object.freeze({xM:bounds.center.xM-half,yM:bounds.center.yM+offset,zM}),end:Object.freeze({xM:bounds.center.xM+half,yM:bounds.center.yM+offset,zM})}));
+    lines.push(Object.freeze({axis:'y',start:Object.freeze({xM:bounds.center.xM+offset,yM:bounds.center.yM-half,zM}),end:Object.freeze({xM:bounds.center.xM+offset,yM:bounds.center.yM+half,zM})}));
+  }
+  return Object.freeze(lines);
 }
 
 export function orbitSpatialCamera(camera:Readonly<SpatialViewportCamera>,deltaYawRad:number,deltaPitchRad:number):Readonly<SpatialViewportCamera>{
