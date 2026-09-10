@@ -65,8 +65,10 @@ jobs:
         run: |
           set -euo pipefail
           WF='.github/workflows/release-stable-v1.0.0.yml'
+          ACCEPT='.github/workflows/stable-licensed-restart-acceptance.yml'
           test -f docs/STABLE_RELEASE_HARDENING_v1.0.0.md
           test -f "$WF" || { echo 'STABLE-GATE-107: stable publication workflow missing'; exit 1; }
+          test -f "$ACCEPT" || { echo 'STABLE-GATE-116: licensed restart acceptance workflow missing'; exit 1; }
           grep -q 'workflow_dispatch:' "$WF" || { echo 'STABLE-GATE-108: stable publication must be explicit/manual'; exit 1; }
           grep -q 'release/stable/v1.0.0' "$WF" || { echo 'STABLE-GATE-109: stable workflow does not require stable trust material'; exit 1; }
           grep -q 'WIN_CSC_LINK' "$WF" || { echo 'STABLE-GATE-110: Authenticode certificate gate missing'; exit 1; }
@@ -75,8 +77,15 @@ jobs:
           grep -q 'Get-AuthenticodeSignature' "$WF" || { echo 'STABLE-GATE-113: post-build Authenticode verification missing'; exit 1; }
           grep -q 'TimeStamperCertificate' "$WF" || { echo 'STABLE-GATE-114: timestamp verification missing'; exit 1; }
           grep -q 'build/icons/tolue.ico' "$WF" || { echo 'STABLE-GATE-115: owner-approved icon gate missing'; exit 1; }
-          grep -q 'LICENSED_RESTART_VERIFIED.txt' "$WF" || { echo 'STABLE-GATE-116: licensed restart evidence gate missing'; exit 1; }
+          grep -q 'Stable Licensed Restart Acceptance' "$WF" || { echo 'STABLE-GATE-119: release workflow must require exact-SHA licensed restart acceptance run'; exit 1; }
+          grep -q 'candidate_sha:' "$ACCEPT" || { echo 'STABLE-GATE-120: acceptance workflow must bind evidence to an exact candidate SHA'; exit 1; }
+          grep -q 'evidence_sha256:' "$ACCEPT" || { echo 'STABLE-GATE-121: acceptance workflow must bind an immutable evidence digest'; exit 1; }
+          grep -q 'ACCEPT-v1.0.0' "$ACCEPT" || { echo 'STABLE-GATE-122: acceptance workflow explicit confirmation contract missing'; exit 1; }
           grep -q 'RELEASE_VERSION: 1.0.0' "$WF" || { echo 'STABLE-GATE-117: immutable stable version missing'; exit 1; }
+          if grep -q 'LICENSED_RESTART_VERIFIED.txt' "$WF" "$ACCEPT"; then
+            echo 'STABLE-GATE-123: self-referential tracked SHA evidence file is forbidden'
+            exit 1
+          fi
           if [ -f .github/workflows/release-rc-v0.9.0-rc.1.yml ]; then
             echo 'STABLE-GATE-118: completed one-shot RC workflow must be retired before stable transition'
             exit 1
@@ -89,6 +98,7 @@ jobs:
           blockers=0
           [ -f release/stable/v1.0.0/tolue-license-public-keyring.json ] && [ -f release/stable/v1.0.0/tolue-license-public-key.pem ] || { echo 'BLOCKED S1: production public licensing trust material not provisioned'; blockers=$((blockers+1)); }
           [ -f build/icons/tolue.ico ] || { echo 'BLOCKED S3: owner-approved final TOLUE .ico not provisioned'; blockers=$((blockers+1)); }
-          [ -f release/stable/v1.0.0/LICENSED_RESTART_VERIFIED.txt ] || { echo 'BLOCKED S5: exact-commit production-compatible licensed restart evidence not provisioned'; blockers=$((blockers+1)); }
+          echo 'BLOCKED S5 until a successful Stable Licensed Restart Acceptance workflow run exists for the exact final publication SHA.'
+          blockers=$((blockers+1))
           echo "Stable external blocker count: $blockers"
           echo 'S2 Authenticode certificate/publisher secrets are intentionally checked only inside the manual stable publication workflow.'

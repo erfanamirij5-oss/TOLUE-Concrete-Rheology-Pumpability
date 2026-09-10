@@ -147,14 +147,23 @@ jobs:
           "$hash  $expectedName" | Set-Content -Path 'release/windows/SHA256SUMS.txt' -Encoding ascii
           "STABLE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Require production-compatible licensed restart verification evidence
+      - name: Require exact-SHA production-compatible licensed restart acceptance
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if (-not (Test-Path 'release/stable/v1.0.0/LICENSED_RESTART_VERIFIED.txt' -PathType Leaf)) {
-            throw 'STABLE-RELEASE-080: production-compatible licensed restart verification evidence is missing; stable publication remains blocked'
-          }
-          $evidence = (Get-Content 'release/stable/v1.0.0/LICENSED_RESTART_VERIFIED.txt' -Raw).Trim()
-          if ($evidence -ne $env:GITHUB_SHA) { throw 'STABLE-RELEASE-081: licensed restart verification evidence must equal exact release commit SHA' }
+          $head = (git rev-parse HEAD).Trim()
+          $runsJson = gh api "repos/${{ github.repository }}/actions/runs?head_sha=$head&event=workflow_dispatch&per_page=100"
+          $runs = ($runsJson | ConvertFrom-Json).workflow_runs
+          $accept = $runs | Where-Object {
+            $_.name -eq 'Stable Licensed Restart Acceptance' -and
+            $_.head_branch -eq 'main' -and
+            $_.head_sha -eq $head -and
+            $_.status -eq 'completed' -and
+            $_.conclusion -eq 'success'
+          } | Sort-Object run_started_at -Descending | Select-Object -First 1
+          if (-not $accept) { throw 'STABLE-RELEASE-080: no successful Stable Licensed Restart Acceptance workflow run exists for the exact release commit SHA' }
+          Write-Host "Licensed restart acceptance run: $($accept.html_url)"
 
       - name: Re-verify main immutability before publication
         shell: pwsh
