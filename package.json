@@ -3,6 +3,7 @@
   "productName": "TOLUE Concrete Rheology & Pumpability",
   "version": "1.0.0",
   "description": "TOLUE engineering desktop platform for concrete rheology and pumpability analysis.",
+  "author": "TOLUE Software",
   "private": true,
   "type": "module",
   "main": "dist/desktop/main/index.cjs",
