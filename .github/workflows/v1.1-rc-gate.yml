@@ -1,0 +1,54 @@
+name: v1.1 RC Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Full v1.1 regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: TypeScript strict check
+        run: npm run typecheck
+      - name: Full automated test suite
+        run: npm test
+
+  windows-rc-smoke:
+    name: Windows RC package + licensing smoke
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Licensing focused regression
+        shell: pwsh
+        run: npx vitest run src/desktop/main/licensing src/desktop/main/licenseActivationShell.test.ts src/desktop/main/electronLicenseAdapter.test.ts src/desktop/ipc/licenseIpc.test.ts src/desktop/renderer/licensePresentation.test.ts
+      - name: Persistence focused regression
+        shell: pwsh
+        run: npx vitest run src/desktop/main/persistence src/desktop/main/electronRunAdapter.test.ts
+      - name: Build Windows RC smoke installer
+        run: npm run package:win
+      - name: Verify installer payload
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
+          if ($installer.Count -ne 1) { throw "V1_1_RC_GATE_001: expected one installer, found $($installer.Count)" }
+          if ($installer[0].Length -le 0) { throw 'V1_1_RC_GATE_002: installer is empty' }
+          Write-Host "RC smoke installer: $($installer[0].FullName)"
