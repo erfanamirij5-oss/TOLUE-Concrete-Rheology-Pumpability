@@ -4,8 +4,8 @@ const { createHash, createPrivateKey, createPublicKey, sign, verify } = require(
 
 const PRODUCT_ID = 'tolue-concrete-rheology-pumpability';
 const SCHEMA_VERSION = 'tolue-license-v1';
-const PRODUCTION_KEY_ID = 'tolue-prod-2026-01';
-const PRODUCTION_PUBLIC_PEM_SHA256 = '1e1c312326dfdb91aa2f1f54b1035ce2ccf30c5109972e831d8210a8a8723a64';
+const PRODUCTION_KEY_ID = 'tolue-prod-2026-02';
+const PRODUCTION_PUBLIC_PEM_SHA256 = 'e9de588da083acf8047d97ca455cc657c55d3c69cb6b5849814b406efe234003';
 
 function normalizePem(value) {
   if (typeof value !== 'string' || !value.trim()) throw new Error('LM-KEY-001: فایل کلید خصوصی خالی است.');
