@@ -62,8 +62,20 @@ jobs:
         shell: pwsh
         run: |
           $installer = Join-Path 'release/license-manager' 'TOLUE-Rheology-License-Manager-1.0.0-Setup.exe'
-          $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
-          if ($install.ExitCode -ne 0) { throw "LICENSE-MANAGER-GATE-103: installer exit $($install.ExitCode)" }
+          # NSIS System.dll can very occasionally terminate with 0xC0000005 on
+          # GitHub-hosted Windows runners. Retry only that known transient once;
+          # every other exit code remains a hard failure.
+          $expectedTransientCrash = -1073741819
+          $maxAttempts = 2
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            $install = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
+            if ($install.ExitCode -eq 0) { break }
+            if ($install.ExitCode -ne $expectedTransientCrash -or $attempt -eq $maxAttempts) {
+              throw "LICENSE-MANAGER-GATE-103: installer exit $($install.ExitCode) on attempt $attempt"
+            }
+            Write-Warning "NSIS returned the known transient access violation on attempt $attempt; retrying once."
+            Start-Sleep -Seconds 2
+          }
           $exe = @(Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA 'Programs') -Filter 'TOLUERheologyLicenseManager.exe' -File -Recurse -ErrorAction SilentlyContinue)
           if ($exe.Count -ne 1) { throw "LICENSE-MANAGER-GATE-104: expected one installed executable, found $($exe.Count)" }
           $process = Start-Process -FilePath $exe[0].FullName -PassThru
