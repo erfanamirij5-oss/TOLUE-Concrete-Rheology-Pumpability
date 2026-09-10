@@ -34,24 +34,18 @@ jobs:
       - name: Engineering regression suite
         run: npm test
 
-      - name: Verify stable trust-root separation
+      - name: Stable trust validator regression suite
+        run: node --test scripts/validate-stable-license-trust.node-test.mjs
+
+      - name: Verify provisioned stable trust material
         shell: bash
         run: |
           set -euo pipefail
-          RC_KEY_ID='tolue-rc-2026-01'
-          if [ -f release/stable/v1.0.0/tolue-license-public-keyring.json ]; then
-            node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs';
-          import { createPublicKey } from 'node:crypto';
-          const path = 'release/stable/v1.0.0/tolue-license-public-keyring.json';
-          const ring = JSON.parse(readFileSync(path, 'utf8'));
-          if (ring.method !== 'tolue-license-public-keyring-v1') throw new Error('STABLE-GATE-101: invalid keyring method');
-          if (!Array.isArray(ring.keys) || typeof ring.activeKeyId !== 'string') throw new Error('STABLE-GATE-102: invalid keyring shape');
-          if (ring.activeKeyId === 'tolue-rc-2026-01') throw new Error('STABLE-GATE-103: RC trust root cannot be active for stable');
-          const active = ring.keys.filter((k) => k?.status === 'ACTIVE');
-          if (active.length !== 1 || active[0].keyId !== ring.activeKeyId) throw new Error('STABLE-GATE-104: exactly one matching ACTIVE key is required');
-          if (createPublicKey(active[0].publicKeyPem).asymmetricKeyType !== 'ed25519') throw new Error('STABLE-GATE-105: stable ACTIVE key must be Ed25519');
-          NODE
+          RING='release/stable/v1.0.0/tolue-license-public-keyring.json'
+          PEM='release/stable/v1.0.0/tolue-license-public-key.pem'
+          if [ -f "$RING" ] || [ -f "$PEM" ]; then
+            test -f "$RING" && test -f "$PEM" || { echo 'STABLE-GATE-101: stable PEM and keyring must be provisioned together'; exit 1; }
+            node scripts/validate-stable-license-trust.mjs "$RING" "$PEM"
           else
             echo 'Stable public trust material not provisioned yet; publication remains blocked by S1.'
           fi
@@ -60,7 +54,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -n -I -E -- 'BEGIN (ED25519 |EC |RSA )?PRIVATE KEY|BEGIN PRIVATE KEY' -- ':!package-lock.json' ':!.github/workflows/stable-v1.0.0-readiness.yml'; then
+          PATTERN='BEGIN ([A-Z0-9]+ )*PRIVATE KEY'
+          if git grep -n -I -E -- "$PATTERN" -- ':!package-lock.json'; then
             echo 'STABLE-GATE-106: private-key material detected in tracked source'
             exit 1
           fi
