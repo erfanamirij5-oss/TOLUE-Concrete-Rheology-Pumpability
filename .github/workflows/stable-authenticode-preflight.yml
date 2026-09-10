@@ -1,0 +1,124 @@
+name: Stable Authenticode Preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Exact main SHA to validate with production Authenticode credentials'
+        required: true
+        type: string
+      confirm_preflight:
+        description: 'Type PREFLIGHT-v1.0.0 to run the production signing preflight'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-authenticode-preflight
+  cancel-in-progress: false
+
+env:
+  RELEASE_VERSION: 1.0.0
+  STABLE_TRUST_DIR: release/stable/v1.0.0
+  WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+  WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+  EXPECTED_AUTHENTICODE_PUBLISHER: ${{ secrets.TOLUE_WINDOWS_PUBLISHER }}
+  CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+  CONFIRM_PREFLIGHT: ${{ inputs.confirm_preflight }}
+
+jobs:
+  authenticode-preflight:
+    name: Validate production Authenticode signing without publication
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Require explicit exact-main preflight invocation
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') { throw 'AUTH-PREFLIGHT-001: workflow_dispatch event required' }
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw "AUTH-PREFLIGHT-002: preflight must run from main; ref=$env:GITHUB_REF" }
+          if ($env:CONFIRM_PREFLIGHT -ne 'PREFLIGHT-v1.0.0') { throw 'AUTH-PREFLIGHT-003: exact preflight confirmation is required' }
+          if ([string]::IsNullOrWhiteSpace($env:CANDIDATE_SHA) -or $env:CANDIDATE_SHA -notmatch '^[0-9a-fA-F]{40}$') { throw 'AUTH-PREFLIGHT-004: candidate_sha must be a full 40-character Git SHA' }
+          if ($env:CANDIDATE_SHA.ToLowerInvariant() -ne $env:GITHUB_SHA.ToLowerInvariant()) { throw "AUTH-PREFLIGHT-005: workflow SHA does not match candidate_sha; workflow=$env:GITHUB_SHA candidate=$env:CANDIDATE_SHA" }
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify candidate is current immutable main
+        shell: pwsh
+        run: |
+          git fetch origin main
+          $head = (git rev-parse HEAD).Trim()
+          $main = (git rev-parse origin/main).Trim()
+          if ($head -ne $env:CANDIDATE_SHA) { throw 'AUTH-PREFLIGHT-010: checkout does not match candidate_sha' }
+          if ($head -ne $main) { throw 'AUTH-PREFLIGHT-011: candidate is not current main' }
+
+      - name: Require production Authenticode secrets
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK)) { throw 'AUTH-PREFLIGHT-020: WIN_CSC_LINK secret is required' }
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) { throw 'AUTH-PREFLIGHT-021: WIN_CSC_KEY_PASSWORD secret is required' }
+          if ([string]::IsNullOrWhiteSpace($env:EXPECTED_AUTHENTICODE_PUBLISHER)) { throw 'AUTH-PREFLIGHT-022: TOLUE_WINDOWS_PUBLISHER secret is required' }
+
+      - name: Validate production licensing trust root
+        shell: pwsh
+        run: |
+          $ring = Join-Path $env:STABLE_TRUST_DIR 'tolue-license-public-keyring.json'
+          $pem = Join-Path $env:STABLE_TRUST_DIR 'tolue-license-public-key.pem'
+          if (-not (Test-Path $ring -PathType Leaf)) { throw 'AUTH-PREFLIGHT-030: production stable keyring missing' }
+          if (-not (Test-Path $pem -PathType Leaf)) { throw 'AUTH-PREFLIGHT-031: production stable public PEM missing' }
+          node scripts/validate-stable-license-trust.mjs $ring $pem
+          New-Item -ItemType Directory -Path 'build/license' -Force | Out-Null
+          Copy-Item $ring 'build/license/tolue-license-public-keyring.json' -Force
+          Copy-Item $pem 'build/license/tolue-license-public-key.pem' -Force
+
+      - name: Install dependencies from committed lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: TypeScript strict check
+        run: npm run typecheck
+
+      - name: Engineering and regression suite
+        run: npm test
+
+      - name: Build Windows installer with production Authenticode credentials
+        run: npm run package:win
+
+      - name: Verify installer and application Authenticode identity and timestamp
+        shell: pwsh
+        run: |
+          $installer = Join-Path 'release/windows' "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $appExe = Join-Path 'release/windows/win-unpacked' 'TOLUE Concrete Rheology & Pumpability.exe'
+          foreach ($path in @($installer, $appExe)) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "AUTH-PREFLIGHT-040: expected signed binary missing: $path" }
+            $sig = Get-AuthenticodeSignature -FilePath $path
+            if ($sig.Status -ne 'Valid') { throw "AUTH-PREFLIGHT-041: invalid Authenticode signature for $path; status=$($sig.Status)" }
+            if (-not $sig.SignerCertificate) { throw "AUTH-PREFLIGHT-042: signer certificate missing for $path" }
+            if ($sig.SignerCertificate.Subject -ne $env:EXPECTED_AUTHENTICODE_PUBLISHER) { throw "AUTH-PREFLIGHT-043: unexpected Authenticode publisher for $path" }
+            if (-not $sig.TimeStamperCertificate) { throw "AUTH-PREFLIGHT-044: timestamp certificate missing for $path" }
+            Write-Host "Verified signed artifact: $path"
+            Write-Host "Publisher matched configured expected subject."
+            Write-Host "Timestamp certificate present."
+          }
+
+      - name: Record non-sensitive preflight summary
+        shell: pwsh
+        run: |
+          $installer = Join-Path 'release/windows' "TOLUE-Concrete-Rheology-Pumpability-$($env:RELEASE_VERSION)-Setup.exe"
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "AUTHENTICODE_PREFLIGHT=PASS"
+          Write-Host "CANDIDATE_SHA=$env:CANDIDATE_SHA"
+          Write-Host "INSTALLER_SHA256=$hash"
+          Write-Host 'No tag, GitHub release, certificate, password, private key, or signed artifact is published by this workflow.'
