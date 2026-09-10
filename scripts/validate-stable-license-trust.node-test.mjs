@@ -25,6 +25,21 @@ test('accepts a valid production-like Ed25519 fixture', () => {
   assert.equal(validateStableTrust({ keyring: ring(pem), publicKeyPem: pem }).asymmetricKeyType, 'ed25519');
 });
 
+test('accepts one ACTIVE key plus RETIRED Ed25519 keys for backward verification', () => {
+  const activePem = ed25519Pem();
+  const retiredPem = ed25519Pem();
+  const result = validateStableTrust({
+    keyring: ring(activePem, {
+      keys: [
+        { keyId: 'tolue-prod-test-2026-01', publicKeyPem: activePem, status: 'ACTIVE' },
+        { keyId: 'tolue-prod-retired-2025-01', publicKeyPem: retiredPem, status: 'RETIRED' }
+      ]
+    }),
+    publicKeyPem: activePem
+  });
+  assert.deepEqual(result.retiredKeyIds, ['tolue-prod-retired-2025-01']);
+});
+
 test('rejects RC key id', () => {
   const pem = ed25519Pem();
   expectCode(() => validateStableTrust({ keyring: ring(pem, { activeKeyId: RC_KEY_ID, keys: [{ keyId: RC_KEY_ID, publicKeyPem: pem, status: 'ACTIVE' }] }), publicKeyPem: pem }), 'STABLE-TRUST-005');
@@ -48,7 +63,7 @@ test('rejects mismatched activeKeyId', () => {
 
 test('rejects non-Ed25519 key', () => {
   const pem = generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey.export({ type: 'spki', format: 'pem' });
-  expectCode(() => validateStableTrust({ keyring: ring(pem), publicKeyPem: pem }), 'STABLE-TRUST-011');
+  expectCode(() => validateStableTrust({ keyring: ring(pem), publicKeyPem: pem }), 'STABLE-TRUST-017');
 });
 
 test('rejects packaged PEM/keyring mismatch', () => {
@@ -61,4 +76,36 @@ test('normalizes CRLF and LF before PEM comparison', () => {
   const pem = ed25519Pem();
   const crlf = pem.replace(/\n/g, '\r\n');
   assert.equal(validateStableTrust({ keyring: ring(crlf), publicKeyPem: pem }).asymmetricKeyType, 'ed25519');
+});
+
+test('rejects duplicate keyId values', () => {
+  const pem = ed25519Pem();
+  const retiredPem = ed25519Pem();
+  expectCode(() => validateStableTrust({
+    keyring: ring(pem, {
+      keys: [
+        { keyId: 'tolue-prod-test-2026-01', publicKeyPem: pem, status: 'ACTIVE' },
+        { keyId: 'tolue-prod-test-2026-01', publicKeyPem: retiredPem, status: 'RETIRED' }
+      ]
+    }),
+    publicKeyPem: pem
+  }), 'STABLE-TRUST-015');
+});
+
+test('rejects unknown key status', () => {
+  const pem = ed25519Pem();
+  expectCode(() => validateStableTrust({ keyring: ring(pem, { keys: [{ keyId: 'tolue-prod-test-2026-01', publicKeyPem: pem, status: 'DISABLED' }] }), publicKeyPem: pem }), 'STABLE-TRUST-016');
+});
+
+test('rejects malformed retired key material', () => {
+  const pem = ed25519Pem();
+  expectCode(() => validateStableTrust({
+    keyring: ring(pem, {
+      keys: [
+        { keyId: 'tolue-prod-test-2026-01', publicKeyPem: pem, status: 'ACTIVE' },
+        { keyId: 'tolue-prod-retired-2025-01', publicKeyPem: 'not-a-key', status: 'RETIRED' }
+      ]
+    }),
+    publicKeyPem: pem
+  }), 'STABLE-TRUST-017');
 });
