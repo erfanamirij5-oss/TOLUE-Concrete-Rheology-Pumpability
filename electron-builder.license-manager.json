@@ -1,0 +1,40 @@
+{
+  "appId": "ir.tolou.rheology.licenseManager",
+  "productName": "TOLUE Rheology License Manager",
+  "copyright": "Copyright © 2026 TOLUE. All rights reserved.",
+  "asar": true,
+  "directories": {
+    "output": "release/license-manager"
+  },
+  "files": [
+    "tools/owner-license-manager/**/*"
+  ],
+  "extraMetadata": {
+    "main": "tools/owner-license-manager/main.cjs",
+    "version": "1.0.1"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "artifactName": "TOLUE-Rheology-License-Manager-1.0.1-Setup.${ext}",
+    "executableName": "TOLUERheologyLicenseManager",
+    "icon": "build/icons/tolue.ico",
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowElevation": true,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "TOLUE Rheology License Manager",
+    "uninstallDisplayName": "TOLUE Rheology License Manager 1.0.1",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true
+  }
+}
