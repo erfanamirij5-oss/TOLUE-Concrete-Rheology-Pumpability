@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -n -I -E -- 'BEGIN (ED25519 |EC |RSA )?PRIVATE KEY|BEGIN PRIVATE KEY' -- ':!package-lock.json'; then
+          if git grep -n -I -E -- 'BEGIN (ED25519 |EC |RSA )?PRIVATE KEY|BEGIN PRIVATE KEY' -- ':!package-lock.json' ':!.github/workflows/stable-v1.0.0-readiness.yml'; then
             echo 'STABLE-GATE-106: private-key material detected in tracked source'
             exit 1
           fi
