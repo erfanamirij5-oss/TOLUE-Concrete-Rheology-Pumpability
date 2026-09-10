@@ -40,6 +40,7 @@ describe('report export presentation boundary', () => {
     expect(presentation.reportDirection).toBe('rtl');
     expect(presentation.htmlMediaType).toBe('text/html');
     expect(presentation.jsonMediaType).toBe('application/json');
+    expect(presentation.bundleMethod).toBe('tolue-engineering-report-export-bundle-v2');
     expect(presentation.pdfRequest.rendererBoundary).toBe('privileged_desktop_main_process');
     expect(presentation.pdfRequest.page.marginsMm).toEqual({ top: 14, right: 14, bottom: 14, left: 14 });
     expect(Object.isFrozen(presentation.pdfRequest.page.marginsMm)).toBe(true);
