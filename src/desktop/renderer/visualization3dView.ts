@@ -1,4 +1,5 @@
 import { TOLUE_DESIGN_TOKENS, statusToneColor } from './designSystem';
+import type { PipelineScenePresentation } from './pipelineScenePresentation';
 import type { Visualization3DPresentation } from './visualization3dPresentation';
 import { hydraulicStatusUx, pressureFeasibilityUx, visualizationCompletenessUx, visualizationSegmentKindLabel } from './visualization3dUx';
 
@@ -6,6 +7,7 @@ export interface Visualization3DViewOptions {
   readonly selectedSegmentId?: string | null;
   readonly onSelectSegment?: (segmentId: string | null) => void;
   readonly compact?: boolean;
+  readonly scene?: Readonly<PipelineScenePresentation>;
 }
 
 function pressure(value: number | null): string { return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} MPa`; }
@@ -16,7 +18,12 @@ function scalar(value: number | null, unit: string): string {
   return `${value} ${unit}`;
 }
 
+function scenePointText(point: Readonly<{xM:number;yM:number;zM:number}> | null): string {
+  return point ? `(${point.xM}, ${point.yM}, ${point.zM}) m` : 'geometry unavailable';
+}
+
 export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Visualization3DPresentation>, options: Readonly<Visualization3DViewOptions> = {}): void {
+  const scene=options.scene;
   const panel = document.createElement('section');
   panel.setAttribute('aria-label', 'نمای مهندسی سیستم پمپاژ');
   panel.style.height = '100%';
@@ -40,7 +47,7 @@ export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Vis
   title.textContent = 'Engineering Viewport';
   title.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
   const scope = document.createElement('span');
-  scope.textContent = 'نمای هندسی مبتنی بر station/elevation واقعی Core';
+  scope.textContent = scene?.segments.length ? 'Draft Scene · geometry از ورودی جاری · results فقط به‌صورت overlay معتبر' : 'Engineering Scene';
   scope.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeXs;
   scope.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
   toolbar.append(title, scope);
@@ -58,14 +65,15 @@ export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Vis
   canvas.style.backgroundSize = '24px 24px';
   canvas.addEventListener('click', event => { if (event.target === canvas) options.onSelectSegment?.(null); });
 
-  if (!data) {
+  const sceneSegments=scene?.segments??[];
+  if (!sceneSegments.length) {
     const empty = document.createElement('div');
     empty.style.height = '100%';
     empty.style.minHeight = '260px';
     empty.style.display = 'grid';
     empty.style.placeItems = 'center';
     empty.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    empty.textContent = 'برای ساخت نمای سیستم، ورودی معتبر تعریف و تحلیل مهندسی اجرا شود.';
+    empty.textContent = 'برای ساخت Scene، مسیر مهندسی تعریف شود. اجرای Simulation برای نمایش geometry لازم نیست.';
     canvas.appendChild(empty);
   } else {
     const route = document.createElement('div');
@@ -76,8 +84,8 @@ export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Vis
     route.style.minWidth = 'max-content';
     route.style.padding = '80px 18px 100px';
 
-    for (const [index, segment] of data.segments.entries()) {
-      const hydraulic = hydraulicStatusUx(segment.hydraulicStatus);
+    for (const [index, segment] of sceneSegments.entries()) {
+      const hydraulic = segment.hydraulicStatus==='not_run' ? null : hydraulicStatusUx(segment.hydraulicStatus);
       const selected = options.selectedSegmentId === segment.id;
       const item = document.createElement('button');
       item.type = 'button';
@@ -85,16 +93,16 @@ export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Vis
       item.setAttribute('aria-pressed', selected ? 'true' : 'false');
       item.style.position = 'relative';
       item.style.minWidth = '172px';
-      item.style.maxWidth = '210px';
+      item.style.maxWidth = '230px';
       item.style.padding = '12px';
       item.style.textAlign = 'right';
       item.style.fontFamily = 'inherit';
       item.style.color = TOLUE_DESIGN_TOKENS.color.text;
       item.style.background = selected ? TOLUE_DESIGN_TOKENS.color.surfaceElevated : TOLUE_DESIGN_TOKENS.color.surface;
-      item.style.border = `2px solid ${selected ? TOLUE_DESIGN_TOKENS.color.selection : statusToneColor(hydraulic.tone)}`;
+      item.style.border = `2px solid ${selected ? TOLUE_DESIGN_TOKENS.color.selection : hydraulic ? statusToneColor(hydraulic.tone) : TOLUE_DESIGN_TOKENS.color.borderStrong}`;
       item.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
       item.style.cursor = 'pointer';
-      item.style.transform = `translateY(${Math.max(-100, Math.min(100, -segment.endElevationM * 2))}px)`;
+      item.style.transform = `translateY(${Math.max(-100, Math.min(100, -segment.elevationChangeM * 2))}px)`;
       item.style.boxShadow = selected ? `0 0 0 2px ${TOLUE_DESIGN_TOKENS.color.selection}33` : 'none';
       item.addEventListener('click', event => { event.stopPropagation(); options.onSelectSegment?.(segment.id); });
 
@@ -111,26 +119,28 @@ export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Vis
       name.style.direction = 'ltr';
       name.style.textAlign = 'left';
       name.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
+      const geometry = document.createElement('small');
+      geometry.textContent = `${scenePointText(segment.startPoint)} → ${scenePointText(segment.endPoint)}`;
+      geometry.style.display='block';geometry.style.direction='ltr';geometry.style.textAlign='left';geometry.style.color=TOLUE_DESIGN_TOKENS.color.textMuted;
       const status = document.createElement('small');
-      status.textContent = hydraulic.label;
-      status.style.color = statusToneColor(hydraulic.tone);
+      status.textContent = hydraulic ? hydraulic.label : scene?.analysisOverlayState==='stale' ? 'Result overlay stale' : 'Not simulated';
+      status.style.color = hydraulic ? statusToneColor(hydraulic.tone) : scene?.analysisOverlayState==='stale' ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.textMuted;
       const p = document.createElement('div');
-      p.textContent = `ΔP ${pressure(segment.totalPressureChangePa.value)}`;
+      p.textContent = `ΔP ${pressure(segment.totalPressureChangePa)}`;
       p.style.marginTop = '8px';
       p.style.direction = 'ltr';
       p.style.textAlign = 'left';
       p.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
       p.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
-      item.append(seq, name, status, p);
+      item.append(seq, name, geometry, status, p);
       route.appendChild(item);
 
-      if (index < data.segments.length - 1) {
+      if (index < sceneSegments.length - 1) {
         const connector = document.createElement('div');
         connector.setAttribute('aria-hidden', 'true');
         connector.style.width = '42px';
         connector.style.height = '3px';
         connector.style.background = TOLUE_DESIGN_TOKENS.color.borderStrong;
-        connector.style.transform = `translateY(${Math.max(-100, Math.min(100, -segment.endElevationM * 2))}px)`;
         route.appendChild(connector);
       }
     }
@@ -148,23 +158,27 @@ export function renderVisualization3DView(root: HTMLElement, data?: Readonly<Vis
   footer.style.background = TOLUE_DESIGN_TOKENS.color.surface;
   footer.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeXs;
   footer.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  if (!data) footer.textContent = 'No active engineering result';
-  else {
+  const count=document.createElement('span');count.textContent=`${sceneSegments.length} scene objects`;
+  const spatial=document.createElement('span');spatial.textContent=`Spatial: ${scene?.spatialValidation.status??'not_available'}`;
+  spatial.style.color=scene?.spatialValidation.status==='invalid'?TOLUE_DESIGN_TOKENS.color.statusCritical:TOLUE_DESIGN_TOKENS.color.textMuted;
+  footer.append(count,spatial);
+  if (scene?.analysisOverlayState==='stale') { const stale=document.createElement('span');stale.textContent='Overlay: stale / hidden';stale.style.color=TOLUE_DESIGN_TOKENS.color.statusWarning;footer.appendChild(stale); }
+  else if (data) {
     const complete = visualizationCompletenessUx(data.completeness);
     const pressureState = data.pumpabilityDecision ? pressureFeasibilityUx(data.pumpabilityDecision.pressureFeasibility) : null;
     const run = document.createElement('span'); run.textContent = `Run: ${data.runId}`; run.style.direction = 'ltr';
-    const count = document.createElement('span'); count.textContent = `${data.segments.length} objects`;
     const state = document.createElement('span'); state.textContent = complete.label; state.style.color = statusToneColor(complete.tone);
-    footer.append(run, count, state);
+    footer.append(run, state);
     if (pressureState) { const pump = document.createElement('span'); pump.textContent = `Pump: ${pressureState.label}`; pump.style.color = statusToneColor(pressureState.tone); footer.appendChild(pump); }
   }
   panel.appendChild(footer);
 
-  if (data && options.selectedSegmentId) {
-    const selected = data.segments.find(segment => segment.id === options.selectedSegmentId);
+  if (scene && options.selectedSegmentId) {
+    const selected = scene.segments.find(segment => segment.id === options.selectedSegmentId);
     if (selected) {
       panel.dataset.selectedSegmentId = selected.id;
-      panel.title = `${selected.id} | Q=${scalar(selected.flowRateM3s.value, selected.flowRateM3s.unit)} | ΔP=${pressure(selected.totalPressureChangePa.value)}`;
+      const overlay=data?.segments.find(segment=>segment.id===selected.id);
+      panel.title = `${selected.id} | ${scenePointText(selected.startPoint)} → ${scenePointText(selected.endPoint)}${overlay?` | Q=${scalar(overlay.flowRateM3s.value, overlay.flowRateM3s.unit)}`:''}`;
     }
   }
   root.appendChild(panel);
