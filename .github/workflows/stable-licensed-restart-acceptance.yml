@@ -1,0 +1,93 @@
+name: Stable Licensed Restart Acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Exact 40-character main commit SHA validated by the external licensed restart/persistence acceptance'
+        required: true
+        type: string
+      evidence_reference:
+        description: 'Immutable external acceptance record reference (ticket, report, artifact, or controlled record ID)'
+        required: true
+        type: string
+      evidence_sha256:
+        description: 'SHA-256 of the external acceptance record'
+        required: true
+        type: string
+      confirm_acceptance:
+        description: 'Type ACCEPT-v1.0.0 after production-compatible licensed launch + restart + persistence acceptance passed'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-licensed-restart-acceptance-v1.0.0
+  cancel-in-progress: false
+
+jobs:
+  record-exact-sha-acceptance:
+    name: Record exact-SHA licensed restart acceptance
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      EVIDENCE_REFERENCE: ${{ inputs.evidence_reference }}
+      EVIDENCE_SHA256: ${{ inputs.evidence_sha256 }}
+      CONFIRM_ACCEPTANCE: ${{ inputs.confirm_acceptance }}
+      STABLE_TRUST_DIR: release/stable/v1.0.0
+    steps:
+      - name: Require explicit stable acceptance invocation
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') { throw 'STABLE-ACCEPT-001: workflow_dispatch event required' }
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw "STABLE-ACCEPT-002: acceptance must run from main; ref=$env:GITHUB_REF" }
+          if ($env:CONFIRM_ACCEPTANCE -ne 'ACCEPT-v1.0.0') { throw 'STABLE-ACCEPT-003: exact acceptance confirmation is required' }
+          if ($env:CANDIDATE_SHA -notmatch '^[0-9a-fA-F]{40}$') { throw 'STABLE-ACCEPT-004: candidate_sha must be a full 40-character commit SHA' }
+          if ([string]::IsNullOrWhiteSpace($env:EVIDENCE_REFERENCE)) { throw 'STABLE-ACCEPT-005: immutable evidence_reference is required' }
+          if ($env:EVIDENCE_SHA256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'STABLE-ACCEPT-006: evidence_sha256 must be a 64-character SHA-256 digest' }
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact main candidate immutability
+        shell: pwsh
+        run: |
+          git fetch origin main
+          $head = (git rev-parse HEAD).Trim()
+          $main = (git rev-parse origin/main).Trim()
+          if ($head -ne $env:GITHUB_SHA) { throw 'STABLE-ACCEPT-010: checkout does not match workflow SHA' }
+          if ($head -ne $main) { throw 'STABLE-ACCEPT-011: main advanced; stale acceptance is forbidden' }
+          if ($head.ToLowerInvariant() -ne $env:CANDIDATE_SHA.ToLowerInvariant()) { throw 'STABLE-ACCEPT-012: candidate_sha does not match exact workflow commit' }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.12.0'
+
+      - name: Require production public trust material
+        shell: pwsh
+        run: |
+          $ring = Join-Path $env:STABLE_TRUST_DIR 'tolue-license-public-keyring.json'
+          $pem = Join-Path $env:STABLE_TRUST_DIR 'tolue-license-public-key.pem'
+          if (-not (Test-Path $ring -PathType Leaf)) { throw 'STABLE-ACCEPT-020: production stable keyring missing' }
+          if (-not (Test-Path $pem -PathType Leaf)) { throw 'STABLE-ACCEPT-021: production stable public PEM missing' }
+          node scripts/validate-stable-license-trust.mjs $ring $pem
+
+      - name: Record immutable acceptance summary
+        shell: pwsh
+        run: |
+          @(
+            '# Stable v1.0.0 licensed restart acceptance',
+            '',
+            "- Candidate SHA: $env:GITHUB_SHA",
+            "- Evidence reference: $env:EVIDENCE_REFERENCE",
+            "- Evidence SHA-256: $($env:EVIDENCE_SHA256.ToLowerInvariant())",
+            "- Workflow run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID",
+            '- Acceptance contract: production-compatible licensed launch, restart, and persistence verification completed externally against this exact candidate SHA.'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
