@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '22.12.0'
       - name: Run offline contract and security tests
-        run: node --test tools/owner-license-manager/*.test.mjs
+        run: node --test tools/owner-license-manager/*.node-test.mjs
       - name: Reject packaged private-key material
         shell: bash
         run: |
