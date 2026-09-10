@@ -14,7 +14,7 @@ Owner-only offline Windows desktop issuer for `tolue-concrete-rheology-pumpabili
 ## Owner workflow
 
 1. Launch the installed License Manager.
-2. Choose `tolue-prod-2026-02-private.pem` from its offline owner-controlled location.
+2. Choose `tolue-prod-2026-03-private.pem` from its offline owner-controlled location.
 3. Enter the customer machine code, a unique license ID, and the validity window.
 4. Create and save the `.tolue-license.json` file.
 5. Deliver only the generated license document to the customer.
