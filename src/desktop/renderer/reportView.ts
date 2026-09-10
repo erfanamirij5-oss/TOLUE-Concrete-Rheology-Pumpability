@@ -61,6 +61,30 @@ export function presentEngineeringPdfExportResponse(
   });
 }
 
+function appendFormatCard(
+  root: HTMLElement,
+  titleText: string,
+  mediaType: string,
+  descriptionText: string,
+): void {
+  const card = document.createElement('article');
+  card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
+  card.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
+  card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
+  card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
+
+  const title = document.createElement('strong');
+  title.textContent = titleText;
+  const description = document.createElement('p');
+  description.textContent = descriptionText;
+  description.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.sm} 0`;
+  description.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+  const media = document.createElement('small');
+  media.textContent = mediaType;
+  card.append(title, description, media);
+  root.appendChild(card);
+}
+
 export function renderReportView(
   root: HTMLElement,
   report?: Readonly<ReportExportPresentation>,
@@ -78,13 +102,14 @@ export function renderReportView(
   title.style.marginTop = '0';
 
   const note = document.createElement('p');
-  note.textContent = 'HTML، JSON و PDF فقط از قراردادهای آماده‌شده توسط Engineering Core صادر می‌شوند. PDF فقط از Run فعال Session صادر می‌شود و Renderer فایل‌سیستم یا printToPDF را مستقیماً کنترل نمی‌کند.';
+  note.textContent = 'مرکز کنترل گزارش Run فعال؛ هویت Run، نسخه موتور و Snapshot پیش از صدور قابل بازبینی است.';
   note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
   panel.append(title, note);
 
   if (!report) {
     const empty = document.createElement('div');
-    empty.textContent = 'هنوز بسته گزارش معتبر از Engineering Core دریافت نشده است.';
+    empty.setAttribute('role', 'status');
+    empty.textContent = 'گزارش هنوز آماده نیست. ابتدا تحلیل معتبر را اجرا کنید تا بسته گزارش Engineering Core برای Run فعال ساخته شود.';
     empty.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
     empty.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
     empty.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
@@ -93,10 +118,39 @@ export function renderReportView(
     return;
   }
 
+  const readiness = document.createElement('div');
+  readiness.setAttribute('role', 'status');
+  readiness.textContent = 'آماده صدور · گزارش به Run فعال و Snapshot فعلی متصل است.';
+  readiness.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.md} 0`;
+  readiness.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
+  readiness.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.statusNominal}`;
+  readiness.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
+  readiness.style.color = TOLUE_DESIGN_TOKENS.color.statusNominal;
+  panel.appendChild(readiness);
+
+  const formatsTitle = document.createElement('h3');
+  formatsTitle.textContent = 'بسته خروجی';
+  const formats = document.createElement('div');
+  formats.style.display = 'grid';
+  formats.style.gridTemplateColumns = 'repeat(auto-fit, minmax(190px, 1fr))';
+  formats.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
+  appendFormatCard(formats, 'PDF', report.pdfRequest.mediaType, 'نسخه قابل ارائه و آرشیو از همین Run فعال');
+  appendFormatCard(formats, 'HTML', report.htmlMediaType, 'نمای ساخت‌یافته گزارش طبق قرارداد Engineering Core');
+  appendFormatCard(formats, 'JSON', report.jsonMediaType, 'داده ساخت‌یافته برای رهگیری و تبادل');
+  panel.append(formatsTitle, formats);
+
+  const traceability = document.createElement('details');
+  traceability.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
+  const traceabilitySummary = document.createElement('summary');
+  traceabilitySummary.textContent = 'هویت و رهگیری گزارش';
+  traceabilitySummary.style.cursor = 'pointer';
+  traceability.appendChild(traceabilitySummary);
+
   const meta = document.createElement('div');
   meta.style.display = 'grid';
   meta.style.gridTemplateColumns = 'repeat(auto-fit, minmax(210px, 1fr))';
   meta.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
+  meta.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.md;
 
   const values: readonly [string, string][] = [
     ['Run ID', report.runId],
@@ -104,9 +158,7 @@ export function renderReportView(
     ['Snapshot', report.inputSnapshotHash],
     ['Locale', report.reportLocale],
     ['Direction', report.reportDirection],
-    ['HTML', report.htmlMediaType],
-    ['JSON', report.jsonMediaType],
-    ['PDF', report.pdfRequest.mediaType],
+    ['Bundle method', report.bundleMethod],
   ];
   for (const [labelText, valueText] of values) {
     const card = document.createElement('article');
@@ -118,10 +170,23 @@ export function renderReportView(
     const value = document.createElement('div');
     value.textContent = valueText;
     value.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
+    value.style.overflowWrap = 'anywhere';
     card.append(label, value);
     meta.appendChild(card);
   }
-  panel.appendChild(meta);
+  traceability.appendChild(meta);
+  panel.appendChild(traceability);
+
+  const exportArea = document.createElement('div');
+  exportArea.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
+  exportArea.style.paddingTop = TOLUE_DESIGN_TOKENS.spacing.md;
+  exportArea.style.borderTop = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
+
+  const exportTitle = document.createElement('h3');
+  exportTitle.textContent = 'صدور نسخه نهایی';
+  const exportHint = document.createElement('p');
+  exportHint.textContent = 'PDF فقط از قرارداد آماده‌شده توسط Engineering Core و از Run فعال Session صادر می‌شود؛ Renderer فایل‌سیستم یا printToPDF را مستقیماً کنترل نمی‌کند.';
+  exportHint.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
 
   const exportStatus = document.createElement('p');
   exportStatus.setAttribute('aria-live', 'polite');
@@ -129,16 +194,20 @@ export function renderReportView(
 
   const pdf = document.createElement('button');
   pdf.type = 'button';
-  pdf.textContent = 'صدور PDF همین Run فعال';
-  pdf.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
+  pdf.textContent = 'صدور PDF Run فعال';
   pdf.style.padding = `${TOLUE_DESIGN_TOKENS.spacing.md} ${TOLUE_DESIGN_TOKENS.spacing.lg}`;
   pdf.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.focus}`;
   pdf.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
   pdf.style.fontFamily = 'inherit';
+  pdf.style.fontWeight = '700';
   pdf.disabled = !actions;
-  if (actions) {
+  if (!actions) {
+    exportStatus.textContent = 'عملیات صدور PDF در این Session در دسترس نیست.';
+  } else {
     pdf.addEventListener('click', () => {
       pdf.disabled = true;
+      pdf.setAttribute('aria-busy', 'true');
+      pdf.textContent = 'در حال صدور PDF…';
       exportStatus.textContent = 'در حال صدور PDF Run فعال…';
       void actions.exportActiveEngineeringPdf()
         .then(response => {
@@ -147,9 +216,14 @@ export function renderReportView(
         .catch(() => {
           exportStatus.textContent = 'پاسخ صدور PDF معتبر نیست یا هویت Run/Hash با Session فعال تطابق ندارد.';
         })
-        .finally(() => { pdf.disabled = false; });
+        .finally(() => {
+          pdf.disabled = false;
+          pdf.removeAttribute('aria-busy');
+          pdf.textContent = 'صدور PDF Run فعال';
+        });
     });
   }
-  panel.append(pdf, exportStatus);
+  exportArea.append(exportTitle, exportHint, pdf, exportStatus);
+  panel.appendChild(exportArea);
   root.appendChild(panel);
 }
