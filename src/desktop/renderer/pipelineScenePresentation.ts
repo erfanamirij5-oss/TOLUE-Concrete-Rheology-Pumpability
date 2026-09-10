@@ -23,12 +23,19 @@ export interface PipelineScenePresentation {
   readonly analysisOverlayState: 'none' | 'current' | 'stale';
 }
 
+const EMPTY_SPATIAL_VALIDATION: Readonly<SpatialPipelineValidationResult> = Object.freeze({
+  status:'not_available',
+  issues:Object.freeze([]),
+  spatialSegmentCount:0,
+  method:'tolue-spatial-pipeline-validation-v1',
+});
+
 export function createPipelineScenePresentation(
   input: Readonly<SimulationRunInput> | null,
   analysis: Readonly<Visualization3DPresentation> | null,
   isStale: boolean,
 ): Readonly<PipelineScenePresentation> {
-  if (!input) return Object.freeze({segments:Object.freeze([]),spatialValidation:Object.freeze({status:'not_available',issues:Object.freeze([])}),analysisOverlayState:'none'});
+  if (!input) return Object.freeze({segments:Object.freeze([]),spatialValidation:EMPTY_SPATIAL_VALIDATION,analysisOverlayState:'none'});
   const validation=validateSpatialPipeline(input.pipeline.segments);
   const overlayById=new Map((analysis?.segments??[]).map(segment=>[segment.id,segment] as const));
   const segments=input.pipeline.segments.map((segment,index)=>{
