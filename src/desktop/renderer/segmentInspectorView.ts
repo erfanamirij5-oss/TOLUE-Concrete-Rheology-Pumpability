@@ -7,9 +7,17 @@ type ResultSegment = Visualization3DPresentation['segments'][number];
 
 const pressure=(value:number|null|undefined)=>value===null||value===undefined||!Number.isFinite(value)?'—':`${(value/1_000_000).toFixed(3)} MPa`;
 const point=(value:SceneSegment['startPoint'])=>value?`${value.xM}, ${value.yM}, ${value.zM} m`:'—';
+const datasetNumber=(value:number|null|undefined)=>value===null||value===undefined||!Number.isFinite(value)?'':String(value);
 
 export function renderSegmentInspectorCard(root:HTMLElement,sceneSegment:Readonly<SceneSegment>,resultSegment:Readonly<ResultSegment>|undefined,stale:boolean):void{
   const card=document.createElement('section');card.dataset.segmentInspectorCard='true';
+  card.dataset.segmentId=sceneSegment.id;
+  card.dataset.segmentStale=stale?'true':'false';
+  card.dataset.segmentTotalPressurePa=datasetNumber(resultSegment?.totalPressureChangePa.value);
+  card.dataset.segmentFrictionPressurePa=datasetNumber(resultSegment?.frictionPressureLossPa.value);
+  card.dataset.segmentElevationPressurePa=datasetNumber(resultSegment?.elevationPressurePa.value);
+  card.dataset.segmentFlowRateM3s=datasetNumber(resultSegment?.flowRateM3s.value);
+  card.dataset.segmentDiagnosticFindingIds=(resultSegment?.diagnosticFindingIds??[]).join('|');
   Object.assign(card.style,{display:'grid',gap:'10px'});
   const heading=document.createElement('div');Object.assign(heading.style,{display:'flex',alignItems:'center',gap:'8px'});
   const title=document.createElement('h3');title.textContent=sceneSegment.id;Object.assign(title.style,{margin:'0',direction:'ltr',fontFamily:TOLUE_DESIGN_TOKENS.typography.monoFamily,fontSize:'16px'});
