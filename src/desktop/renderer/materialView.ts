@@ -1,110 +1,27 @@
+import type { MaterialKind } from '../../engineering/core/projectMaterialInput';
+import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
-import { createMaterialCardPresentation, type MaterialCardPresentation, type MaterialPresentationKind } from './materialPresentation';
+import { addMaterialDraft, addMaterialPropertyDraft, removeMaterialDraft, removeMaterialPropertyDraft, updateMaterialIdentityDraft } from './projectMaterialDraft';
 
-const MATERIAL_KIND_LABELS: Readonly<Record<MaterialPresentationKind, string>> = Object.freeze({
-  cement: 'سیمان',
-  water: 'آب',
-  fine_aggregate: 'سنگدانه ریز',
-  coarse_aggregate: 'سنگدانه درشت',
-  scm: 'مواد مکمل سیمانی',
-  chemical_admixture: 'افزودنی شیمیایی',
-  fiber: 'الیاف',
-  other_addition: 'سایر افزودنی‌ها',
-});
+const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind,string>> = Object.freeze({cement:'سیمان',water:'آب',fine_aggregate:'سنگدانه ریز',coarse_aggregate:'سنگدانه درشت',scm:'مواد مکمل سیمانی',chemical_admixture:'افزودنی شیمیایی',fiber:'الیاف',other_addition:'سایر افزودنی‌ها'});
+export interface MaterialsViewActions { readonly updateInput:(input:Readonly<SimulationRunInput>)=>void; }
+const inputStyle=(el:HTMLInputElement|HTMLSelectElement)=>{el.style.fontFamily='inherit';el.style.padding=TOLUE_DESIGN_TOKENS.spacing.sm;el.style.border=`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;el.style.borderRadius=TOLUE_DESIGN_TOKENS.radius.sm;};
 
-const EMPTY_MATERIALS: readonly MaterialCardPresentation[] = Object.freeze([
-  createMaterialCardPresentation(
-    { id: 'cement-placeholder', kind: 'cement', name: 'تعریف نشده', supplier: '—', source: '—', standardReference: '—' },
-    [],
-  ),
-  createMaterialCardPresentation(
-    { id: 'fine-aggregate-placeholder', kind: 'fine_aggregate', name: 'تعریف نشده', supplier: '—', source: '—', standardReference: '—' },
-    [],
-  ),
-  createMaterialCardPresentation(
-    { id: 'coarse-aggregate-placeholder', kind: 'coarse_aggregate', name: 'تعریف نشده', supplier: '—', source: '—', standardReference: '—' },
-    [],
-  ),
-]);
-
-export function renderMaterialsView(root: HTMLElement, materials: readonly MaterialCardPresentation[] = EMPTY_MATERIALS): void {
+export function renderMaterialsView(root:HTMLElement, engineeringInput?:Readonly<SimulationRunInput>|null, actions?:Readonly<MaterialsViewActions>):void{
   root.replaceChildren();
+  const intro=document.createElement('p');intro.textContent='Material Intelligence Draft: فقط داده‌ای که کاربر وارد می‌کند ذخیره می‌شود؛ هیچ مقدار، واحد یا استانداردی به‌صورت خودکار فرض نمی‌شود.';intro.style.marginTop='0';intro.style.color=TOLUE_DESIGN_TOKENS.color.textMuted;root.appendChild(intro);
+  if(!engineeringInput||!actions){const p=document.createElement('p');p.textContent='Draft مهندسی فعال نیست.';root.appendChild(p);return;}
 
-  const notice = document.createElement('p');
-  notice.textContent = 'این صفحه فقط داده‌های مصالح را نمایش می‌دهد. تبدیل واحد، مقدار پیش‌فرض، آستانه پذیرش و تفسیر مهندسی در Renderer انجام نمی‌شود.';
-  notice.style.marginTop = '0';
-  notice.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  root.appendChild(notice);
+  const create=document.createElement('section');Object.assign(create.style,{padding:TOLUE_DESIGN_TOKENS.spacing.md,border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.md,background:TOLUE_DESIGN_TOKENS.color.surface,marginBottom:TOLUE_DESIGN_TOKENS.spacing.lg});
+  const id=document.createElement('input');id.placeholder='Material ID';inputStyle(id);const kind=document.createElement('select');for(const [value,label] of Object.entries(MATERIAL_KIND_LABELS)){const o=document.createElement('option');o.value=value;o.textContent=label;kind.appendChild(o);}inputStyle(kind);const add=document.createElement('button');add.type='button';add.textContent='افزودن مصالح';add.style.fontFamily='inherit';add.addEventListener('click',()=>{try{actions.updateInput(addMaterialDraft(engineeringInput,kind.value as MaterialKind,id.value));}catch{ id.setAttribute('aria-invalid','true'); }});create.append(id,kind,add);root.appendChild(create);
 
-  const grid = document.createElement('div');
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
-  grid.style.gap = TOLUE_DESIGN_TOKENS.spacing.lg;
-
-  for (const material of materials) {
-    const card = document.createElement('section');
-    card.dataset.materialId = material.identity.id;
-    card.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-    card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-    card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-    card.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-
-    const kind = document.createElement('div');
-    kind.textContent = MATERIAL_KIND_LABELS[material.identity.kind];
-    kind.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    kind.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
-
-    const name = document.createElement('h2');
-    name.textContent = material.identity.name;
-    name.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeLg;
-    name.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.sm} 0 ${TOLUE_DESIGN_TOKENS.spacing.md}`;
-
-    const metadata = document.createElement('dl');
-    metadata.style.display = 'grid';
-    metadata.style.gridTemplateColumns = 'auto 1fr';
-    metadata.style.gap = `${TOLUE_DESIGN_TOKENS.spacing.xs} ${TOLUE_DESIGN_TOKENS.spacing.md}`;
-    metadata.style.margin = '0';
-
-    const appendMetadata = (label: string, value: string): void => {
-      const dt = document.createElement('dt');
-      dt.textContent = label;
-      dt.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-      const dd = document.createElement('dd');
-      dd.textContent = value;
-      dd.style.margin = '0';
-      metadata.append(dt, dd);
-    };
-
-    appendMetadata('تأمین‌کننده', material.identity.supplier);
-    appendMetadata('منبع', material.identity.source);
-    appendMetadata('مرجع استاندارد', material.identity.standardReference);
-
-    card.append(kind, name, metadata);
-
-    if (material.properties.length > 0) {
-      const properties = document.createElement('div');
-      properties.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-      properties.style.display = 'grid';
-      properties.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
-      for (const property of material.properties) {
-        const row = document.createElement('div');
-        row.dataset.propertyKey = property.key;
-        row.style.display = 'flex';
-        row.style.justifyContent = 'space-between';
-        row.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-        const label = document.createElement('span');
-        label.textContent = property.label;
-        label.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-        const value = document.createElement('strong');
-        value.textContent = property.unit ? `${property.value} ${property.unit}` : property.value;
-        row.append(label, value);
-        properties.appendChild(row);
-      }
-      card.appendChild(properties);
-    }
-
-    grid.appendChild(card);
-  }
-
+  const materials=engineeringInput.materials??[];
+  if(materials.length===0){const empty=document.createElement('p');empty.textContent='هنوز مصالحی برای این Run تعریف نشده است.';empty.style.color=TOLUE_DESIGN_TOKENS.color.textMuted;root.appendChild(empty);return;}
+  const grid=document.createElement('div');grid.style.display='grid';grid.style.gap=TOLUE_DESIGN_TOKENS.spacing.lg;
+  materials.forEach((material,index)=>{const card=document.createElement('section');Object.assign(card.style,{padding:TOLUE_DESIGN_TOKENS.spacing.lg,border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.md,background:TOLUE_DESIGN_TOKENS.color.surface});const h=document.createElement('h3');h.textContent=`${MATERIAL_KIND_LABELS[material.kind]} · ${material.id}`;h.style.marginTop='0';card.appendChild(h);
+    const fields:readonly ['name'|'supplier'|'source'|'standardReference',string,string][]=[['name','نام',material.name],['supplier','تأمین‌کننده',material.supplier??''],['source','منبع/معدن/کارخانه',material.source??''],['standardReference','مرجع استاندارد',material.standardReference??'']];
+    for(const [field,labelText,value] of fields){const label=document.createElement('label');label.style.display='grid';label.style.gap=TOLUE_DESIGN_TOKENS.spacing.xs;label.style.marginBottom=TOLUE_DESIGN_TOKENS.spacing.sm;const span=document.createElement('span');span.textContent=labelText;const control=document.createElement('input');control.value=value;inputStyle(control);control.addEventListener('change',()=>actions.updateInput(updateMaterialIdentityDraft(engineeringInput,index,field,control.value)));label.append(span,control);card.appendChild(label);}
+    if(material.properties.length){const list=document.createElement('div');list.style.margin=`${TOLUE_DESIGN_TOKENS.spacing.md} 0`;material.properties.forEach((property,pIndex)=>{const row=document.createElement('div');row.style.display='grid';row.style.gridTemplateColumns='1fr auto';row.style.gap=TOLUE_DESIGN_TOKENS.spacing.sm;row.style.padding=`${TOLUE_DESIGN_TOKENS.spacing.xs} 0`;const text=document.createElement('span');text.textContent=`${property.key}: ${property.value}${property.unit?` ${property.unit}`:''}${property.provenanceEntityId?` · prov:${property.provenanceEntityId}`:' · بدون provenance'}`;const remove=document.createElement('button');remove.type='button';remove.textContent='حذف';remove.addEventListener('click',()=>actions.updateInput(removeMaterialPropertyDraft(engineeringInput,index,pIndex)));row.append(text,remove);list.appendChild(row);});card.appendChild(list);}
+    const pgrid=document.createElement('div');pgrid.style.display='grid';pgrid.style.gridTemplateColumns='1fr 1fr';pgrid.style.gap=TOLUE_DESIGN_TOKENS.spacing.sm;const key=document.createElement('input');key.placeholder='Property key';inputStyle(key);const value=document.createElement('input');value.placeholder='Value';inputStyle(value);const unit=document.createElement('input');unit.placeholder='Unit (optional)';inputStyle(unit);const prov=document.createElement('input');prov.placeholder='Provenance entity ID (optional)';inputStyle(prov);const addProp=document.createElement('button');addProp.type='button';addProp.textContent='افزودن ویژگی';addProp.addEventListener('click',()=>{try{actions.updateInput(addMaterialPropertyDraft(engineeringInput,index,key.value,value.value,unit.value,prov.value));}catch{key.setAttribute('aria-invalid','true');}});const removeMaterial=document.createElement('button');removeMaterial.type='button';removeMaterial.textContent='حذف مصالح';removeMaterial.addEventListener('click',()=>actions.updateInput(removeMaterialDraft(engineeringInput,index)));pgrid.append(key,value,unit,prov,addProp,removeMaterial);card.appendChild(pgrid);grid.appendChild(card);});
   root.appendChild(grid);
 }
