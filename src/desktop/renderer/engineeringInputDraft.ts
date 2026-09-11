@@ -1,4 +1,5 @@
 import type { EngineeringInputProvenanceRecord, ProvenanceActivityKind, ProvenanceEntityKind } from '../../engineering/core/inputProvenance';
+import type { LubricationLayerQualificationInput, LubricationLayerQualificationMode } from '../../engineering/core/lubricationLayerQualification';
 import type { PumpCapabilityProvenance, PumpOperatingEnvelopeMetadata } from '../../engineering/core/pumpCapability';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 
@@ -8,6 +9,7 @@ export type PipelineScalarPath = 'targetFlowRateM3s' | 'densityKgM3' | 'lubricat
 export type StraightSegmentNumericField = 'lengthM' | 'pipeRadiusM' | 'elevationChangeM';
 export type PumpCapabilityPointField = 'flowRateM3s' | 'availableConcretePressurePa';
 export type PumpOperatingEnvelopeField = keyof PumpOperatingEnvelopeMetadata;
+export type LubricationLayerQualificationField = Exclude<keyof LubricationLayerQualificationInput, 'mode'>;
 
 function finite(value: number): void { if (!Number.isFinite(value)) throw new Error('ENGINEERING-INPUT-DRAFT-NUMBER-001'); }
 
@@ -36,11 +38,13 @@ export interface RheologyProvenanceDraftInput {
   uncertaintyUnit?: string;
 }
 
-export function setRheologyProvenanceDraft(input: Readonly<SimulationRunInput>, field: RheologyProvenanceField, draft: Readonly<RheologyProvenanceDraftInput>): Readonly<SimulationRunInput> {
-  if (!draft.entityId.trim() || !draft.activityId.trim()) throw new Error('ENGINEERING-INPUT-DRAFT-RHEO-PROV-ID-001');
-  if (draft.expandedUncertainty !== undefined && (!Number.isFinite(draft.expandedUncertainty) || draft.expandedUncertainty < 0)) throw new Error('ENGINEERING-INPUT-DRAFT-RHEO-PROV-UNCERTAINTY-001');
+export interface LubricationLayerThicknessProvenanceDraftInput extends RheologyProvenanceDraftInput {}
+
+function buildProvenanceRecord(draft: Readonly<RheologyProvenanceDraftInput>, idErrorCode: string, uncertaintyErrorCode: string): EngineeringInputProvenanceRecord {
+  if (!draft.entityId.trim() || !draft.activityId.trim()) throw new Error(idErrorCode);
+  if (draft.expandedUncertainty !== undefined && (!Number.isFinite(draft.expandedUncertainty) || draft.expandedUncertainty < 0)) throw new Error(uncertaintyErrorCode);
   const equipmentId = draft.equipmentId?.trim() ?? '';
-  const record: EngineeringInputProvenanceRecord = {
+  return {
     evidence: {
       entityId: draft.entityId.trim(), entityKind: draft.entityKind, generatedByActivityId: draft.activityId.trim(),
       ...(draft.sourceDocumentId?.trim() ? { sourceDocumentId: draft.sourceDocumentId.trim() } : {}),
@@ -55,6 +59,10 @@ export function setRheologyProvenanceDraft(input: Readonly<SimulationRunInput>, 
     }],
     agents: equipmentId ? [{ id: equipmentId, kind: 'equipment', ...(draft.equipmentLabel?.trim() ? { label: draft.equipmentLabel.trim() } : {}) }] : [],
   };
+}
+
+export function setRheologyProvenanceDraft(input: Readonly<SimulationRunInput>, field: RheologyProvenanceField, draft: Readonly<RheologyProvenanceDraftInput>): Readonly<SimulationRunInput> {
+  const record = buildProvenanceRecord(draft, 'ENGINEERING-INPUT-DRAFT-RHEO-PROV-ID-001', 'ENGINEERING-INPUT-DRAFT-RHEO-PROV-UNCERTAINTY-001');
   const next = structuredClone(input) as SimulationRunInput;
   next.provenance = next.provenance ?? {};
   next.provenance[field] = record;
@@ -64,6 +72,52 @@ export function setRheologyProvenanceDraft(input: Readonly<SimulationRunInput>, 
 export function removeRheologyProvenanceDraft(input: Readonly<SimulationRunInput>, field: RheologyProvenanceField): Readonly<SimulationRunInput> {
   const next = structuredClone(input) as SimulationRunInput;
   if (next.provenance) delete next.provenance[field];
+  return Object.freeze(next);
+}
+
+export function setLubricationLayerThicknessProvenanceDraft(input: Readonly<SimulationRunInput>, draft: Readonly<LubricationLayerThicknessProvenanceDraftInput>): Readonly<SimulationRunInput> {
+  const record = buildProvenanceRecord(draft, 'ENGINEERING-INPUT-DRAFT-LL-THICKNESS-PROV-ID-001', 'ENGINEERING-INPUT-DRAFT-LL-THICKNESS-PROV-UNCERTAINTY-001');
+  const next = structuredClone(input) as SimulationRunInput;
+  next.provenance = next.provenance ?? {};
+  next.provenance.lubricationLayerThickness = record;
+  return Object.freeze(next);
+}
+
+export function removeLubricationLayerThicknessProvenanceDraft(input: Readonly<SimulationRunInput>): Readonly<SimulationRunInput> {
+  const next = structuredClone(input) as SimulationRunInput;
+  if (next.provenance) delete next.provenance.lubricationLayerThickness;
+  return Object.freeze(next);
+}
+
+export function setLubricationLayerQualificationModeDraft(input: Readonly<SimulationRunInput>, mode: LubricationLayerQualificationMode): Readonly<SimulationRunInput> {
+  const next = structuredClone(input) as SimulationRunInput;
+  next.lubricationLayerQualification = { mode };
+  return Object.freeze(next);
+}
+
+export function updateLubricationLayerQualificationDraft(input: Readonly<SimulationRunInput>, field: LubricationLayerQualificationField, value: string): Readonly<SimulationRunInput> {
+  if (!input.lubricationLayerQualification) throw new Error('ENGINEERING-INPUT-DRAFT-LLQ-001');
+  const next = structuredClone(input) as SimulationRunInput;
+  const qualification = next.lubricationLayerQualification!;
+  const trimmed = value.trim();
+  if (trimmed) (qualification as Record<string, string>)[field] = trimmed;
+  else delete (qualification as Partial<Record<LubricationLayerQualificationField, string>>)[field];
+  return Object.freeze(next);
+}
+
+export function removeLubricationLayerQualificationDraft(input: Readonly<SimulationRunInput>): Readonly<SimulationRunInput> {
+  const next = structuredClone(input) as SimulationRunInput;
+  delete next.lubricationLayerQualification;
+  return Object.freeze(next);
+}
+
+export function bindLubricationLayerQualificationToCurrentProvenance(input: Readonly<SimulationRunInput>): Readonly<SimulationRunInput> {
+  if (!input.lubricationLayerQualification) throw new Error('ENGINEERING-INPUT-DRAFT-LLQ-001');
+  const rheologyId = input.provenance?.lubricationLayerRheology?.evidence.entityId?.trim();
+  const thicknessId = input.provenance?.lubricationLayerThickness?.evidence.entityId?.trim();
+  if (!rheologyId || !thicknessId) throw new Error('ENGINEERING-INPUT-DRAFT-LLQ-BIND-001');
+  const next = structuredClone(input) as SimulationRunInput;
+  next.lubricationLayerQualification = { ...next.lubricationLayerQualification!, rheologyEvidenceEntityId: rheologyId, thicknessEvidenceEntityId: thicknessId };
   return Object.freeze(next);
 }
 
