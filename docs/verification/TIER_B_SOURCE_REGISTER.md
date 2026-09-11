@@ -39,8 +39,33 @@ For at least one individual mixture / operating point, all of the following must
 This candidate is **not yet an accepted TOLUE verification case** because the exact per-mixture numerical table values required by the current two-fluid solver have not yet been acquired in a controlled, auditable form. No placeholder literature numbers will be committed.
 
 ## Verification implementation
-The executable verification contract is implemented in:
+The executable verification contracts are implemented in:
 - `src/engineering/core/publishedFullScaleVerification.ts`
-- `src/engineering/core/publishedFullScaleVerification.test.ts`
+- `src/engineering/core/publishedVerificationMetrics.ts`
+- `src/engineering/core/fieldValidationDataset.ts`
+- `src/engineering/core/fieldValidationEvaluation.ts`
+- `src/engineering/core/verificationEvidencePortfolio.ts`
 
-The harness intentionally has no universal pass/fail percentage. It reports signed absolute and relative error. Acceptance tolerances, if any, must be justified per evidence family after uncertainty, instrumentation, model-form limitations, and source methodology are reviewed.
+### Admission semantics
+Verification evidence has three explicit states:
+- `CANDIDATE`: retained for acquisition/review but excluded from metrics;
+- `ADMITTED`: structurally validated and executable through the corresponding Tier-B or Tier-C comparison contract;
+- `EXCLUDED`: retained for auditability with an explicit exclusion reason and excluded from metrics.
+
+The portfolio never converts a candidate into admitted evidence automatically. It also never marks production validation complete automatically.
+
+### Tier-C comparison rule
+A field gauge reading is not silently interpreted as a model-comparison pressure drop. Tier-C evaluation requires an explicit comparison basis containing:
+- straight-pipe comparison length;
+- elevation change over that same comparison scope;
+- concrete density;
+- measured pressure drop between controlled pressure references;
+- pressure-reference description;
+- source trace for the comparison basis.
+
+This prevents fitting/boom/hose losses, unknown reference pressures, or ambiguous sensor locations from being hidden inside the straight-pipe two-fluid model comparison.
+
+## Acceptance policy
+The verification harness intentionally has no universal pass/fail percentage. It reports signed absolute and relative error, family bias, MAE, RMSE and MARE where defined. Acceptance tolerances, if any, must be justified per evidence family after uncertainty, instrumentation, model-form limitations, evidence representativeness and source methodology are reviewed.
+
+Presence of at least one admitted Tier-B case and at least one admitted Tier-C case is evidence coverage only. It is **not** equivalent to commercial production validation and does not automatically change the executable model registry lifecycle.
