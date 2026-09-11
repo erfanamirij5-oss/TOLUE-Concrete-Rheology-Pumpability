@@ -103,11 +103,11 @@ function addCalibratedElbow(input: SimulationRunInput): void {
 }
 
 describe('assessEngineeringReadiness', () => {
-  it('returns READY only when complete supported inputs also have documented provenance', () => {
+  it('keeps a fully documented straight-pipe case PRELIMINARY until commercial model validation is accepted', () => {
     const result = assessEngineeringReadiness(fixture());
-    expect(result.status).toBe('READY');
+    expect(result.status).toBe('PRELIMINARY');
     expect(result.canExecute).toBe(true);
-    expect(result.findings).toEqual([]);
+    expect(result.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
   });
 
   it('returns PRELIMINARY when explicit assumptions are present', () => {
@@ -136,13 +136,14 @@ describe('assessEngineeringReadiness', () => {
     expect(result.findings.some(f => f.ruleId === 'RG-MODEL-001')).toBe(true);
   });
 
-  it('admits an in-domain project-calibrated fitting only when provenance binding resolves', () => {
+  it('admits an in-domain project-calibrated fitting but keeps the run PRELIMINARY while the straight-pipe model is pending commercial validation', () => {
     const input = fixture();
     addCalibratedElbow(input);
     const result = assessEngineeringReadiness(input);
-    expect(result.status).toBe('READY');
+    expect(result.status).toBe('PRELIMINARY');
     expect(result.canExecute).toBe(true);
     expect(result.findings.some(f => f.ruleId.startsWith('RG-LOCAL'))).toBe(false);
+    expect(result.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
   });
 
   it('blocks a calibrated fitting when structured provenance is missing', () => {
