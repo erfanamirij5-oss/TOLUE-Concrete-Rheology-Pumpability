@@ -15,9 +15,13 @@ function decorateTreeSelection(tree: HTMLElement): void {
   for (const button of Array.from(tree.querySelectorAll('button'))) {
     if (!(button instanceof HTMLButtonElement)) continue;
     const active = !button.style.border.includes('transparent') && button.style.background !== 'transparent';
-    button.dataset.active = active ? 'true' : 'false';
-    if (active) button.setAttribute('aria-current', 'true');
-    else button.removeAttribute('aria-current');
+    const nextActive = active ? 'true' : 'false';
+    if (button.dataset.active !== nextActive) button.dataset.active = nextActive;
+    if (active) {
+      if (button.getAttribute('aria-current') !== 'true') button.setAttribute('aria-current', 'true');
+    } else if (button.hasAttribute('aria-current')) {
+      button.removeAttribute('aria-current');
+    }
   }
 }
 
@@ -38,12 +42,18 @@ export function installWorkspaceInteractionPolish(root: HTMLElement, sampleLoade
         runButton.disabled,
         statusNode?.textContent ?? '',
       );
-      runButton.dataset.runState = state;
-      root.dataset.runState = state;
+      if (runButton.dataset.runState !== state) runButton.dataset.runState = state;
+      if (root.dataset.runState !== state) root.dataset.runState = state;
     };
     syncRunState();
     const observer = new MutationObserver(syncRunState);
-    observer.observe(runButton, { attributes: true, childList: true, characterData: true, subtree: true });
+    observer.observe(runButton, {
+      attributes: true,
+      attributeFilter: ['aria-busy', 'disabled'],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
     if (statusNode) observer.observe(statusNode, { childList: true, characterData: true, subtree: true });
   }
 
