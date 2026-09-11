@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EngineeringAnalysisResult } from '../../engineering/core/engineeringAnalysis';
+import { executeEngineeringAnalysis, type EngineeringAnalysisResult } from '../../engineering/core/engineeringAnalysis';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { EngineeringAnalysisIpcResponse } from '../ipc/engineeringAnalysisIpc';
 import type { EngineeringRunLoadIpcResponse } from '../ipc/engineeringRunIpc';
@@ -12,6 +12,28 @@ const blockedSuccess: EngineeringAnalysisIpcResponse = { status:'SUCCESS', error
 describe('application data flow session lifecycle',()=>{
   it('moves deterministically from IDLE to READY to RUNNING',()=>{const idle=createApplicationDataFlowState();expect(idle.status).toBe('IDLE');const ready=setAnalysisInput(idle,input);expect(ready.status).toBe('READY');expect(ready.input).toEqual(input);expect(ready.input).not.toBe(input);const running=markAnalysisRunning(ready);expect(running.status).toBe('RUNNING');expect(Object.isFrozen(running)).toBe(true);});
   it('creates an editable first-launch sample with project, geometry and pump data',()=>{const sample=createSampleEngineeringDraftState('sample-1','2026-09-11T19:10:00.000Z');expect(sample.status).toBe('READY');expect(sample.input?.projectMetadata?.name).toContain('پروژه نمونه');expect(sample.input?.pipeline.segments).toHaveLength(3);expect(sample.input?.pipeline.segments[0]?.spatial?.startPoint).toEqual({xM:0,yM:0,zM:0});expect(sample.input?.pumpCapability?.capabilityCurve).toHaveLength(3);expect(sample.input?.assumptions).toContain('EXAMPLE_DATA_ONLY_NOT_FOR_ENGINEERING_DECISIONS');expect(sample.input?.assumptions).not.toContain('DRAFT_PLACEHOLDER_VALUES_REPLACE_BEFORE_ENGINEERING_USE');});
+  it('executes the exact first-launch sample through the real engineering core and produces real 3D data',()=>{
+    const sample=createSampleEngineeringDraftState('sample-execution','2026-09-11T19:12:00.000Z');
+    expect(sample.input).not.toBeNull();
+    const result=executeEngineeringAnalysis(sample.input as SimulationRunInput);
+    expect(result.executionStatus).toBe('EXECUTED');
+    if(result.executionStatus!=='EXECUTED') throw new Error('sample project unexpectedly blocked');
+    expect(result.readiness.canExecute).toBe(true);
+    expect(result.simulation.status).toBe('complete');
+    expect(result.simulation.pipeline.requiredPressurePa).not.toBeNull();
+    expect(result.simulation.pipeline.requiredPressurePa!).toBeGreaterThan(0);
+    expect(result.simulation.pipeline.segments).toHaveLength(3);
+    expect(result.simulation.pipeline.segments.every(segment=>segment.status==='computed')).toBe(true);
+    expect(result.simulation.pumpAssessment).not.toBeNull();
+    expect(result.simulation.pumpAssessment?.availablePressurePa).toBeGreaterThan(0);
+    expect(result.visualization3d.representation).toBe('engineering_visualization');
+    expect(result.visualization3d.physicalSimulationClaim).toBe(false);
+    expect(result.visualization3d.segments).toHaveLength(3);
+    expect(result.visualization3d.spatialValidation.status).toBe('valid');
+    expect(result.visualization3d.segments.every(segment=>segment.hydraulicStatus==='computed')).toBe(true);
+    expect(result.visualization3d.segments[0]?.spatialStartPoint).toEqual({xM:0,yM:0,zM:0});
+    expect(result.visualization3d.segments[2]?.spatialEndPoint).toEqual({xM:40,yM:0,zM:10});
+  });
   it('creates a zero-valued blocked draft for explicit reset without carrying sample data',()=>{const blank=createBlankEngineeringDraftState('blank-1','2026-09-11T19:11:00.000Z');expect(blank.status).toBe('READY');expect(blank.input?.projectMetadata?.name).toBe('');expect(blank.input?.materials).toEqual([]);expect(blank.input?.pipeline).toMatchObject({targetFlowRateM3s:0,densityKgM3:0,lubricationLayerThicknessM:0,bulk:{yieldStressPa:0,plasticViscosityPaS:0},lubricationLayer:{yieldStressPa:0,plasticViscosityPaS:0},segments:[]});expect(blank.input?.pumpCapability).toBeUndefined();expect(blank.input?.assumptions).toContain('DRAFT_PLACEHOLDER_VALUES_REPLACE_BEFORE_ENGINEERING_USE');});
   it('preserves run identity for a successful IPC response',()=>{const completed=applyEngineeringAnalysisResponse(markAnalysisRunning(setAnalysisInput(createApplicationDataFlowState(),input)),blockedSuccess);expect(completed.status).toBe('SUCCEEDED');expect(completed.activeRunId).toBe(input.runId);expect(completed.analysis?.runId).toBe(input.runId);expect(completed.isStale).toBe(false);expect(getExportablePdfRequest(completed)).toBeNull();});
   it('hydrates an exact persisted run without recomputation or stale state',()=>{const response:EngineeringRunLoadIpcResponse={status:'SUCCESS',input,result:blockedResult,errorCode:null,method:'tolue-engineering-run-load-ipc-response-v1'};const hydrated=hydratePersistedEngineeringRun(response);expect(hydrated.status).toBe('SUCCEEDED');expect(hydrated.input).toEqual(input);expect(hydrated.input).not.toBe(input);expect(hydrated.activeRunId).toBe('run-session-1');expect(hydrated.analysis?.runId).toBe('run-session-1');expect(hydrated.isStale).toBe(false);});
