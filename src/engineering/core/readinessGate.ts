@@ -113,6 +113,21 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
 
   if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
+  // Commercial engineering integrity gate: the current executable straight-pipe solver is
+  // mathematically verified for controlled cases, but its controlled model lifecycle has not
+  // yet completed the required published full-scale (Tier B) and TOLUE field (Tier C)
+  // validation gates. It may execute for engineering evaluation, but it must not silently
+  // produce an unqualified READY result until that evidence is accepted and registry status
+  // is promoted.
+  if (p.segments.some(segment => segment.kind === 'straight')) {
+    warn(
+      'readiness.model.straightPipe.validationPending',
+      'pipeline.segments',
+      'The current two-fluid Bingham straight-pipe solver is still pending commercial Tier-B/Tier-C validation. Execution is permitted for engineering evaluation, but the run remains PRELIMINARY and must not be treated as an unqualified production prediction.',
+      'RG-MODEL-STRAIGHT-VALIDATION-001',
+    );
+  }
+
   const blocked = findings.some(f => f.severity === 'blocking');
   const preliminary = !blocked && findings.some(f => f.severity === 'warning');
   return { status: blocked ? 'BLOCKED' : preliminary ? 'PRELIMINARY' : 'READY', canExecute: !blocked, findings, method: 'tolue-engineering-readiness-gate-v2' };
