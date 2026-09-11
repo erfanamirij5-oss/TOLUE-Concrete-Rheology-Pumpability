@@ -12,10 +12,12 @@ export interface RendererPlatform {
   readonly compareEngineeringRuns: TolueBridge['compareEngineeringRuns'];
   readonly exportEngineeringPdf: TolueBridge['exportEngineeringPdf'];
   readonly importVerificationEvidence: TolueBridge['importVerificationEvidence'];
+  readonly listVerificationEvidencePackages: TolueBridge['listVerificationEvidencePackages'];
+  readonly loadVerificationEvidencePackage: TolueBridge['loadVerificationEvidencePackage'];
 }
 
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
-  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.compareEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function' || typeof bridge.importVerificationEvidence !== 'function') {
+  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.compareEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function' || typeof bridge.importVerificationEvidence !== 'function' || typeof bridge.listVerificationEvidencePackages !== 'function' || typeof bridge.loadVerificationEvidencePackage !== 'function') {
     throw new Error('RENDERER-BRIDGE-001');
   }
   return Object.freeze({
@@ -25,6 +27,8 @@ export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<
     compareEngineeringRuns: (baselineRunId: string, candidateRunId: string) => bridge.compareEngineeringRuns(baselineRunId, candidateRunId),
     exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
     importVerificationEvidence: () => bridge.importVerificationEvidence(),
+    listVerificationEvidencePackages: () => bridge.listVerificationEvidencePackages(),
+    loadVerificationEvidencePackage: (packageId: string) => bridge.loadVerificationEvidencePackage(packageId),
   });
 }
 
@@ -41,6 +45,8 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
     compareEngineeringRuns: platform.compareEngineeringRuns,
     exportEngineeringPdf: platform.exportEngineeringPdf,
     importVerificationEvidence: platform.importVerificationEvidence,
+    listVerificationEvidencePackages: platform.listVerificationEvidencePackages,
+    loadVerificationEvidencePackage: platform.loadVerificationEvidencePackage,
   });
   installBrandIcon(root);
   root.dataset.rendererReady = 'true';
