@@ -69,12 +69,9 @@ describe('field validation evaluation', () => {
   });
 
   it('requires explicit lubrication-layer data for the two-fluid field comparison', () => {
-    const unavailable: FieldValidationCase = {
-      ...fieldCase(),
-      lubricationQualificationMode: 'UNAVAILABLE',
-      lubricationLayerRheology: undefined,
-      lubricationLayerThicknessM: undefined,
-    };
+    const base = fieldCase();
+    const { lubricationLayerRheology: _rheology, lubricationLayerThicknessM: _thickness, ...withoutLayer } = base;
+    const unavailable: FieldValidationCase = { ...withoutLayer, lubricationQualificationMode: 'UNAVAILABLE' };
     expect(() => evaluateFieldValidationCase({ fieldCase: unavailable, comparison: comparison() })).toThrow('FIELD-COMPARISON-LL-UNAVAILABLE');
   });
 });
