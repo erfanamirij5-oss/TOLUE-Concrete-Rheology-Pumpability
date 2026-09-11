@@ -1,6 +1,7 @@
 import type { EngineeringPdfExportRequest } from '../../engineering/core/engineeringPdfExport';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { TolueBridge } from '../preload/tolueBridge';
+import { createNewEngineeringDraftState } from './applicationDataFlow';
 import { renderApplicationShell } from './applicationShell';
 import { installBrandIcon } from './brandIconCanvas';
 
@@ -29,7 +30,9 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
   const platform = createRendererPlatform(window.tolue);
   const root = target.getElementById('app');
   if (!root) throw new Error('RENDERER-ROOT-001');
-  renderApplicationShell(root, undefined, {
+  const runId = `draft-${crypto.randomUUID()}`;
+  const dataFlow = createNewEngineeringDraftState(runId, new Date().toISOString());
+  renderApplicationShell(root, dataFlow, {
     executeEngineeringAnalysis: platform.executeEngineeringAnalysis,
     loadEngineeringRun: platform.loadEngineeringRun,
     listEngineeringRuns: platform.listEngineeringRuns,
@@ -38,6 +41,7 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
   });
   installBrandIcon(root);
   root.dataset.rendererReady = 'true';
+  root.dataset.engineeringDraftReady = 'true';
   return platform;
 }
 
