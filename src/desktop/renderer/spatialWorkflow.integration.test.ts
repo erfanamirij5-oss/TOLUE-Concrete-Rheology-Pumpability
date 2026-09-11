@@ -77,6 +77,7 @@ describe('spatial authoring to persisted scene workflow',()=>{
     const result=executeEngineeringAnalysis(authored);
     expect(result.executionStatus).toBe('EXECUTED');
     if(result.executionStatus!=='EXECUTED')throw new Error('SPATIAL-E2E-EXECUTION-001');
+    expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v3');
     expect(result.visualization3d.spatialValidation.status).toBe('valid');
     expect(result.visualization3d.segments[1]?.spatialEndPoint).toEqual({xM:15,yM:5,zM:3});
 
@@ -99,6 +100,7 @@ describe('spatial authoring to persisted scene workflow',()=>{
     expect(loadedScene.analysisOverlayState).toBe('current');
     expect(loadedScene.spatialValidation.status).toBe('valid');
     expect(loadedScene.segments.map(segment=>segment.id)).toEqual(['S1','S2']);
+    expect(loadedScene.segments[1]?.hydraulicStatus).toBe('computed');
     expect(loadedScene.segments[1]?.totalPressureChangePa).not.toBeNull();
     expect(loadedScene.segments[1]?.endPoint).toEqual({xM:15,yM:5,zM:3});
   });
