@@ -99,9 +99,10 @@ export function updateLubricationLayerQualificationDraft(input: Readonly<Simulat
   if (!input.lubricationLayerQualification) throw new Error('ENGINEERING-INPUT-DRAFT-LLQ-001');
   const next = structuredClone(input) as SimulationRunInput;
   const qualification = next.lubricationLayerQualification!;
+  const mutable = qualification as unknown as Partial<Record<LubricationLayerQualificationField, string>>;
   const trimmed = value.trim();
-  if (trimmed) (qualification as Record<string, string>)[field] = trimmed;
-  else delete (qualification as Partial<Record<LubricationLayerQualificationField, string>>)[field];
+  if (trimmed) mutable[field] = trimmed;
+  else delete mutable[field];
   return Object.freeze(next);
 }
 
