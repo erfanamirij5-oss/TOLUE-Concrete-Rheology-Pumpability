@@ -8,6 +8,7 @@ import { registerEngineeringRunLoadIpc } from './electronRunAdapter';
 import { registerVerificationEvidenceIpc } from './electronVerificationEvidenceAdapter';
 import { bootstrapPersistence } from './persistence/persistenceBootstrap';
 import type { EngineeringRunRepository } from './persistence/engineeringRunRepository';
+import type { VerificationEvidenceRepository } from './persistence/verificationEvidenceRepository';
 
 export const DESKTOP_URL = 'tolue://desktop/index.html';
 export const DESKTOP_RENDERER_URL = 'tolue://desktop/renderer.js';
@@ -39,9 +40,10 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
   let rendererJavascript = '';
   let closePersistence: (() => void) | undefined;
   let engineeringRuns: Readonly<EngineeringRunRepository> | undefined;
+  let verificationEvidencePackages: Readonly<VerificationEvidenceRepository> | undefined;
   const failStartup = () => { dialog.showErrorBox('طلوع', 'راه‌اندازی محیط مهندسی انجام نشد. برنامه را دوباره اجرا کنید.'); app.quit(); };
   const open = async (): Promise<void> => {
-    if (!ready || opening || owner || !engineeringRuns) return;
+    if (!ready || opening || owner || !engineeringRuns || !verificationEvidencePackages) return;
     opening = true;
     try {
       const win = new BrowserWindow({ width: 1200, height: 800, minWidth: 900, minHeight: 600, show: false, autoHideMenuBar: true, webPreferences: {
@@ -56,7 +58,7 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
       const disposePdf = registerEngineeringPdfIpc(win, DESKTOP_URL);
       const disposeAnalysis = registerEngineeringAnalysisIpc(win, DESKTOP_URL, engineeringRuns);
       const disposeRunLoad = registerEngineeringRunLoadIpc(win, DESKTOP_URL, engineeringRuns);
-      const disposeVerificationEvidence = registerVerificationEvidenceIpc({ owner: win, trustedDocumentUrl: DESKTOP_URL });
+      const disposeVerificationEvidence = registerVerificationEvidenceIpc({ owner: win, trustedDocumentUrl: DESKTOP_URL, repository: verificationEvidencePackages, nowIso: () => new Date().toISOString() });
       const disposeLicense = registerLicenseIpc({ owner: win, trustedDocumentUrl: DESKTOP_URL, userDataPath: app.getPath('userData'), resourcesPath: process.resourcesPath, nowIso: () => new Date().toISOString() });
       win.once('closed', () => { disposeLicense(); disposeVerificationEvidence(); disposeRunLoad(); disposeAnalysis(); disposePdf(); owner = undefined; });
       try { await win.loadURL(DESKTOP_URL); if (!win.isDestroyed()) win.show(); }
@@ -65,12 +67,13 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
   };
   app.on('second-instance', () => { if (owner) { if (owner.isMinimized()) owner.restore(); owner.focus(); } });
   app.on('activate', () => { void open().catch(failStartup); });
-  app.on('before-quit', () => { const close = closePersistence; closePersistence = undefined; engineeringRuns = undefined; close?.(); });
+  app.on('before-quit', () => { const close = closePersistence; closePersistence = undefined; engineeringRuns = undefined; verificationEvidencePackages = undefined; close?.(); });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
   void app.whenReady().then(async () => {
     const persistence = bootstrapPersistence(app.getPath('userData'));
     closePersistence = persistence.close;
     engineeringRuns = persistence.engineeringRuns;
+    verificationEvidencePackages = persistence.verificationEvidencePackages;
     rendererJavascript = await readFile(rendererPath, 'utf8');
     if (rendererJavascript.length === 0) throw new Error('DESKTOP-RENDERER-EMPTY-001');
     const isolated = session.fromPartition('tolue-desktop');
