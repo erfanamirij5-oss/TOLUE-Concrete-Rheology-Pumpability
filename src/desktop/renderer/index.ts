@@ -11,10 +11,11 @@ export interface RendererPlatform {
   readonly listEngineeringRuns: TolueBridge['listEngineeringRuns'];
   readonly compareEngineeringRuns: TolueBridge['compareEngineeringRuns'];
   readonly exportEngineeringPdf: TolueBridge['exportEngineeringPdf'];
+  readonly importVerificationEvidence: TolueBridge['importVerificationEvidence'];
 }
 
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
-  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.compareEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function') {
+  if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.compareEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function' || typeof bridge.importVerificationEvidence !== 'function') {
     throw new Error('RENDERER-BRIDGE-001');
   }
   return Object.freeze({
@@ -23,6 +24,7 @@ export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<
     listEngineeringRuns: () => bridge.listEngineeringRuns(),
     compareEngineeringRuns: (baselineRunId: string, candidateRunId: string) => bridge.compareEngineeringRuns(baselineRunId, candidateRunId),
     exportEngineeringPdf: (request: EngineeringPdfExportRequest) => bridge.exportEngineeringPdf(request),
+    importVerificationEvidence: () => bridge.importVerificationEvidence(),
   });
 }
 
@@ -38,6 +40,7 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
     listEngineeringRuns: platform.listEngineeringRuns,
     compareEngineeringRuns: platform.compareEngineeringRuns,
     exportEngineeringPdf: platform.exportEngineeringPdf,
+    importVerificationEvidence: platform.importVerificationEvidence,
   });
   installBrandIcon(root);
   root.dataset.rendererReady = 'true';
