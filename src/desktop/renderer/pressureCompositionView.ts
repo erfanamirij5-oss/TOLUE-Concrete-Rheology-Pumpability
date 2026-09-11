@@ -1,34 +1,67 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
+import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { PressureCompositionPresentation } from './pressureCompositionPresentation';
 
-function pressure(value: number | null): string { return value === null ? '—' : `${value} Pa`; }
+function pressure(value: number | null): string { return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} MPa`; }
 
 export function renderPressureCompositionView(root: HTMLElement, presentation?: Readonly<PressureCompositionPresentation>): void {
   const panel = document.createElement('section');
   panel.setAttribute('aria-label', 'ترکیب فشار خط لوله');
+  styleEngineeringSection(panel, true);
   panel.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-  const title = document.createElement('h2'); title.textContent = 'ترکیب فشار موردنیاز'; title.style.marginTop = '0';
-  const note = document.createElement('p'); note.textContent = 'اجزای فشار مستقیماً از PipelineAnalysisResult نمایش داده می‌شوند. این نمودار سهم، درصد یا ضریب جدید مهندسی استنتاج نمی‌کند.'; note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  panel.append(title, note);
-  if (!presentation) { const empty = document.createElement('p'); empty.textContent = 'هنوز داده معتبر ترکیب فشار دریافت نشده است.'; panel.appendChild(empty); root.appendChild(panel); return; }
+  appendEngineeringSectionHeader(panel, 'ترکیب فشار موردنیاز', 'اجزای فشار مستقیماً از PipelineAnalysisResult نمایش داده می‌شوند؛ Renderer سهم یا ضریب مهندسی جدید استنتاج نمی‌کند.', 'PRESSURE COMPOSITION');
+  const body = document.createElement('div');
+  Object.assign(body.style, { padding: '14px' });
+  panel.appendChild(body);
+
+  if (!presentation) {
+    const empty = document.createElement('p');
+    empty.textContent = 'هنوز داده معتبر ترکیب فشار دریافت نشده است.';
+    empty.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+    body.appendChild(empty);
+    root.appendChild(panel);
+    return;
+  }
 
   const maxMagnitude = Math.max(1, ...presentation.items.map(item => Math.abs(item.valuePa)));
-  const chart = document.createElement('div'); chart.style.display = 'grid'; chart.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
+  const chart = document.createElement('div');
+  Object.assign(chart.style, { display: 'grid', gap: '10px' });
+
   for (const item of presentation.items) {
-    const row = document.createElement('div');
-    const header = document.createElement('div'); header.style.display = 'flex'; header.style.justifyContent = 'space-between';
+    const row = document.createElement('article');
+    Object.assign(row.style, { padding: '9px 10px', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`, borderRadius: TOLUE_DESIGN_TOKENS.radius.sm, background: 'rgba(12,23,30,.72)' });
+    const header = document.createElement('div');
+    Object.assign(header.style, { display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' });
     const label = document.createElement('strong'); label.textContent = item.label;
-    const value = document.createElement('span'); value.textContent = pressure(item.valuePa); value.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
+    const value = document.createElement('span');
+    value.textContent = pressure(item.valuePa);
+    Object.assign(value.style, { fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, direction: 'ltr', color: item.valuePa < 0 ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.text });
     header.append(label, value);
-    const track = document.createElement('div'); track.style.height = '16px'; track.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm; track.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted; track.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`; track.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm; track.style.overflow = 'hidden';
-    const bar = document.createElement('div'); bar.style.height = '100%'; bar.style.width = `${(Math.abs(item.valuePa) / maxMagnitude) * 100}%`; bar.style.background = item.valuePa < 0 ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.focus; bar.dataset.sign = item.valuePa < 0 ? 'negative' : 'nonnegative';
-    track.appendChild(bar); row.append(header, track); chart.appendChild(row);
+
+    const track = document.createElement('div');
+    Object.assign(track.style, { height: '14px', marginTop: '7px', background: '#071017', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`, borderRadius: '999px', overflow: 'hidden' });
+    const bar = document.createElement('div');
+    bar.dataset.sign = item.valuePa < 0 ? 'negative' : 'nonnegative';
+    Object.assign(bar.style, {
+      height: '100%',
+      width: `${(Math.abs(item.valuePa) / maxMagnitude) * 100}%`,
+      minWidth: item.valuePa === 0 ? '0' : '3px',
+      background: item.valuePa < 0 ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.focus,
+      boxShadow: `0 0 12px ${item.valuePa < 0 ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.focus}55`,
+    });
+    track.appendChild(bar);
+    row.append(header, track);
+    chart.appendChild(row);
   }
-  panel.appendChild(chart);
-  const total = document.createElement('p'); total.style.marginBottom = '0'; total.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg; total.textContent = `Required pressure: ${pressure(presentation.requiredPressurePa)} · Completeness: ${presentation.completeness} · Method: ${presentation.method}`;
-  panel.appendChild(total); root.appendChild(panel);
+
+  body.appendChild(chart);
+  const total = document.createElement('div');
+  Object.assign(total.style, { marginTop: '12px', padding: '10px 12px', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.borderStrong}`, borderRadius: TOLUE_DESIGN_TOKENS.radius.sm, background: TOLUE_DESIGN_TOKENS.color.surfaceElevated });
+  const required = document.createElement('strong'); required.textContent = `Required pressure · ${pressure(presentation.requiredPressurePa)}`; required.style.direction = 'ltr';
+  const meta = document.createElement('small');
+  Object.assign(meta.style, { display: 'block', marginTop: '4px', color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'ltr' });
+  meta.textContent = `Completeness: ${presentation.completeness} · Method: ${presentation.method}`;
+  total.append(required, meta);
+  body.appendChild(total);
+  root.appendChild(panel);
 }
