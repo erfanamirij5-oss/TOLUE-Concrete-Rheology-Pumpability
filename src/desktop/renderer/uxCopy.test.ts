@@ -49,6 +49,27 @@ const succeededWithDecision = (decisionStatus: string): ApplicationDataFlowState
   } as ApplicationDataFlowState['analysis'],
 });
 
+const blockedRun = (): ApplicationDataFlowState => ({
+  ...state('SUCCEEDED'),
+  activeRunId: 'run-blocked',
+  analysis: {
+    runId: 'run-blocked',
+    engineVersion: 'v1.1.0-rc.3',
+    executionStatus: 'BLOCKED',
+    completeness: 'incomplete',
+    inputSnapshotHash: null,
+    pipeline: null,
+    pressureProfile: null,
+    pressureComposition: null,
+    rheologyCurves: null,
+    visualization3d: null,
+    pump: null,
+    results: null,
+    diagnostics: null,
+    report: null,
+  },
+});
+
 describe('session UX copy', () => {
   it('translates internal lifecycle states into user-facing Persian guidance', () => {
     expect(sessionUxCopy(state('IDLE')).title).toBe('آماده شروع');
@@ -71,6 +92,13 @@ describe('session UX copy', () => {
     expect(sessionUxCopy(succeededWithDecision('FAIL_STABILITY')).tone).toBe('danger');
     expect(sessionUxCopy(succeededWithDecision('FAIL_BLOCKAGE')).detail).toContain('محل فیزیکی گرفتگی');
     expect(sessionUxCopy(succeededWithDecision('INSUFFICIENT_DATA')).tone).toBe('warning');
+  });
+
+  it('distinguishes a readiness-blocked run from an executed result', () => {
+    const copy = sessionUxCopy(blockedRun());
+    expect(copy.title).toBe('اجرای مهندسی مسدود شد');
+    expect(copy.tone).toBe('danger');
+    expect(copy.detail).toContain('Readiness Gate');
   });
 
   it('does not expose internal lifecycle labels to the user copy', () => {
