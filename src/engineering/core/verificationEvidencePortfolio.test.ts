@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { PublishedFullScaleVerificationCase } from './publishedFullScaleVerification';
 import type { FieldValidationCase } from './fieldValidationDataset';
-import { evaluateVerificationEvidencePortfolio, type VerificationEvidenceEntry } from './verificationEvidencePortfolio';
+import {
+  admitVerificationEvidence,
+  evaluateVerificationEvidencePortfolio,
+  excludeVerificationEvidence,
+  type VerificationAdmissionReview,
+  type VerificationEvidenceEntry,
+} from './verificationEvidencePortfolio';
 
 function publishedCase(): PublishedFullScaleVerificationCase {
   return {
@@ -34,12 +40,14 @@ function fieldCase(): FieldValidationCase {
   };
 }
 
-function fieldEntry(status: 'CANDIDATE'|'ADMITTED'|'EXCLUDED'): VerificationEvidenceEntry {
+function fieldCandidate(): VerificationEvidenceEntry {
   return {
-    tier: 'TIER_C_TOLUE_FIELD', admissionStatus: status, ...(status==='EXCLUDED'?{exclusionReason:'QA exclusion'}:{}),
+    tier: 'TIER_C_TOLUE_FIELD', admissionStatus: 'CANDIDATE',
     evaluationInput: { fieldCase: fieldCase(), comparison: { hydraulicScope: 'STRAIGHT_PIPE_WITH_ELEVATION', comparisonLengthM: 80, elevationChangeM: 4, concreteDensityKgM3: 2400, measuredPressureDropPa: 1_800_000, pressureReferenceDescription: 'controlled taps', sourceTrace: 'QA field sheet' } },
   };
 }
+
+const review = (hash: string): VerificationAdmissionReview => ({ reviewerId: 'QA-REVIEWER', reviewedAtIso: '2026-09-11T16:00:00.000Z', decisionBasis: 'Controlled QA review of source trace and comparison basis.', sourceArtifactHash: hash });
 
 describe('verification evidence portfolio', () => {
   it('does not let candidate evidence influence verification metrics', () => {
@@ -50,10 +58,11 @@ describe('verification evidence portfolio', () => {
     expect(result.p0TierBCoveragePresent).toBe(false);
   });
 
-  it('evaluates admitted Tier-B and Tier-C evidence but never auto-promotes production validation', () => {
-    const entries: VerificationEvidenceEntry[] = [
-      { tier:'TIER_B_PUBLISHED_FULL_SCALE', admissionStatus:'ADMITTED', case: publishedCase() },
-      fieldEntry('ADMITTED'),
+  it('requires reviewed admission before Tier-B and Tier-C evidence can affect metrics', () => {
+    const tierBCandidate: VerificationEvidenceEntry = { tier:'TIER_B_PUBLISHED_FULL_SCALE', admissionStatus:'CANDIDATE', case: publishedCase() };
+    const entries = [
+      admitVerificationEvidence(tierBCandidate, review('sha256:tb-qa')),
+      admitVerificationEvidence(fieldCandidate(), review('sha256:tc-qa')),
     ];
     const result = evaluateVerificationEvidencePortfolio(entries);
     expect(result.admittedTierBResults).toHaveLength(1);
@@ -62,16 +71,28 @@ describe('verification evidence portfolio', () => {
     expect(result.p0TierCCoveragePresent).toBe(true);
     expect(result.productionValidationComplete).toBe(false);
     expect(result.tierBMetrics?.caseCount).toBe(1);
+    expect(result.method).toBe('tolue-verification-evidence-portfolio-v2');
   });
 
   it('retains excluded records as audit counts without evaluating them', () => {
-    const result = evaluateVerificationEvidencePortfolio([fieldEntry('EXCLUDED')]);
+    const excluded = excludeVerificationEvidence(fieldCandidate(), 'QA exclusion', review('sha256:tc-qa'));
+    const result = evaluateVerificationEvidencePortfolio([excluded]);
     expect(result.excludedCount).toBe(1);
     expect(result.admittedTierCResults).toHaveLength(0);
   });
 
-  it('requires exclusion rationale and rejects rationale on non-excluded evidence', () => {
-    expect(() => evaluateVerificationEvidencePortfolio([{ ...fieldEntry('EXCLUDED'), exclusionReason: undefined }])).toThrow('VERIFICATION-PORTFOLIO-EXCLUSION-REASON-001');
-    expect(() => evaluateVerificationEvidencePortfolio([{ ...fieldEntry('CANDIDATE'), exclusionReason: 'not allowed here' }])).toThrow('VERIFICATION-PORTFOLIO-EXCLUSION-REASON-002');
+  it('rejects direct admitted evidence without review', () => {
+    expect(() => evaluateVerificationEvidencePortfolio([{ ...fieldCandidate(), admissionStatus:'ADMITTED' }]))
+      .toThrow('VERIFICATION-PORTFOLIO-REVIEW-REQUIRED-001');
+  });
+
+  it('binds a review to the exact controlled source hash', () => {
+    expect(() => admitVerificationEvidence(fieldCandidate(), review('sha256:wrong-source')))
+      .toThrow('VERIFICATION-PORTFOLIO-REVIEW-HASH-MISMATCH-001');
+  });
+
+  it('requires exclusion rationale and forbids review metadata on an unresolved candidate', () => {
+    expect(() => excludeVerificationEvidence(fieldCandidate(), '', review('sha256:tc-qa'))).toThrow('VERIFICATION-PORTFOLIO-EXCLUSION-REASON-001');
+    expect(() => evaluateVerificationEvidencePortfolio([{ ...fieldCandidate(), admissionReview: review('sha256:tc-qa') }])).toThrow('VERIFICATION-PORTFOLIO-CANDIDATE-REVIEW-001');
   });
 });
