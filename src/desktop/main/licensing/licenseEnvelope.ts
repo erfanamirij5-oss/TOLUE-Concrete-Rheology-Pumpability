@@ -88,14 +88,14 @@ export function canonicalLicensePayload(entitlement: Readonly<LicenseEntitlement
   });
 }
 
-export function verifySignedLicenseEnvelope(value: unknown, legacyPublicKeyPem = ''): Readonly<VerifiedLicenseEntitlement> | null {
+export function verifySignedLicenseEnvelope(value: unknown, legacyPublicKeyPem = '', expectedProductionFingerprint = PRODUCTION_PUBLIC_PEM_SHA256): Readonly<VerifiedLicenseEntitlement> | null {
   const envelope = parseEnvelope(value);
   if (!envelope) return null;
   const publicKeyPem = envelope.schemaVersion === 'tolue-license-v2' ? envelope.publicKeyPem : legacyPublicKeyPem;
   if (!publicKeyPem.trim()) return null;
   if (envelope.schemaVersion === 'tolue-license-v2') {
     const fingerprint = createHash('sha256').update(normalizePem(publicKeyPem), 'utf8').digest('hex');
-    if (fingerprint !== PRODUCTION_PUBLIC_PEM_SHA256) return null;
+    if (fingerprint !== expectedProductionFingerprint.toLowerCase()) return null;
   }
   let signature: Buffer;
   try {
