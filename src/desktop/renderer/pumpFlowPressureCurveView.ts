@@ -2,6 +2,8 @@ import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { PumpCapabilityPresentation } from './pumpPresentation';
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 function formatFlow(value: number): string {
   return `${(value * 3600).toFixed(2)} m³/h`;
 }
@@ -43,7 +45,7 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
   const x = (flowRateM3s: number): number => padX + ((flowRateM3s - minFlow) / flowSpan) * innerWidth;
   const y = (pressurePa: number): number => height - padY - (pressurePa / maxPressure) * innerHeight;
 
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'نمودار نقاط verified دبی و فشار پمپ');
@@ -51,25 +53,25 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
 
   for (let i = 0; i <= 4; i += 1) {
     const gy = padY + (innerHeight * i) / 4;
-    const grid = document.createElementNS(svg.namespaceURI, 'line');
+    const grid = document.createElementNS(SVG_NS, 'line');
     grid.setAttribute('x1', String(padX)); grid.setAttribute('x2', String(width - padX));
     grid.setAttribute('y1', String(gy)); grid.setAttribute('y2', String(gy));
     grid.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border); grid.setAttribute('opacity', '.35');
     svg.appendChild(grid);
   }
 
-  const axisX = document.createElementNS(svg.namespaceURI, 'line');
+  const axisX = document.createElementNS(SVG_NS, 'line');
   axisX.setAttribute('x1', String(padX)); axisX.setAttribute('x2', String(width - padX));
   axisX.setAttribute('y1', String(height - padY)); axisX.setAttribute('y2', String(height - padY));
   axisX.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.borderStrong);
-  const axisY = document.createElementNS(svg.namespaceURI, 'line');
+  const axisY = document.createElementNS(SVG_NS, 'line');
   axisY.setAttribute('x1', String(padX)); axisY.setAttribute('x2', String(padX));
   axisY.setAttribute('y1', String(padY)); axisY.setAttribute('y2', String(height - padY));
   axisY.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.borderStrong);
   svg.append(axisX, axisY);
 
   if (points.length > 1) {
-    const polyline = document.createElementNS(svg.namespaceURI, 'polyline');
+    const polyline = document.createElementNS(SVG_NS, 'polyline');
     polyline.setAttribute('points', points.map(point => `${x(point.flowRateM3s)},${y(point.availableConcretePressurePa)}`).join(' '));
     polyline.setAttribute('fill', 'none');
     polyline.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.focus);
@@ -81,7 +83,7 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
   }
 
   for (const point of points) {
-    const circle = document.createElementNS(svg.namespaceURI, 'circle');
+    const circle = document.createElementNS(SVG_NS, 'circle');
     circle.setAttribute('cx', String(x(point.flowRateM3s)));
     circle.setAttribute('cy', String(y(point.availableConcretePressurePa)));
     circle.setAttribute('r', '5');
@@ -90,7 +92,7 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
     circle.setAttribute('stroke-width', '1');
     circle.dataset.verifiedFlowRateM3s = String(point.flowRateM3s);
     circle.dataset.verifiedPressurePa = String(point.availableConcretePressurePa);
-    const title = document.createElementNS(svg.namespaceURI, 'title');
+    const title = document.createElementNS(SVG_NS, 'title');
     title.textContent = `${formatFlow(point.flowRateM3s)} · ${formatPressure(point.availableConcretePressurePa)}`;
     circle.appendChild(title);
     svg.appendChild(circle);
@@ -98,12 +100,12 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
 
   const targetInsideDomain = result.targetFlowRateM3s >= minFlow && result.targetFlowRateM3s <= maxFlow && result.availablePressurePa !== null;
   if (targetInsideDomain) {
-    const guide = document.createElementNS(svg.namespaceURI, 'line');
+    const guide = document.createElementNS(SVG_NS, 'line');
     guide.setAttribute('x1', String(x(result.targetFlowRateM3s))); guide.setAttribute('x2', String(x(result.targetFlowRateM3s)));
     guide.setAttribute('y1', String(padY)); guide.setAttribute('y2', String(height - padY));
     guide.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.selection); guide.setAttribute('stroke-dasharray', '5 5'); guide.setAttribute('opacity', '.75');
     svg.appendChild(guide);
-    const marker = document.createElementNS(svg.namespaceURI, 'circle');
+    const marker = document.createElementNS(SVG_NS, 'circle');
     marker.setAttribute('cx', String(x(result.targetFlowRateM3s)));
     marker.setAttribute('cy', String(y(result.availablePressurePa!)));
     marker.setAttribute('r', '8');
@@ -111,7 +113,7 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
     marker.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.selection);
     marker.setAttribute('stroke-width', '3');
     marker.dataset.curveRole = 'core-target-result';
-    const title = document.createElementNS(svg.namespaceURI, 'title');
+    const title = document.createElementNS(SVG_NS, 'title');
     title.textContent = `TARGET · ${formatFlow(result.targetFlowRateM3s)} · ${formatPressure(result.availablePressurePa!)}`;
     marker.appendChild(title);
     svg.appendChild(marker);
