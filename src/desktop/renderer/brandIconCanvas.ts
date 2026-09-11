@@ -15,6 +15,8 @@ export function installBrandIcon(root:HTMLElement):void{
   Object.assign(canvas.style,{width:'30px',height:'30px',borderRadius:'7px',flex:'0 0 auto'});
   const context=canvas.getContext('2d');
   if(!context)return;
-  context.putImageData(new ImageData(decodeRgba(),32,32),0,0);
+  const imageData=context.createImageData(32,32);
+  imageData.data.set(decodeRgba());
+  context.putImageData(imageData,0,0);
   header.prepend(canvas);
 }
