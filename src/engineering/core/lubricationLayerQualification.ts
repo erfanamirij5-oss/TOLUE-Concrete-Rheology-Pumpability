@@ -78,16 +78,18 @@ export function assessLubricationLayerQualification(
     return { status: 'BLOCKED', findings, method: 'tolue-lubrication-layer-qualification-v1' };
   }
 
-  checkBoundEvidence('rheology', qualification.rheologyEvidenceEntityId, provenance.lubricationLayerRheology, findings);
-  checkBoundEvidence('thickness', qualification.thicknessEvidenceEntityId, provenance.lubricationLayerThickness, findings);
+  const rheologyRecord = provenance.lubricationLayerRheology;
+  const thicknessRecord = provenance.lubricationLayerThickness;
+  checkBoundEvidence('rheology', qualification.rheologyEvidenceEntityId, rheologyRecord, findings);
+  checkBoundEvidence('thickness', qualification.thicknessEvidenceEntityId, thicknessRecord, findings);
 
   if (qualification.mode === 'PROJECT_CALIBRATED' || qualification.mode === 'VALIDATED_PREDICTION') {
     if (!nonEmpty(qualification.methodId)) findings.push({ severity: 'blocking', ruleId: 'LLQ-METHOD-001', message: `${qualification.mode} requires a controlled method ID.` });
     if (!nonEmpty(qualification.referenceId)) findings.push({ severity: 'blocking', ruleId: 'LLQ-REFERENCE-001', message: `${qualification.mode} requires a calibration/validation reference ID.` });
   }
 
-  if (qualification.mode === 'MEASURED_TRIBOLOGY') {
-    const rheologyKind = generatingActivityKind(provenance.lubricationLayerRheology);
+  if (qualification.mode === 'MEASURED_TRIBOLOGY' && rheologyRecord) {
+    const rheologyKind = generatingActivityKind(rheologyRecord);
     if (rheologyKind !== 'measurement' && rheologyKind !== 'calibration') {
       findings.push({ severity: 'warning', ruleId: 'LLQ-TRIBOLOGY-ACTIVITY-001', message: 'MEASURED_TRIBOLOGY should be bound to a measurement or calibration activity for lubrication-layer rheology.' });
     }
