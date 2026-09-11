@@ -116,7 +116,7 @@ describe('full mixed-source engineering regression', () => {
   it('closes pressure, provenance, profile and pump semantics end-to-end as preliminary engineering', () => {
     const result = executeEngineeringAnalysis(fullRunInput());
     expect(result.readiness.status).toBe('PRELIMINARY');
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-COMMERCIAL-001')).toBe(true);
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
     expect(result.executionStatus).toBe('EXECUTED');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed analysis');
 
