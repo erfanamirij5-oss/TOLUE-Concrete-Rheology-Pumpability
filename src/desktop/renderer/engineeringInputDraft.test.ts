@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import {
-  addPumpCapabilityPointDraft, createPumpCapabilityDraft, removePumpCapabilityPointDraft,
-  removeRheologyProvenanceDraft, setRheologyProvenanceDraft,
-  updatePipelineScalarDraft, updatePumpCapabilityPointDraft, updatePumpOperatingEnvelopeDraft,
+  addPumpCapabilityPointDraft, bindLubricationLayerQualificationToCurrentProvenance, createPumpCapabilityDraft,
+  removeLubricationLayerQualificationDraft, removeLubricationLayerThicknessProvenanceDraft, removePumpCapabilityPointDraft,
+  removeRheologyProvenanceDraft, setLubricationLayerQualificationModeDraft, setLubricationLayerThicknessProvenanceDraft, setRheologyProvenanceDraft,
+  updateLubricationLayerQualificationDraft, updatePipelineScalarDraft, updatePumpCapabilityPointDraft, updatePumpOperatingEnvelopeDraft,
   updateRheologyInputDraft, updateStraightSegmentDraft,
 } from './engineeringInputDraft';
 
@@ -35,6 +36,30 @@ describe('engineering input draft', () => {
     const removed=removeRheologyProvenanceDraft(authored,'lubricationLayerRheology');
     expect(removed.provenance?.lubricationLayerRheology).toBeUndefined();
     expect(()=>setRheologyProvenanceDraft(source,'bulkRheology',{entityId:'',entityKind:'measurement_result',activityId:'x',activityKind:'measurement'})).toThrow('ENGINEERING-INPUT-DRAFT-RHEO-PROV-ID-001');
+  });
+  it('authors LL thickness provenance independently and binds qualification to exact entity IDs', () => {
+    const source=fixture();
+    const withRheo=setRheologyProvenanceDraft(source,'lubricationLayerRheology',{entityId:'ll-rheo-01',entityKind:'measurement_result',activityId:'tribo-01',activityKind:'measurement',methodId:'TRIBO-01'});
+    const withThickness=setLubricationLayerThicknessProvenanceDraft(withRheo,{entityId:'ll-thk-01',entityKind:'measurement_result',activityId:'thk-meas-01',activityKind:'measurement',methodId:'ULTRASONIC-01',equipmentId:'sensor-01'});
+    const qualified=setLubricationLayerQualificationModeDraft(withThickness,'MEASURED_TRIBOLOGY');
+    const bound=bindLubricationLayerQualificationToCurrentProvenance(qualified);
+    expect(bound.lubricationLayerQualification?.rheologyEvidenceEntityId).toBe('ll-rheo-01');
+    expect(bound.lubricationLayerQualification?.thicknessEvidenceEntityId).toBe('ll-thk-01');
+    expect(bound.provenance?.lubricationLayerThickness?.evidence.entityId).toBe('ll-thk-01');
+    expect(source.provenance).toBeUndefined();
+  });
+  it('does not fabricate LL binding and supports controlled qualification metadata removal', () => {
+    const source=fixture();
+    const q=setLubricationLayerQualificationModeDraft(source,'PROJECT_CALIBRATED');
+    expect(()=>bindLubricationLayerQualificationToCurrentProvenance(q)).toThrow('ENGINEERING-INPUT-DRAFT-LLQ-BIND-001');
+    const withMethod=updateLubricationLayerQualificationDraft(q,'methodId','LL-CAL-01');
+    const withRef=updateLubricationLayerQualificationDraft(withMethod,'referenceId','CAL-REPORT-22');
+    expect(withRef.lubricationLayerQualification?.methodId).toBe('LL-CAL-01');
+    expect(withRef.lubricationLayerQualification?.referenceId).toBe('CAL-REPORT-22');
+    const removed=removeLubricationLayerQualificationDraft(withRef);
+    expect(removed.lubricationLayerQualification).toBeUndefined();
+    const withThickness=setLubricationLayerThicknessProvenanceDraft(source,{entityId:'thk',entityKind:'engineering_assumption',activityId:'assume',activityKind:'assumption'});
+    expect(removeLubricationLayerThicknessProvenanceDraft(withThickness).provenance?.lubricationLayerThickness).toBeUndefined();
   });
   it('updates pipeline scalars and straight-segment geometry immutably', () => { const source=fixture();const flow=updatePipelineScalarDraft(source,'targetFlowRateM3s',0.025);const radius=updateStraightSegmentDraft(flow,0,'pipeRadiusM',0.06);expect(radius.pipeline.targetFlowRateM3s).toBe(0.025);expect((radius.pipeline.segments[0] as {pipeRadiusM:number}).pipeRadiusM).toBe(0.06);expect(source.pipeline.targetFlowRateM3s).toBe(0.02); });
   it('mirrors existing core geometry and density constraints', () => { const source=fixture();expect(()=>updatePipelineScalarDraft(source,'densityKgM3',0)).toThrow('ENGINEERING-INPUT-DRAFT-DENSITY-001');expect(()=>updatePipelineScalarDraft(source,'lubricationLayerThicknessM',0.05)).toThrow('ENGINEERING-INPUT-DRAFT-LAYER-RADIUS-001');expect(()=>updateStraightSegmentDraft(source,0,'lengthM',0)).toThrow('ENGINEERING-INPUT-DRAFT-LENGTH-001');expect(()=>updateStraightSegmentDraft(source,0,'pipeRadiusM',0.002)).toThrow('ENGINEERING-INPUT-DRAFT-RADIUS-LAYER-001'); });
