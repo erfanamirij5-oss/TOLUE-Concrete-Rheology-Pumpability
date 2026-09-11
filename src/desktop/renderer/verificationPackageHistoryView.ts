@@ -1,5 +1,7 @@
-import type { VerificationEvidencePackageHistoryItem } from '../main/persistence/verificationEvidenceRepository';
+import type { VerificationEvidenceHistoryIpcResponse } from '../ipc/verificationEvidenceIpc';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
+
+type VerificationEvidencePackageHistoryItem = VerificationEvidenceHistoryIpcResponse['items'][number];
 
 export interface VerificationPackageHistoryActions {
   readonly loadPackage:(packageId:string)=>void;
