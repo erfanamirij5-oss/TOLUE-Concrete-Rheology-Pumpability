@@ -1,133 +1,15 @@
 import { TOLUE_DESIGN_TOKENS, statusToneColor } from './designSystem';
+import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { DiagnosticsPresentation } from './diagnosticsPresentation';
 import { diagnosticBasisLabel, diagnosticKindLabel, diagnosticSeverityUx, diagnosticValidationLabel, sortDiagnosticFindings } from './diagnosticsUx';
 
-export function renderDiagnosticsView(root: HTMLElement, diagnostics?: Readonly<DiagnosticsPresentation>): void {
-  const panel = document.createElement('section');
-  panel.setAttribute('aria-label', 'تشخیص‌های مهندسی');
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const title = document.createElement('h2');
-  title.textContent = 'تشخیص‌ها و هشدارهای مهندسی';
-  title.style.marginTop = '0';
-  const note = document.createElement('p');
-  note.textContent = 'اولویت، نوع، مبنا، Rule ID و توصیه‌ها فقط از Diagnostics Core نمایش داده می‌شوند؛ Renderer هیچ تشخیص یا آستانه جدیدی تولید نمی‌کند.';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  panel.append(title, note);
-
-  if (!diagnostics) {
-    const empty = document.createElement('div');
-    empty.textContent = 'هنوز Diagnostics معتبر از Engineering Core دریافت نشده است.';
-    empty.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    empty.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    empty.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    panel.appendChild(empty);
-    root.appendChild(panel);
-    return;
-  }
-
-  const criticalCount = diagnostics.findings.filter(item => item.severity === 'critical').length;
-  const warningCount = diagnostics.findings.filter(item => item.severity === 'warning').length;
-  const infoCount = diagnostics.findings.filter(item => item.severity === 'info').length;
-  const summary = document.createElement('div');
-  summary.style.display = 'grid';
-  summary.style.gridTemplateColumns = 'repeat(auto-fit, minmax(150px, 1fr))';
-  summary.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-  summary.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.lg} 0`;
-  for (const [label, value, tone] of [
-    ['بحرانی', criticalCount, 'critical'],
-    ['هشدار', warningCount, 'warning'],
-    ['اطلاع', infoCount, 'nominal'],
-  ] as const) {
-    const card = document.createElement('article');
-    card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    card.style.border = `1px solid ${statusToneColor(tone)}`;
-    card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const number = document.createElement('strong');
-    number.textContent = String(value);
-    number.style.display = 'block';
-    number.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeXl;
-    number.style.color = statusToneColor(tone);
-    const text = document.createElement('span');
-    text.textContent = label;
-    card.append(number, text);
-    summary.appendChild(card);
-  }
-  panel.appendChild(summary);
-
-  if (diagnostics.findings.length === 0) {
-    const nominal = document.createElement('div');
-    nominal.textContent = 'Diagnostics Core هیچ Finding فعالی برای این تحلیل گزارش نکرده است.';
-    nominal.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    nominal.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    nominal.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    panel.appendChild(nominal);
-    root.appendChild(panel);
-    return;
-  }
-
-  const list = document.createElement('div');
-  list.style.display = 'grid';
-  list.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-  for (const finding of sortDiagnosticFindings(diagnostics.findings)) {
-    const severity = diagnosticSeverityUx(finding.severity);
-    const card = document.createElement('article');
-    card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    card.style.border = `1px solid ${statusToneColor(severity.tone)}`;
-    card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-
-    const badge = document.createElement('span');
-    badge.textContent = severity.label;
-    badge.style.display = 'inline-block';
-    badge.style.padding = '2px 8px';
-    badge.style.marginBottom = TOLUE_DESIGN_TOKENS.spacing.sm;
-    badge.style.borderRadius = '999px';
-    badge.style.border = `1px solid ${statusToneColor(severity.tone)}`;
-    badge.style.color = statusToneColor(severity.tone);
-    badge.style.fontWeight = '700';
-
-    const heading = document.createElement('strong');
-    heading.textContent = finding.title;
-    heading.style.display = 'block';
-    const message = document.createElement('p');
-    message.textContent = finding.message;
-
-    const meta = document.createElement('div');
-    meta.style.display = 'flex';
-    meta.style.flexWrap = 'wrap';
-    meta.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
-    meta.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    for (const text of [diagnosticKindLabel(finding.kind), diagnosticBasisLabel(finding.basis), diagnosticValidationLabel(finding.validationStatus)]) {
-      const item = document.createElement('small');
-      item.textContent = text;
-      meta.appendChild(item);
-    }
-
-    card.append(badge, heading, message, meta);
-    if (finding.recommendation) {
-      const recommendation = document.createElement('p');
-      recommendation.textContent = `اقدام پیشنهادی: ${finding.recommendation}`;
-      recommendation.style.marginBottom = '0';
-      recommendation.style.fontWeight = '600';
-      card.appendChild(recommendation);
-    }
-
-    const details = document.createElement('details');
-    details.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    const summaryLine = document.createElement('summary');
-    summaryLine.textContent = 'جزئیات ردیابی';
-    const trace = document.createElement('small');
-    trace.style.display = 'block';
-    trace.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    trace.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    trace.textContent = `Rule: ${finding.ruleId}@${finding.ruleVersion} · Source results: ${finding.sourceResultIds.join(', ') || '—'} · Run: ${finding.sourceRunId}`;
-    details.append(summaryLine, trace);
-    card.appendChild(details);
-    list.appendChild(card);
-  }
-  panel.appendChild(list);
-  root.appendChild(panel);
+export function renderDiagnosticsView(root:HTMLElement,diagnostics?:Readonly<DiagnosticsPresentation>):void{
+  const panel=document.createElement('section');panel.setAttribute('aria-label','تشخیص‌های مهندسی');styleEngineeringSection(panel,true);appendEngineeringSectionHeader(panel,'تشخیص‌ها و هشدارهای مهندسی','Severity، Rule ID، basis و recommendation مستقیماً از Diagnostics Core خوانده می‌شوند.','DIAGNOSTICS');
+  const body=document.createElement('div');body.style.padding='12px';panel.appendChild(body);
+  if(!diagnostics){const empty=document.createElement('div');empty.textContent='هنوز Diagnostics معتبر از Engineering Core دریافت نشده است.';Object.assign(empty.style,{padding:'12px',background:TOLUE_DESIGN_TOKENS.color.surfaceMuted,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,color:TOLUE_DESIGN_TOKENS.color.textMuted});body.appendChild(empty);root.appendChild(panel);return;}
+  const criticalCount=diagnostics.findings.filter(item=>item.severity==='critical').length;const warningCount=diagnostics.findings.filter(item=>item.severity==='warning').length;const infoCount=diagnostics.findings.filter(item=>item.severity==='info').length;
+  const summary=document.createElement('div');Object.assign(summary.style,{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'8px',marginBottom:'12px'});for(const [label,value,tone] of [['بحرانی',criticalCount,'critical'],['هشدار',warningCount,'warning'],['اطلاع',infoCount,'nominal']] as const){const card=document.createElement('article');Object.assign(card.style,{padding:'9px 11px',border:`1px solid ${statusToneColor(tone)}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,background:'rgba(12,23,30,.72)'});const number=document.createElement('strong');number.textContent=String(value);Object.assign(number.style,{display:'block',fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeXl,color:statusToneColor(tone),fontFamily:TOLUE_DESIGN_TOKENS.typography.monoFamily});const text=document.createElement('span');text.textContent=label;card.append(number,text);summary.appendChild(card);}body.appendChild(summary);
+  if(!diagnostics.findings.length){const nominal=document.createElement('div');nominal.textContent='Diagnostics Core هیچ Finding فعالی برای این تحلیل گزارش نکرده است.';Object.assign(nominal.style,{padding:'12px',background:'rgba(85,197,138,.06)',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.statusNominal}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,color:TOLUE_DESIGN_TOKENS.color.statusNominal});body.appendChild(nominal);root.appendChild(panel);return;}
+  const list=document.createElement('div');Object.assign(list.style,{display:'grid',gap:'8px'});
+  for(const finding of sortDiagnosticFindings(diagnostics.findings)){const severity=diagnosticSeverityUx(finding.severity);const card=document.createElement('article');Object.assign(card.style,{padding:'10px 12px',border:`1px solid ${statusToneColor(severity.tone)}`,borderInlineStart:`4px solid ${statusToneColor(severity.tone)}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,background:'rgba(12,23,30,.76)'});const head=document.createElement('div');Object.assign(head.style,{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'});const badge=document.createElement('span');badge.textContent=severity.label;Object.assign(badge.style,{padding:'2px 8px',borderRadius:'999px',border:`1px solid ${statusToneColor(severity.tone)}`,color:statusToneColor(severity.tone),fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeXs,fontWeight:'700'});const heading=document.createElement('strong');heading.textContent=finding.title;head.append(badge,heading);const message=document.createElement('p');message.textContent=finding.message;message.style.margin='7px 0';const meta=document.createElement('div');Object.assign(meta.style,{display:'flex',flexWrap:'wrap',gap:'6px',color:TOLUE_DESIGN_TOKENS.color.textMuted});for(const text of [diagnosticKindLabel(finding.kind),diagnosticBasisLabel(finding.basis),diagnosticValidationLabel(finding.validationStatus)]){const item=document.createElement('small');item.textContent=text;Object.assign(item.style,{padding:'2px 6px',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderRadius:'999px'});meta.appendChild(item);}card.append(head,message,meta);if(finding.recommendation){const recommendation=document.createElement('p');recommendation.textContent=`اقدام پیشنهادی: ${finding.recommendation}`;Object.assign(recommendation.style,{margin:'8px 0 0',padding:'7px 9px',background:TOLUE_DESIGN_TOKENS.color.surfaceMuted,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,fontWeight:'600'});card.appendChild(recommendation);}const details=document.createElement('details');details.style.marginTop='7px';const s=document.createElement('summary');s.textContent='جزئیات ردیابی';s.style.cursor='pointer';const trace=document.createElement('small');trace.textContent=`Rule: ${finding.ruleId}@${finding.ruleVersion} · Source results: ${finding.sourceResultIds.join(', ')||'—'} · Run: ${finding.sourceRunId}`;Object.assign(trace.style,{display:'block',marginTop:'6px',color:TOLUE_DESIGN_TOKENS.color.textMuted,direction:'ltr'});details.append(s,trace);card.appendChild(details);list.appendChild(card);}body.appendChild(list);root.appendChild(panel);
 }
