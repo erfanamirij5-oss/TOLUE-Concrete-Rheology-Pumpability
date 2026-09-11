@@ -1,22 +1,22 @@
-import type { MaterialEngineeringInput, MaterialKind, ProjectMetadataInput } from '../../engineering/core/projectMaterialInput';
+import type { MaterialEngineeringInput, MaterialKind, MaterialPropertyInput, ProjectMetadataInput } from '../../engineering/core/projectMaterialInput';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 
 export type ProjectMetadataField = keyof ProjectMetadataInput;
 export type MaterialIdentityField = 'name' | 'supplier' | 'source' | 'standardReference';
 
+type MutableProjectMetadata = { -readonly [K in keyof ProjectMetadataInput]: ProjectMetadataInput[K] };
+type MutableMaterial = Omit<MaterialEngineeringInput, 'properties'> & { properties: MaterialPropertyInput[] };
+
 function text(value: string): string { return value.trim(); }
 
 export function updateProjectMetadataDraft(input: Readonly<SimulationRunInput>, field: ProjectMetadataField, value: string): Readonly<SimulationRunInput> {
   const next = structuredClone(input) as SimulationRunInput;
-  const current: ProjectMetadataInput = next.projectMetadata ?? { name: '' };
+  const current: MutableProjectMetadata = { ...(next.projectMetadata ?? { name: '' }) };
   const clean = value.trim();
-  if (field === 'name') next.projectMetadata = { ...current, name: value };
-  else if (clean) next.projectMetadata = { ...current, [field]: value };
-  else {
-    const copy = { ...current } as Record<string, string | undefined>;
-    delete copy[field];
-    next.projectMetadata = copy as ProjectMetadataInput;
-  }
+  if (field === 'name') current.name = value;
+  else if (clean) current[field] = value;
+  else delete current[field];
+  next.projectMetadata = current;
   return Object.freeze(next);
 }
 
@@ -32,7 +32,7 @@ export function addMaterialDraft(input: Readonly<SimulationRunInput>, kind: Mate
 export function removeMaterialDraft(input: Readonly<SimulationRunInput>, materialIndex: number): Readonly<SimulationRunInput> {
   if (!(input.materials ?? [])[materialIndex]) throw new Error('MATERIAL-DRAFT-INDEX-001');
   const next = structuredClone(input) as SimulationRunInput;
-  next.materials!.splice(materialIndex, 1);
+  next.materials = (next.materials ?? []).filter((_material, index) => index !== materialIndex);
   return Object.freeze(next);
 }
 
@@ -40,11 +40,14 @@ export function updateMaterialIdentityDraft(input: Readonly<SimulationRunInput>,
   const material = (input.materials ?? [])[materialIndex];
   if (!material) throw new Error('MATERIAL-DRAFT-INDEX-001');
   const next = structuredClone(input) as SimulationRunInput;
-  const target = next.materials![materialIndex] as MaterialEngineeringInput & Record<string, unknown>;
+  const materials = [...(next.materials ?? [])];
+  const target = { ...materials[materialIndex] } as MutableMaterial;
   const clean = value.trim();
   if (field === 'name') target.name = value;
   else if (clean) target[field] = value;
   else delete target[field];
+  materials[materialIndex] = target;
+  next.materials = materials;
   return Object.freeze(next);
 }
 
@@ -59,12 +62,19 @@ export function addMaterialPropertyDraft(input: Readonly<SimulationRunInput>, ma
   const numeric = Number(value);
   const storedValue: number | string = Number.isFinite(numeric) && value.trim() !== '' ? numeric : value;
   const next = structuredClone(input) as SimulationRunInput;
-  next.materials![materialIndex]!.properties.push({
-    key: cleanKey,
-    value: storedValue,
-    ...(unit?.trim() ? { unit: unit.trim() } : {}),
-    ...(provenanceEntityId?.trim() ? { provenanceEntityId: provenanceEntityId.trim() } : {}),
-  });
+  const materials = [...(next.materials ?? [])];
+  const target = materials[materialIndex];
+  if (!target) throw new Error('MATERIAL-DRAFT-INDEX-001');
+  materials[materialIndex] = {
+    ...target,
+    properties: [...target.properties, {
+      key: cleanKey,
+      value: storedValue,
+      ...(unit?.trim() ? { unit: unit.trim() } : {}),
+      ...(provenanceEntityId?.trim() ? { provenanceEntityId: provenanceEntityId.trim() } : {}),
+    }],
+  };
+  next.materials = materials;
   return Object.freeze(next);
 }
 
@@ -72,6 +82,10 @@ export function removeMaterialPropertyDraft(input: Readonly<SimulationRunInput>,
   const material = (input.materials ?? [])[materialIndex];
   if (!material?.properties[propertyIndex]) throw new Error('MATERIAL-DRAFT-PROPERTY-INDEX-001');
   const next = structuredClone(input) as SimulationRunInput;
-  next.materials![materialIndex]!.properties.splice(propertyIndex, 1);
+  const materials = [...(next.materials ?? [])];
+  const target = materials[materialIndex];
+  if (!target) throw new Error('MATERIAL-DRAFT-INDEX-001');
+  materials[materialIndex] = { ...target, properties: target.properties.filter((_property, index) => index !== propertyIndex) };
+  next.materials = materials;
   return Object.freeze(next);
 }
