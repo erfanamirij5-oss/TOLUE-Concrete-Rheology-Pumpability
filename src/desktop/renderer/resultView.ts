@@ -1,154 +1,19 @@
 import { statusToneColor, TOLUE_DESIGN_TOKENS } from './designSystem';
+import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { ResultCenterPresentation } from './resultPresentation';
 import { evidenceStatusUx, pressureFeasibilityUx, pumpabilityDecisionUx, validationStatusUx } from './resultUx';
 
-function displayValue(value: number | string | boolean | null, unit: string | null): string {
-  if (value === null) return '—';
-  const text = String(value);
-  return unit ? `${text} ${unit}` : text;
-}
+function displayValue(value:number|string|boolean|null,unit:string|null):string{if(value===null)return'—';const text=String(value);return unit?`${text} ${unit}`:text;}
+function makeBadge(text:string,tone:'nominal'|'warning'|'critical'|'unknown'):HTMLElement{const badge=document.createElement('span');badge.textContent=text;Object.assign(badge.style,{display:'inline-block',padding:'2px 8px',marginInlineEnd:TOLUE_DESIGN_TOKENS.spacing.sm,border:`1px solid ${statusToneColor(tone)}`,borderRadius:'999px',color:statusToneColor(tone),fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeXs,fontWeight:'700'});return badge;}
+function metricCard(labelText:string,valueText:string,tone:'nominal'|'warning'|'critical'|'unknown'='unknown'):HTMLElement{const card=document.createElement('article');Object.assign(card.style,{padding:'10px 12px',background:'linear-gradient(180deg,rgba(29,43,54,.96),rgba(17,26,34,.96))',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderTop:`2px solid ${statusToneColor(tone)}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm});const label=document.createElement('small');label.textContent=labelText;label.style.color=TOLUE_DESIGN_TOKENS.color.textMuted;const value=document.createElement('strong');value.textContent=valueText;Object.assign(value.style,{display:'block',marginTop:'3px',fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeLg,direction:'ltr'});card.append(label,value);return card;}
 
-function makeBadge(text: string, tone: 'nominal' | 'warning' | 'critical' | 'unknown'): HTMLElement {
-  const badge = document.createElement('span');
-  badge.textContent = text;
-  badge.style.display = 'inline-block';
-  badge.style.padding = '2px 8px';
-  badge.style.marginInlineEnd = TOLUE_DESIGN_TOKENS.spacing.sm;
-  badge.style.border = `1px solid ${statusToneColor(tone)}`;
-  badge.style.borderRadius = '999px';
-  badge.style.color = statusToneColor(tone);
-  badge.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
-  badge.style.fontWeight = '700';
-  return badge;
-}
-
-export function renderResultView(root: HTMLElement, center?: Readonly<ResultCenterPresentation>): void {
-  const panel = document.createElement('section');
-  panel.setAttribute('aria-label', 'مرکز نتایج مهندسی');
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const title = document.createElement('h2');
-  title.textContent = 'مرکز نتایج مهندسی';
-  title.style.marginTop = '0';
-  const note = document.createElement('p');
-  note.textContent = 'وضعیت‌ها و نتایج مستقیماً از Engineering Core نمایش داده می‌شوند؛ رنگ و اولویت‌بندی این صفحه فقط برای خوانایی است و نتیجه مهندسی جدیدی ایجاد نمی‌کند.';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  panel.append(title, note);
-
-  if (!center) {
-    const empty = document.createElement('div');
-    empty.textContent = 'هنوز Result Center معتبر از Engineering Core دریافت نشده است.';
-    empty.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    empty.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    empty.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    panel.appendChild(empty);
-    root.appendChild(panel);
-    return;
-  }
-
-  const summary = document.createElement('section');
-  summary.setAttribute('aria-label', 'خلاصه وضعیت نتایج');
-  summary.style.display = 'grid';
-  summary.style.gridTemplateColumns = 'repeat(auto-fit, minmax(180px, 1fr))';
-  summary.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-  summary.style.marginBottom = TOLUE_DESIGN_TOKENS.spacing.lg;
-
-  const completeness = document.createElement('article');
-  completeness.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-  completeness.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-  completeness.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-  const completenessTitle = document.createElement('small');
-  completenessTitle.textContent = 'کامل بودن تحلیل';
-  const completenessValue = document.createElement('div');
-  completenessValue.textContent = center.completeness === 'complete' ? 'کامل' : 'ناقص';
-  completenessValue.style.fontWeight = '800';
-  completenessValue.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeLg;
-  completenessValue.style.color = statusToneColor(center.completeness === 'complete' ? 'nominal' : 'warning');
-  completeness.append(completenessTitle, completenessValue);
-  summary.appendChild(completeness);
-
-  if (center.pumpabilityDecision) {
-    const decisionUx = pumpabilityDecisionUx(center.pumpabilityDecision.status);
-    const pressureUx = pressureFeasibilityUx(center.pumpabilityDecision.pressureFeasibility);
-    const decision = document.createElement('article');
-    decision.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    decision.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    decision.style.border = `1px solid ${statusToneColor(decisionUx.tone)}`;
-    decision.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const label = document.createElement('small');
-    label.textContent = 'تصمیم پمپ‌پذیری';
-    const value = document.createElement('div');
-    value.textContent = decisionUx.label;
-    value.style.fontWeight = '800';
-    value.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeLg;
-    value.style.color = statusToneColor(decisionUx.tone);
-    const axes = document.createElement('div');
-    axes.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    axes.append(makeBadge(`فشار: ${pressureUx.label}`, pressureUx.tone));
-    const stabilityTone = center.pumpabilityDecision.stability === 'UNACCEPTABLE' ? 'critical' : center.pumpabilityDecision.stability === 'ACCEPTABLE' ? 'nominal' : 'unknown';
-    const blockageTone = center.pumpabilityDecision.blockageRisk === 'UNACCEPTABLE' ? 'critical' : center.pumpabilityDecision.blockageRisk === 'ACCEPTABLE' ? 'nominal' : 'unknown';
-    axes.append(makeBadge(`پایداری: ${center.pumpabilityDecision.stability}`, stabilityTone));
-    axes.append(makeBadge(`انسداد: ${center.pumpabilityDecision.blockageRisk}`, blockageTone));
-    decision.append(label, value, axes);
-    summary.appendChild(decision);
-  }
-  panel.appendChild(summary);
-
-  if (center.warnings.length > 0) {
-    const warnings = document.createElement('section');
-    warnings.setAttribute('aria-label', 'هشدارهای نتایج');
-    warnings.style.marginBottom = TOLUE_DESIGN_TOKENS.spacing.lg;
-    warnings.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    warnings.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.statusWarning}`;
-    warnings.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const warningTitle = document.createElement('strong');
-    warningTitle.textContent = `هشدارها (${center.warnings.length})`;
-    const list = document.createElement('ul');
-    for (const warning of center.warnings) { const item = document.createElement('li'); item.textContent = warning; list.appendChild(item); }
-    warnings.append(warningTitle, list);
-    panel.appendChild(warnings);
-  }
-
-  const grid = document.createElement('div');
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
-  grid.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-  for (const result of center.results) {
-    const validation = validationStatusUx(result.validationStatus);
-    const evidence = evidenceStatusUx(result.evidenceStatus);
-    const card = document.createElement('article');
-    card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-    card.style.borderInlineStart = `4px solid ${statusToneColor(validation.tone)}`;
-    card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const heading = document.createElement('strong');
-    heading.textContent = result.label;
-    const value = document.createElement('div');
-    value.textContent = displayValue(result.value, result.unit);
-    value.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.sm} 0`;
-    value.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeLg;
-    value.style.fontWeight = '800';
-    const badges = document.createElement('div');
-    badges.append(makeBadge(validation.label, validation.tone), makeBadge(evidence.label, evidence.tone));
-    const meta = document.createElement('small');
-    meta.textContent = `${result.resultClass} · ${result.methodId} v${result.methodVersion}`;
-    meta.style.display = 'block';
-    meta.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    meta.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    const trace = document.createElement('details');
-    trace.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    const traceSummary = document.createElement('summary');
-    traceSummary.textContent = 'دامنه و ردیابی';
-    const traceText = document.createElement('p');
-    traceText.textContent = result.applicability;
-    traceText.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    trace.append(traceSummary, traceText);
-    card.append(heading, value, badges, meta, trace);
-    grid.appendChild(card);
-  }
-  panel.appendChild(grid);
-  root.appendChild(panel);
+export function renderResultView(root:HTMLElement,center?:Readonly<ResultCenterPresentation>):void{
+  const panel=document.createElement('section');panel.setAttribute('aria-label','مرکز نتایج مهندسی');styleEngineeringSection(panel,true);appendEngineeringSectionHeader(panel,'مرکز نتایج مهندسی','خروجی‌های این بخش فقط Presentation داده‌های Engineering Core هستند و Renderer نتیجه مهندسی جدید تولید نمی‌کند.','RESULT CENTER');
+  const body=document.createElement('div');body.style.padding='12px';panel.appendChild(body);
+  if(!center){const empty=document.createElement('div');empty.textContent='هنوز Result Center معتبر از Engineering Core دریافت نشده است.';Object.assign(empty.style,{padding:'12px',background:TOLUE_DESIGN_TOKENS.color.surfaceMuted,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,color:TOLUE_DESIGN_TOKENS.color.textMuted});body.appendChild(empty);root.appendChild(panel);return;}
+  const summary=document.createElement('section');Object.assign(summary.style,{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'8px',marginBottom:'12px'});summary.appendChild(metricCard('کامل بودن تحلیل',center.completeness==='complete'?'COMPLETE':'INCOMPLETE',center.completeness==='complete'?'nominal':'warning'));
+  if(center.pumpabilityDecision){const decisionUx=pumpabilityDecisionUx(center.pumpabilityDecision.status);const pressureUx=pressureFeasibilityUx(center.pumpabilityDecision.pressureFeasibility);const decision=metricCard('تصمیم پمپ‌پذیری',decisionUx.label,decisionUx.tone);const axes=document.createElement('div');axes.style.marginTop='7px';axes.append(makeBadge(`فشار: ${pressureUx.label}`,pressureUx.tone));const stabilityTone=center.pumpabilityDecision.stability==='UNACCEPTABLE'?'critical':center.pumpabilityDecision.stability==='ACCEPTABLE'?'nominal':'unknown';const blockageTone=center.pumpabilityDecision.blockageRisk==='UNACCEPTABLE'?'critical':center.pumpabilityDecision.blockageRisk==='ACCEPTABLE'?'nominal':'unknown';axes.append(makeBadge(`پایداری: ${center.pumpabilityDecision.stability}`,stabilityTone),makeBadge(`انسداد: ${center.pumpabilityDecision.blockageRisk}`,blockageTone));decision.appendChild(axes);summary.appendChild(decision);}body.appendChild(summary);
+  if(center.warnings.length){const warnings=document.createElement('section');Object.assign(warnings.style,{marginBottom:'12px',padding:'10px 12px',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.statusWarning}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,background:'rgba(240,180,79,.06)'});const title=document.createElement('strong');title.textContent=`هشدارهای Result Center · ${center.warnings.length}`;title.style.color=TOLUE_DESIGN_TOKENS.color.statusWarning;const list=document.createElement('ul');list.style.marginBottom='0';for(const warning of center.warnings){const li=document.createElement('li');li.textContent=warning;list.appendChild(li);}warnings.append(title,list);body.appendChild(warnings);}
+  const grid=document.createElement('div');Object.assign(grid.style,{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:'9px'});
+  for(const result of center.results){const validation=validationStatusUx(result.validationStatus);const evidence=evidenceStatusUx(result.evidenceStatus);const card=document.createElement('article');Object.assign(card.style,{padding:'11px 12px',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderInlineStart:`4px solid ${statusToneColor(validation.tone)}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,background:'rgba(12,23,30,.72)'});const heading=document.createElement('strong');heading.textContent=result.label;const value=document.createElement('div');value.textContent=displayValue(result.value,result.unit);Object.assign(value.style,{margin:'5px 0',fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeLg,fontWeight:'800',fontFamily:TOLUE_DESIGN_TOKENS.typography.monoFamily,direction:'ltr'});const badges=document.createElement('div');badges.append(makeBadge(validation.label,validation.tone),makeBadge(evidence.label,evidence.tone));const meta=document.createElement('small');meta.textContent=`${result.resultClass} · ${result.methodId} v${result.methodVersion}`;Object.assign(meta.style,{display:'block',marginTop:'6px',color:TOLUE_DESIGN_TOKENS.color.textMuted,direction:'ltr'});const trace=document.createElement('details');trace.style.marginTop='7px';const s=document.createElement('summary');s.textContent='دامنه و ردیابی';s.style.cursor='pointer';const p=document.createElement('p');p.textContent=result.applicability;Object.assign(p.style,{color:TOLUE_DESIGN_TOKENS.color.textMuted,marginBottom:'0'});trace.append(s,p);card.append(heading,value,badges,meta,trace);grid.appendChild(card);}body.appendChild(grid);root.appendChild(panel);
 }
