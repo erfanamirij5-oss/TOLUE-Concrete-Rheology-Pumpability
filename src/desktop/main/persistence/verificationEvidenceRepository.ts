@@ -25,9 +25,13 @@ export interface VerificationEvidencePackageRowStore {
   readonly listVerificationEvidencePackages: () => readonly Readonly<PersistedVerificationEvidencePackageRow>[];
 }
 
+function validIso(value: string, errorCode: string): void {
+  if (!Number.isFinite(Date.parse(value))) throw new Error(errorCode);
+}
+
 function rowFor(input: Readonly<VerificationEvidencePackage>, importedAtIso: string): Readonly<PersistedVerificationEvidencePackageRow> {
   validateVerificationEvidencePackage(input);
-  if (!Number.isFinite(Date.parse(importedAtIso))) throw new Error('VERIFICATION-PERSISTENCE-IMPORTED-AT-001');
+  validIso(importedAtIso, 'VERIFICATION-PERSISTENCE-IMPORTED-AT-001');
   return Object.freeze({
     packageId: input.packageId,
     generatedAtIso: input.generatedAtIso,
@@ -40,6 +44,11 @@ function rowFor(input: Readonly<VerificationEvidencePackage>, importedAtIso: str
 }
 
 function parseRow(row: Readonly<PersistedVerificationEvidencePackageRow>): Readonly<VerificationEvidencePackage> {
+  if (!row.packageId.trim() || !row.generatedBy.trim() || !row.purpose.trim() || !Number.isInteger(row.entryCount) || row.entryCount <= 0) {
+    throw new Error('VERIFICATION-PERSISTENCE-INTEGRITY-000');
+  }
+  validIso(row.generatedAtIso, 'VERIFICATION-PERSISTENCE-INTEGRITY-GENERATED-AT-001');
+  validIso(row.importedAtIso, 'VERIFICATION-PERSISTENCE-INTEGRITY-IMPORTED-AT-001');
   let parsed: VerificationEvidencePackage;
   try { parsed = JSON.parse(row.packageJson) as VerificationEvidencePackage; }
   catch { throw new Error('VERIFICATION-PERSISTENCE-JSON-001'); }
@@ -61,6 +70,7 @@ export function createVerificationEvidenceRepository(store: Readonly<Verificatio
       const next = rowFor(input, importedAtIso);
       const existing = store.readVerificationEvidencePackage(next.packageId);
       if (existing) {
+        parseRow(existing);
         if (same(existing, next)) return;
         throw new Error('VERIFICATION-PERSISTENCE-IMMUTABLE-001');
       }
