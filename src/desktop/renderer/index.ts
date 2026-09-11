@@ -2,6 +2,7 @@ import type { EngineeringPdfExportRequest } from '../../engineering/core/enginee
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { TolueBridge } from '../preload/tolueBridge';
 import { renderApplicationShell } from './applicationShell';
+import { installBrandIcon } from './brandIconCanvas';
 
 export interface RendererPlatform {
   readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
@@ -35,6 +36,7 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
     compareEngineeringRuns: platform.compareEngineeringRuns,
     exportEngineeringPdf: platform.exportEngineeringPdf,
   });
+  installBrandIcon(root);
   root.dataset.rendererReady = 'true';
   return platform;
 }
