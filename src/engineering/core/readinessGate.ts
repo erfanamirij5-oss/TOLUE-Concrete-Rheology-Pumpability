@@ -3,6 +3,7 @@ import { assessInputEvidence } from './inputProvenance';
 import { evaluateProjectCalibratedLocalLoss } from './projectCalibratedLocalLoss';
 import { assessLubricationLayerQualification } from './lubricationLayerQualification';
 import { qualifyPumpOperatingEnvelope } from './pumpOperatingEnvelope';
+import { assessProjectAndMaterialInputs } from './projectMaterialInput';
 
 export type ReadinessStatus = 'READY' | 'PRELIMINARY' | 'BLOCKED';
 export type ReadinessSeverity = 'info' | 'warning' | 'blocking';
@@ -33,6 +34,13 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   if (!input.runId.trim()) block('readiness.runId.missing', 'runId', 'runId is required.', 'RG-META-001');
   if (!input.engineVersion.trim()) block('readiness.engineVersion.missing', 'engineVersion', 'engineVersion is required.', 'RG-META-002');
   if (!Number.isFinite(Date.parse(input.createdAtIso))) block('readiness.createdAt.invalid', 'createdAtIso', 'A valid analysis timestamp is required.', 'RG-META-003');
+
+  const projectMaterials = assessProjectAndMaterialInputs(input.projectMetadata, input.materials);
+  projectMaterials.findings.forEach((finding, index) => {
+    const id = `readiness.projectMaterial.${index}`;
+    if (finding.severity === 'blocking') block(id, finding.field, finding.message, finding.ruleId);
+    else warn(id, finding.field, finding.message, finding.ruleId);
+  });
 
   const p = input.pipeline;
   if (!finiteNonNegative(p.targetFlowRateM3s)) block('readiness.flow.invalid', 'pipeline.targetFlowRateM3s', 'Target flow rate must be finite and >= 0.', 'RG-PIPE-001');
@@ -69,7 +77,6 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
           if (calibrated.status !== 'computed') {
             block(`readiness.localCalibration.domain.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, 'Target flow is outside the supplied project-calibrated local-loss curve; extrapolation is prohibited.', 'RG-LOCAL-CAL-003');
           }
-
           const entityId = segment.calibratedLocalLoss.provenanceEntityId;
           const record = input.provenance?.localLossCalibrations?.[entityId];
           if (!record) {
@@ -148,12 +155,7 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
   if (p.segments.some(segment => segment.kind === 'straight')) {
-    warn(
-      'readiness.model.straightPipe.validationPending',
-      'pipeline.segments',
-      'The current two-fluid Bingham straight-pipe solver is still pending commercial Tier-B/Tier-C validation. Execution is permitted for engineering evaluation, but the run remains PRELIMINARY and must not be treated as an unqualified production prediction.',
-      'RG-MODEL-STRAIGHT-VALIDATION-001',
-    );
+    warn('readiness.model.straightPipe.validationPending','pipeline.segments','The current two-fluid Bingham straight-pipe solver is still pending commercial Tier-B/Tier-C validation. Execution is permitted for engineering evaluation, but the run remains PRELIMINARY and must not be treated as an unqualified production prediction.','RG-MODEL-STRAIGHT-VALIDATION-001');
   }
 
   const blocked = findings.some(f => f.severity === 'blocking');
