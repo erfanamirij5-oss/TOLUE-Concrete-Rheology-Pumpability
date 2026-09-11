@@ -2,9 +2,11 @@ import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { PressureProfilePresentation } from './pressureProfilePresentation';
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 export interface PressureProfileViewOptions {
-  readonly selectedSegmentId?: string | null;
-  readonly onSelectSegment?: (segmentId: string) => void;
+  readonly selectedSegmentId?: string | null | undefined;
+  readonly onSelectSegment?: ((segmentId: string) => void) | undefined;
 }
 
 function pressure(value: number | null): string {
@@ -40,7 +42,7 @@ function renderPressureChart(
 
   const wrapper = document.createElement('div');
   Object.assign(wrapper.style, { marginTop: TOLUE_DESIGN_TOKENS.spacing.lg, overflowX: 'auto' });
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'نمودار فشار باقی‌مانده در طول مسیر');
@@ -53,18 +55,18 @@ function renderPressureChart(
 
   for (let i = 0; i <= 4; i += 1) {
     const gy = padding + ((height - 2 * padding) * i) / 4;
-    const grid = document.createElementNS(svg.namespaceURI, 'line');
+    const grid = document.createElementNS(SVG_NS, 'line');
     grid.setAttribute('x1', String(padding)); grid.setAttribute('x2', String(width - padding));
     grid.setAttribute('y1', String(gy)); grid.setAttribute('y2', String(gy));
     grid.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border); grid.setAttribute('opacity', '.35');
     svg.appendChild(grid);
   }
 
-  const axisX = document.createElementNS(svg.namespaceURI, 'line');
+  const axisX = document.createElementNS(SVG_NS, 'line');
   axisX.setAttribute('x1', String(padding)); axisX.setAttribute('y1', String(height - padding));
   axisX.setAttribute('x2', String(width - padding)); axisX.setAttribute('y2', String(height - padding));
   axisX.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.borderStrong);
-  const axisY = document.createElementNS(svg.namespaceURI, 'line');
+  const axisY = document.createElementNS(SVG_NS, 'line');
   axisY.setAttribute('x1', String(padding)); axisY.setAttribute('y1', String(padding));
   axisY.setAttribute('x2', String(padding)); axisY.setAttribute('y2', String(height - padding));
   axisY.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.borderStrong);
@@ -79,7 +81,7 @@ function renderPressureChart(
       || previous.remainingRequiredPressurePa === null || current.remainingRequiredPressurePa === null
     ) continue;
     const selected = Boolean(options.selectedSegmentId && current.segmentId === options.selectedSegmentId);
-    const segmentLine = document.createElementNS(svg.namespaceURI, 'line');
+    const segmentLine = document.createElementNS(SVG_NS, 'line');
     segmentLine.setAttribute('x1', String(x(previous.positionM)));
     segmentLine.setAttribute('y1', String(y(previous.remainingRequiredPressurePa)));
     segmentLine.setAttribute('x2', String(x(current.positionM)));
@@ -97,7 +99,7 @@ function renderPressureChart(
 
   for (const point of drawable) {
     const selected = Boolean(options.selectedSegmentId && point.segmentId === options.selectedSegmentId);
-    const circle = document.createElementNS(svg.namespaceURI, 'circle');
+    const circle = document.createElementNS(SVG_NS, 'circle');
     circle.setAttribute('cx', String(x(point.positionM!)));
     circle.setAttribute('cy', String(y(point.remainingRequiredPressurePa!)));
     circle.setAttribute('r', selected ? '6' : '4');
@@ -109,7 +111,7 @@ function renderPressureChart(
       circle.style.cursor = 'pointer';
       circle.addEventListener('click', () => options.onSelectSegment?.(point.segmentId!));
     }
-    const title = document.createElementNS(svg.namespaceURI, 'title');
+    const title = document.createElementNS(SVG_NS, 'title');
     title.textContent = `#${point.index} · ${point.segmentId ?? 'INLET'} · ${point.positionM} m · ${pressure(point.remainingRequiredPressurePa)}`;
     circle.appendChild(title);
     svg.appendChild(circle);
