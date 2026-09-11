@@ -1,6 +1,7 @@
 import type { PipelineSegment } from '../../engineering/core/pipeline';
 import { validateSpatialPipeline, type SpatialPipelineValidationResult } from '../../engineering/core/spatialPipeline';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
+import type { VisualizationSegment3D } from '../../engineering/core/visualization3d';
 import type { Visualization3DPresentation } from './visualization3dPresentation';
 
 export interface PipelineSceneSegmentPresentation {
@@ -13,7 +14,7 @@ export interface PipelineSceneSegmentPresentation {
   readonly lengthM: number | null;
   readonly pipeRadiusM: number | null;
   readonly elevationChangeM: number;
-  readonly hydraulicStatus: 'computed' | 'not_computed' | 'not_run';
+  readonly hydraulicStatus: VisualizationSegment3D['hydraulicStatus'] | 'not_run';
   readonly totalPressureChangePa: number | null;
 }
 
