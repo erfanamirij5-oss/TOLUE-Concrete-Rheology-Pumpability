@@ -1,6 +1,7 @@
 import { SimulationRunInput } from './simulationRun';
 import { assessInputEvidence } from './inputProvenance';
 import { evaluateProjectCalibratedLocalLoss } from './projectCalibratedLocalLoss';
+import { assessLubricationLayerQualification } from './lubricationLayerQualification';
 
 export type ReadinessStatus = 'READY' | 'PRELIMINARY' | 'BLOCKED';
 export type ReadinessSeverity = 'info' | 'warning' | 'blocking';
@@ -110,6 +111,13 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   } else {
     warn('readiness.provenance.missing', 'provenance', 'Structured input provenance is not supplied; execution may proceed only as PRELIMINARY unless a project-calibrated local-loss segment requires provenance binding.', 'RG-PROV-002');
   }
+
+  const llQualification = assessLubricationLayerQualification(input.lubricationLayerQualification, input.provenance);
+  llQualification.findings.forEach((finding, index) => {
+    const id = `readiness.lubricationLayerQualification.${index}`;
+    if (finding.severity === 'blocking') block(id, 'lubricationLayerQualification', finding.message, finding.ruleId);
+    else warn(id, 'lubricationLayerQualification', finding.message, finding.ruleId);
+  });
 
   if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
