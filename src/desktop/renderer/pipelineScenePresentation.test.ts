@@ -15,7 +15,14 @@ const analysis = {
   runId:'scene-001',inputSnapshotHash:'hash',segments:[{
     id:'S1',kind:'straight',startStationM:0,endStationM:5,startElevationM:0,endElevationM:0,pipeRadiusM:0.05,
     spatialStartPoint:{xM:0,yM:0,zM:0},spatialEndPoint:{xM:5,yM:0,zM:0},connectedFromSegmentId:null,
-    flowRateM3s:{value:0.02,unit:'m3/s',status:'computed'},frictionPressureLossPa:{value:1000,unit:'Pa',status:'computed'},elevationPressurePa:{value:0,unit:'Pa',status:'computed'},totalPressureChangePa:{value:1000,unit:'Pa',status:'computed'},inletRemainingPressurePa:{value:2000,unit:'Pa',status:'computed'},outletRemainingPressurePa:{value:1000,unit:'Pa',status:'computed'},lubricationLayerThicknessM:{value:0.002,unit:'m',status:'computed'},hydraulicStatus:'computed',diagnosticFindingIds:[],
+    flowRateM3s:{value:0.02,unit:'m3/s',status:'computed',sourceResultId:null},
+    frictionPressureLossPa:{value:1000,unit:'Pa',status:'computed',sourceResultId:null},
+    elevationPressurePa:{value:0,unit:'Pa',status:'computed',sourceResultId:null},
+    totalPressureChangePa:{value:1000,unit:'Pa',status:'computed',sourceResultId:null},
+    inletRemainingPressurePa:{value:2000,unit:'Pa',status:'computed',sourceResultId:'pipeline.requiredPressure'},
+    outletRemainingPressurePa:{value:1000,unit:'Pa',status:'computed',sourceResultId:null},
+    lubricationLayerThicknessM:{value:0.002,unit:'m',status:'computed',sourceResultId:null},
+    hydraulicStatus:'computed',diagnosticFindingIds:[],
   }],spatialValidation:{status:'valid',issues:[],spatialSegmentCount:1,method:'tolue-spatial-pipeline-validation-v1'},pumpabilityDecision:null,completeness:'complete',representation:'engineering_visualization',physicalSimulationClaim:false,pressureProfileAssumption:'stationary-segment-properties',method:'tolue-3d-visualization-contract-v3',warnings:[],
 } satisfies Visualization3DPresentation;
 
