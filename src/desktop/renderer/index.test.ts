@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EngineeringPdfExportRequest } from '../../engineering/core/engineeringPdfExport';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import type { TolueBridge } from '../preload/tolueBridge';
-import { createRendererPlatform } from './index';
+import { COMMERCIAL_WORKSPACE_LAYOUT, createRendererPlatform } from './index';
 
 const pdfRequest: EngineeringPdfExportRequest = {
   runId: 'run-renderer', engineVersion: 'v1', inputSnapshotHash: 'hash-renderer', fileName: 'report.pdf', html: '<html dir="rtl">گزارش</html>',
@@ -35,5 +35,15 @@ describe('renderer application boundary', () => {
     await platform.listVerificationEvidencePackages(); expect(listVerificationEvidencePackages).toHaveBeenCalledOnce();
     await platform.loadVerificationEvidencePackage('VP-001'); expect(loadVerificationEvidencePackage).toHaveBeenCalledWith('VP-001');
   });
+
+  it('keeps a usable center viewport and bounded bottom console at the commercial minimum width', () => {
+    const centerWidthPx = COMMERCIAL_WORKSPACE_LAYOUT.minWidthPx - COMMERCIAL_WORKSPACE_LAYOUT.treeWidthPx - COMMERCIAL_WORKSPACE_LAYOUT.inspectorWidthPx;
+    expect(centerWidthPx).toBeGreaterThanOrEqual(COMMERCIAL_WORKSPACE_LAYOUT.centerMinWidthPx);
+    expect(COMMERCIAL_WORKSPACE_LAYOUT.bottomMinHeightPx).toBeGreaterThan(0);
+    expect(COMMERCIAL_WORKSPACE_LAYOUT.bottomMaxHeightPx).toBeGreaterThan(COMMERCIAL_WORKSPACE_LAYOUT.bottomMinHeightPx);
+    expect(COMMERCIAL_WORKSPACE_LAYOUT.bottomPreferredVh).toBeGreaterThan(0);
+    expect(COMMERCIAL_WORKSPACE_LAYOUT.bottomPreferredVh).toBeLessThan(50);
+  });
+
   it('fails closed when any preload bridge operation is unavailable', () => { expect(() => createRendererPlatform({} as Readonly<TolueBridge>)).toThrow('RENDERER-BRIDGE-001'); });
 });
