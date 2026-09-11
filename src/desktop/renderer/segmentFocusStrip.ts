@@ -94,11 +94,16 @@ export function appendLiveSegmentFocusStrip(parent: HTMLElement): HTMLElement {
   renderStrip(strip, activeSegmentFocusSnapshot());
 
   if (typeof MutationObserver !== 'undefined' && document.body) {
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
       if (!strip.isConnected) {
         observer.disconnect();
         return;
       }
+      const hasExternalMutation = mutations.some((mutation) => {
+        const target = mutation.target;
+        return target !== strip && !strip.contains(target);
+      });
+      if (!hasExternalMutation) return;
       renderStrip(strip, activeSegmentFocusSnapshot());
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-segment-id', 'data-segment-stale', 'data-segment-total-pressure-pa', 'data-segment-friction-pressure-pa', 'data-segment-elevation-pressure-pa', 'data-segment-flow-rate-m3s', 'data-segment-diagnostic-finding-ids'] });
