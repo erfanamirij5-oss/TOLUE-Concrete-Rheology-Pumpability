@@ -45,8 +45,6 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
     compareEngineeringRuns: platform.compareEngineeringRuns,
     exportEngineeringPdf: platform.exportEngineeringPdf,
     importVerificationEvidence: platform.importVerificationEvidence,
-    listVerificationEvidencePackages: platform.listVerificationEvidencePackages,
-    loadVerificationEvidencePackage: platform.loadVerificationEvidencePackage,
   });
   installBrandIcon(root);
   root.dataset.rendererReady = 'true';
