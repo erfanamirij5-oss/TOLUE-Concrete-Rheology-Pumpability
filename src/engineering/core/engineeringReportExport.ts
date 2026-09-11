@@ -1,5 +1,6 @@
 import { FinalEngineeringOutput, FinalEngineeringKeyResult } from './finalEngineeringOutput';
 import { EngineeringReportHtmlExport, renderPersianEngineeringReportHtml } from './engineeringReportHtml';
+import { mergeScientificClaimBoundaries } from './claimBoundaries';
 
 export type EngineeringReportDirection = 'rtl';
 export type EngineeringReportLocale = 'fa-IR';
@@ -163,7 +164,7 @@ export function buildPersianEngineeringReportDocument(output: FinalEngineeringOu
       sourceResultIds: cloneStrings(finding.sourceResultIds),
     })),
     warnings: cloneStrings(output.warnings),
-    limitations: cloneStrings(output.limitations),
+    limitations: mergeScientificClaimBoundaries(output.limitations),
     traceability: {
       runId: output.traceability.runId,
       engineVersion: output.traceability.engineVersion,
