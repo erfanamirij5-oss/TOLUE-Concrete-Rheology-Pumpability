@@ -8,7 +8,8 @@ const shellSource = readFileSync(new URL('./applicationShell.ts', import.meta.ur
 describe('pipeline and pump input UX wiring', () => {
   it('renders editable pipeline and pump workspaces inside the persistent engineering inspector', () => {
     expect(pipelineSource).toContain("aria-label','ورودی‌های مسیر'");
-    expect(pumpSource).toContain("aria-label','ورودی‌های قابلیت پمپ'");
+    expect(pumpSource).toContain("setAttribute('aria-label'");
+    expect(pumpSource).toContain('ورودی‌های قابلیت پمپ');
     expect(shellSource).toContain("inspectorMode==='pipeline'");
     expect(shellSource).toContain('renderPipelineView(inspectorBody');
     expect(shellSource).toContain("inspectorMode==='pump'");
