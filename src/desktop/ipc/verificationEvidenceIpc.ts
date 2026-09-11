@@ -1,9 +1,17 @@
 import type { VerificationEvidencePackage } from '../../engineering/core/verificationEvidencePackage';
-import type { VerificationEvidencePackageHistoryItem } from '../main/persistence/verificationEvidenceRepository';
 
 export const VERIFICATION_EVIDENCE_IMPORT_CHANNEL = 'tolue:verification-evidence:import:v1' as const;
 export const VERIFICATION_EVIDENCE_HISTORY_CHANNEL = 'tolue:verification-evidence:history:v1' as const;
 export const VERIFICATION_EVIDENCE_LOAD_CHANNEL = 'tolue:verification-evidence:load:v1' as const;
+
+export interface VerificationEvidencePackageHistoryItem {
+  readonly packageId: string;
+  readonly generatedAtIso: string;
+  readonly generatedBy: string;
+  readonly purpose: string;
+  readonly entryCount: number;
+  readonly importedAtIso: string;
+}
 
 export interface VerificationEvidenceImportIpcRequest { readonly channel: typeof VERIFICATION_EVIDENCE_IMPORT_CHANNEL; }
 export interface VerificationEvidenceHistoryIpcRequest { readonly channel: typeof VERIFICATION_EVIDENCE_HISTORY_CHANNEL; }
