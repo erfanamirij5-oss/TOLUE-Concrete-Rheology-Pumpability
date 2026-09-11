@@ -4,6 +4,7 @@ import type { TolueBridge } from '../preload/tolueBridge';
 import { createBlankEngineeringDraftState, createSampleEngineeringDraftState, type ApplicationDataFlowState } from './applicationDataFlow';
 import { renderApplicationShell } from './applicationShell';
 import { installBrandIcon } from './brandIconCanvas';
+import { installWorkspaceInteractionPolish } from './workspaceInteractionPolish';
 
 export interface RendererPlatform {
   readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
@@ -66,9 +67,24 @@ function installPersistentWorkspacePolish(root: HTMLElement): void {
 [data-commercial-ui="v2"] > div > section button:active:not(:disabled) { transform:translateY(1px); }
 [data-commercial-ui="v2"] > div > header button:disabled,
 [data-commercial-ui="v2"] > div > section button:disabled { opacity:.48; cursor:not-allowed !important; }
+[data-commercial-ui="v2"] button[data-run-action="true"] { min-width:118px; font-weight:800 !important; position:relative; padding-inline-start:28px !important; }
+[data-commercial-ui="v2"] button[data-run-action="true"]::before { content:""; position:absolute; inset-inline-start:10px; width:8px; height:8px; border-radius:50%; background:#73828a; box-shadow:0 0 0 3px rgba(115,130,138,.10); }
+[data-commercial-ui="v2"] button[data-run-state="ready"] { color:#ffe0b7 !important; border-color:rgba(245,155,50,.55) !important; background:linear-gradient(180deg,rgba(245,155,50,.17),rgba(245,155,50,.08)) !important; }
+[data-commercial-ui="v2"] button[data-run-state="ready"]::before { background:#f59b32; box-shadow:0 0 0 3px rgba(245,155,50,.14); }
+[data-commercial-ui="v2"] button[data-run-state="stale"] { color:#ffd28e !important; border-color:rgba(237,173,65,.55) !important; background:rgba(237,173,65,.10) !important; }
+[data-commercial-ui="v2"] button[data-run-state="stale"]::before { background:#edaf41; }
+[data-commercial-ui="v2"] button[data-run-state="running"] { color:#bcecff !important; border-color:rgba(89,184,223,.55) !important; background:rgba(36,152,197,.12) !important; }
+[data-commercial-ui="v2"] button[data-run-state="running"]::before { background:#59b8df; animation:tolue-run-pulse 1s ease-in-out infinite; }
+[data-commercial-ui="v2"] button[data-run-state="blocked"]::before { background:#73828a; }
+@keyframes tolue-run-pulse { 0%,100%{box-shadow:0 0 0 2px rgba(89,184,223,.12)} 50%{box-shadow:0 0 0 7px rgba(89,184,223,0)} }
 [data-commercial-ui="v2"] > div > div > aside:first-child button { position:relative; overflow:hidden; }
 [data-commercial-ui="v2"] > div > div > aside:first-child button::after { content:""; position:absolute; inset-inline-start:0; top:7px; bottom:7px; width:2px; border-radius:4px; background:transparent; }
 [data-commercial-ui="v2"] > div > div > aside:first-child button:hover::after { background:#2498c5; }
+[data-commercial-ui="v2"] > div > div > aside:first-child button[data-active="true"]::after { background:#f59b32; }
+[data-commercial-ui="v2"] > div > div > aside:first-child button[data-active="true"] { box-shadow:inset 0 0 0 1px rgba(245,155,50,.08); }
+[data-commercial-ui="v2"] [data-blank-guidance="true"] { display:grid; gap:5px; margin:8px; padding:10px; border:1px solid rgba(245,155,50,.24); border-radius:10px; background:linear-gradient(180deg,rgba(245,155,50,.07),rgba(255,255,255,.015)); }
+[data-commercial-ui="v2"] [data-blank-guidance="true"] strong { color:#ffc477; font-size:12px; }
+[data-commercial-ui="v2"] [data-blank-guidance="true"] span { color:#92a3ad; font-size:11px; }
 [data-commercial-ui="v2"] > div > section { min-height:0; overflow:hidden; border-top:1px solid #2b414f !important; background:linear-gradient(180deg,#101a21 0%,#0d151b 100%) !important; box-shadow:0 -10px 30px rgba(0,0,0,.20) !important; }
 [data-commercial-ui="v2"] > div > section > div:first-child { min-width:0; min-height:38px; padding:4px 10px !important; gap:5px !important; background:linear-gradient(180deg,#142029,#101920); border-bottom:1px solid #263a47 !important; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
 [data-commercial-ui="v2"] > div > section > div:first-child button { min-height:28px; padding:5px 10px !important; white-space:nowrap; border-radius:7px !important; }
@@ -209,6 +225,7 @@ export function bootstrapRenderer(target: Document = document): Readonly<Rendere
     renderApplicationShell(root, state, actions);
     installBrandIcon(root);
     installCommercialWorkspaceChrome(root, sampleLoaded);
+    installWorkspaceInteractionPolish(root, sampleLoaded);
     installSampleResetControl(root, () => {
       const blank = createBlankEngineeringDraftState(`draft-${crypto.randomUUID()}`, new Date().toISOString());
       renderWorkspace(blank, false);
