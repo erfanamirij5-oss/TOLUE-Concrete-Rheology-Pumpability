@@ -4,6 +4,7 @@ import { evaluateProjectCalibratedLocalLoss } from './projectCalibratedLocalLoss
 import { assessLubricationLayerQualification } from './lubricationLayerQualification';
 import { qualifyPumpOperatingEnvelope } from './pumpOperatingEnvelope';
 import { assessProjectAndMaterialInputs } from './projectMaterialInput';
+import { assessPumpabilityEvidenceReadiness } from './pumpabilityEvidenceReadiness';
 
 export type ReadinessStatus = 'READY' | 'PRELIMINARY' | 'BLOCKED';
 export type ReadinessSeverity = 'info' | 'warning' | 'blocking';
@@ -49,6 +50,13 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
 
   if (!finiteNonNegative(p.bulk.yieldStressPa) || !finitePositive(p.bulk.plasticViscosityPaS)) block('readiness.bulkRheology.invalid', 'pipeline.bulk', 'Bulk Bingham yield stress must be >= 0 and plastic viscosity must be > 0.', 'RG-RHEO-001');
   if (!finiteNonNegative(p.lubricationLayer.yieldStressPa) || !finitePositive(p.lubricationLayer.plasticViscosityPaS)) block('readiness.llRheology.invalid', 'pipeline.lubricationLayer', 'Lubrication-layer Bingham yield stress must be >= 0 and plastic viscosity must be > 0.', 'RG-RHEO-002');
+
+  const projectEvidence = assessPumpabilityEvidenceReadiness(input.pumpabilityEvidence, p.targetFlowRateM3s);
+  projectEvidence.findings.forEach((finding, index) => {
+    const field = `pumpabilityEvidence.${finding.domain}`;
+    if (finding.severity === 'blocking') block(`readiness.pumpabilityEvidence.${finding.domain}.${index}`, field, finding.message, finding.ruleId);
+    else warn(`readiness.pumpabilityEvidence.${finding.domain}.${index}`, field, finding.message, finding.ruleId);
+  });
 
   if (!Array.isArray(p.segments) || p.segments.length === 0) {
     block('readiness.pipeline.empty', 'pipeline.segments', 'At least one pipeline segment is required.', 'RG-ROUTE-001');
