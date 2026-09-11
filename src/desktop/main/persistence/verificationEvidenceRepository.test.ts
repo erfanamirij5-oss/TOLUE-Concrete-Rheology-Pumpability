@@ -69,4 +69,45 @@ describe('verification evidence repository', () => {
     expect(repository.listHistory().map(item => item.packageId)).toEqual(['VP-002','VP-001']);
     expect(repository.listHistory()[0]?.entryCount).toBe(1);
   });
+
+  it('fails closed when persisted import metadata is corrupted', () => {
+    const input = evidencePackage();
+    const row: PersistedVerificationEvidencePackageRow = {
+      packageId: input.packageId,
+      generatedAtIso: input.generatedAtIso,
+      generatedBy: input.generatedBy,
+      purpose: input.purpose,
+      entryCount: input.entries.length,
+      packageJson: JSON.stringify(input),
+      importedAtIso: 'not-a-date',
+    };
+    const store: VerificationEvidencePackageRowStore = {
+      insertVerificationEvidencePackage: () => undefined,
+      readVerificationEvidencePackage: () => row,
+      listVerificationEvidencePackages: () => [row],
+    };
+    const repository = createVerificationEvidenceRepository(store);
+    expect(() => repository.findByPackageId(input.packageId)).toThrow('VERIFICATION-PERSISTENCE-INTEGRITY-IMPORTED-AT-001');
+    expect(() => repository.listHistory()).toThrow('VERIFICATION-PERSISTENCE-INTEGRITY-IMPORTED-AT-001');
+  });
+
+  it('validates an existing row before accepting an idempotent re-import', () => {
+    const input = evidencePackage();
+    const corruptRow: PersistedVerificationEvidencePackageRow = {
+      packageId: input.packageId,
+      generatedAtIso: input.generatedAtIso,
+      generatedBy: input.generatedBy,
+      purpose: input.purpose,
+      entryCount: input.entries.length,
+      packageJson: JSON.stringify(input),
+      importedAtIso: 'corrupt',
+    };
+    const store: VerificationEvidencePackageRowStore = {
+      insertVerificationEvidencePackage: () => undefined,
+      readVerificationEvidencePackage: () => corruptRow,
+      listVerificationEvidencePackages: () => [corruptRow],
+    };
+    const repository = createVerificationEvidenceRepository(store);
+    expect(() => repository.save(input, '2026-09-11T20:00:00.000Z')).toThrow('VERIFICATION-PERSISTENCE-INTEGRITY-IMPORTED-AT-001');
+  });
 });
