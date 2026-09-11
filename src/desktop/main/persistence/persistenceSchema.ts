@@ -1,4 +1,4 @@
-export const TOLUE_PERSISTENCE_SCHEMA_VERSION = 1 as const;
+export const TOLUE_PERSISTENCE_SCHEMA_VERSION = 2 as const;
 
 export interface PersistenceMigration {
   readonly version: number;
@@ -29,8 +29,25 @@ const V1_STATEMENTS = Object.freeze([
     ON engineering_runs(input_snapshot_hash)`,
 ] as const);
 
+const V2_STATEMENTS = Object.freeze([
+  `CREATE TABLE IF NOT EXISTS verification_evidence_packages (
+    package_id TEXT PRIMARY KEY NOT NULL,
+    generated_at_iso TEXT NOT NULL,
+    generated_by TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    entry_count INTEGER NOT NULL CHECK (entry_count > 0),
+    package_json TEXT NOT NULL,
+    imported_at_iso TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_packages_imported_at
+    ON verification_evidence_packages(imported_at_iso)`,
+  `CREATE INDEX IF NOT EXISTS idx_verification_packages_generated_at
+    ON verification_evidence_packages(generated_at_iso)`,
+] as const);
+
 export const TOLUE_PERSISTENCE_MIGRATIONS: readonly Readonly<PersistenceMigration>[] = Object.freeze([
   Object.freeze({ version: 1, name: 'initial-engineering-run-store', statements: V1_STATEMENTS }),
+  Object.freeze({ version: 2, name: 'verification-evidence-package-store', statements: V2_STATEMENTS }),
 ]);
 
 export function validatePersistenceMigrations(
