@@ -7,7 +7,9 @@ describe('TOLUE design system', () => {
     expect(Object.isFrozen(TOLUE_DESIGN_TOKENS.color)).toBe(true);
     expect(Object.isFrozen(TOLUE_DESIGN_TOKENS.spacing)).toBe(true);
     expect(TOLUE_DESIGN_TOKENS.typography.fontFamily).toContain('Vazirmatn');
-    expect(TOLUE_DESIGN_TOKENS.color.background).toBe('#f4f5f2');
+    expect(TOLUE_DESIGN_TOKENS.color.background).toBe('#161a1d');
+    expect(TOLUE_DESIGN_TOKENS.color.viewport).toBe('#101417');
+    expect(TOLUE_DESIGN_TOKENS.color.surface).not.toBe(TOLUE_DESIGN_TOKENS.color.background);
   });
 
   it('maps only presentation status tones to fixed colors', () => {
