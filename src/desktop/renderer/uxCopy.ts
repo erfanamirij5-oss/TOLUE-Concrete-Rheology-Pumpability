@@ -7,6 +7,14 @@ export interface SessionUxCopy {
 }
 
 function succeededCopy(state: Readonly<ApplicationDataFlowState>): Readonly<SessionUxCopy> {
+  if (state.analysis?.executionStatus === 'BLOCKED') {
+    return Object.freeze({
+      title: 'اجرای مهندسی مسدود شد',
+      detail: 'Readiness Gate اجازه محاسبه نداده است. ورودی‌های پروژه، مسیر، رئولوژی و تجهیزات را تکمیل کنید و Run را دوباره اجرا کنید.',
+      tone: 'danger',
+    });
+  }
+
   const decision = state.analysis?.results?.pumpabilityDecision;
   if (!decision) {
     return Object.freeze({
