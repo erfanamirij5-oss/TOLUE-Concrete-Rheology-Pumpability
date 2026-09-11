@@ -7,8 +7,8 @@ describe('TOLUE design system', () => {
     expect(Object.isFrozen(TOLUE_DESIGN_TOKENS.color)).toBe(true);
     expect(Object.isFrozen(TOLUE_DESIGN_TOKENS.spacing)).toBe(true);
     expect(TOLUE_DESIGN_TOKENS.typography.fontFamily).toContain('Vazirmatn');
-    expect(TOLUE_DESIGN_TOKENS.color.background).toBe('#161a1d');
-    expect(TOLUE_DESIGN_TOKENS.color.viewport).toBe('#111518');
+    expect(TOLUE_DESIGN_TOKENS.color.background).toBe('#0b1116');
+    expect(TOLUE_DESIGN_TOKENS.color.viewport).toBe('#071016');
     expect(TOLUE_DESIGN_TOKENS.color.surface).not.toBe(TOLUE_DESIGN_TOKENS.color.background);
   });
 
