@@ -24,6 +24,8 @@ export interface EngineeringReadinessResult {
   method: 'tolue-engineering-readiness-gate-v2';
 }
 
+export const DRAFT_PLACEHOLDER_ASSUMPTION = 'DRAFT_PLACEHOLDER_VALUES_REPLACE_BEFORE_ENGINEERING_USE';
+
 function finitePositive(value: number): boolean { return Number.isFinite(value) && value > 0; }
 function finiteNonNegative(value: number): boolean { return Number.isFinite(value) && value >= 0; }
 
@@ -35,6 +37,10 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   if (!input.runId.trim()) block('readiness.runId.missing', 'runId', 'runId is required.', 'RG-META-001');
   if (!input.engineVersion.trim()) block('readiness.engineVersion.missing', 'engineVersion', 'engineVersion is required.', 'RG-META-002');
   if (!Number.isFinite(Date.parse(input.createdAtIso))) block('readiness.createdAt.invalid', 'createdAtIso', 'A valid analysis timestamp is required.', 'RG-META-003');
+
+  if ((input.assumptions ?? []).includes(DRAFT_PLACEHOLDER_ASSUMPTION)) {
+    block('readiness.draft.placeholderValues', 'assumptions', 'Starter draft placeholder values are still active. Replace the starter engineering inputs with deliberate project values and clear the placeholder marker before analysis.', 'RG-DRAFT-PLACEHOLDER-001');
+  }
 
   const projectMaterials = assessProjectAndMaterialInputs(input.projectMetadata, input.materials);
   projectMaterials.findings.forEach((finding, index) => {
@@ -75,23 +81,12 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
         block(`readiness.unsupported.${segment.id}`, `pipeline.segments.${segment.id}`, `Friction model for segment kind '${segment.kind}' is not implemented and no project-calibrated local-loss curve is supplied; complete pressure demand cannot be computed.`, 'RG-MODEL-001');
       } else {
         try {
-          const calibrated = evaluateProjectCalibratedLocalLoss({
-            componentKind: segment.kind,
-            targetFlowRateM3s: p.targetFlowRateM3s,
-            calibrationCurve: segment.calibratedLocalLoss.calibrationCurve,
-            provenanceEntityId: segment.calibratedLocalLoss.provenanceEntityId,
-            calibrationId: segment.calibratedLocalLoss.calibrationId,
-          });
-          if (calibrated.status !== 'computed') {
-            block(`readiness.localCalibration.domain.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, 'Target flow is outside the supplied project-calibrated local-loss curve; extrapolation is prohibited.', 'RG-LOCAL-CAL-003');
-          }
+          const calibrated = evaluateProjectCalibratedLocalLoss({ componentKind: segment.kind, targetFlowRateM3s: p.targetFlowRateM3s, calibrationCurve: segment.calibratedLocalLoss.calibrationCurve, provenanceEntityId: segment.calibratedLocalLoss.provenanceEntityId, calibrationId: segment.calibratedLocalLoss.calibrationId });
+          if (calibrated.status !== 'computed') block(`readiness.localCalibration.domain.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, 'Target flow is outside the supplied project-calibrated local-loss curve; extrapolation is prohibited.', 'RG-LOCAL-CAL-003');
           const entityId = segment.calibratedLocalLoss.provenanceEntityId;
           const record = input.provenance?.localLossCalibrations?.[entityId];
-          if (!record) {
-            block(`readiness.localCalibration.provenanceMissing.${segment.id}`, `provenance.localLossCalibrations.${entityId}`, 'Project-calibrated local loss requires a structured provenance record bound to its provenanceEntityId.', 'RG-LOCAL-PROV-001');
-          } else if (record.evidence.entityId !== entityId) {
-            block(`readiness.localCalibration.provenanceMismatch.${segment.id}`, `provenance.localLossCalibrations.${entityId}`, 'Local-loss provenance record entity ID does not match the segment provenanceEntityId.', 'RG-LOCAL-PROV-002');
-          }
+          if (!record) block(`readiness.localCalibration.provenanceMissing.${segment.id}`, `provenance.localLossCalibrations.${entityId}`, 'Project-calibrated local loss requires a structured provenance record bound to its provenanceEntityId.', 'RG-LOCAL-PROV-001');
+          else if (record.evidence.entityId !== entityId) block(`readiness.localCalibration.provenanceMismatch.${segment.id}`, `provenance.localLossCalibrations.${entityId}`, 'Local-loss provenance record entity ID does not match the segment provenanceEntityId.', 'RG-LOCAL-PROV-002');
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Invalid project-calibrated local-loss contract.';
           block(`readiness.localCalibration.invalid.${segment.id}`, `pipeline.segments.${segment.id}.calibratedLocalLoss`, `Invalid project-calibrated local-loss contract: ${message}`, 'RG-LOCAL-CAL-002');
@@ -100,71 +95,36 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
     }
   }
 
-  if (!input.pumpCapability) {
-    block('readiness.pump.missing', 'pumpCapability', 'Pump capability data is required for a complete pumpability pressure assessment.', 'RG-PUMP-001');
-  } else if (!Array.isArray(input.pumpCapability.capabilityCurve) || input.pumpCapability.capabilityCurve.length === 0) {
-    block('readiness.pump.curveEmpty', 'pumpCapability.capabilityCurve', 'At least one verified pump capability point is required.', 'RG-PUMP-002');
-  } else {
+  if (!input.pumpCapability) block('readiness.pump.missing', 'pumpCapability', 'Pump capability data is required for a complete pumpability pressure assessment.', 'RG-PUMP-001');
+  else if (!Array.isArray(input.pumpCapability.capabilityCurve) || input.pumpCapability.capabilityCurve.length === 0) block('readiness.pump.curveEmpty', 'pumpCapability.capabilityCurve', 'At least one verified pump capability point is required.', 'RG-PUMP-002');
+  else {
     let previous = -Infinity;
     for (const point of input.pumpCapability.capabilityCurve) {
       if (!finiteNonNegative(point.flowRateM3s) || !finiteNonNegative(point.availableConcretePressurePa)) { block('readiness.pump.curveInvalid', 'pumpCapability.capabilityCurve', 'Pump capability points must contain finite non-negative flow and pressure values.', 'RG-PUMP-003'); break; }
       if (point.flowRateM3s <= previous) { block('readiness.pump.curveOrder', 'pumpCapability.capabilityCurve', 'Pump capability flow points must be strictly increasing.', 'RG-PUMP-004'); break; }
       previous = point.flowRateM3s;
     }
-    const first = input.pumpCapability.capabilityCurve[0];
-    const last = input.pumpCapability.capabilityCurve[input.pumpCapability.capabilityCurve.length - 1];
+    const first = input.pumpCapability.capabilityCurve[0]; const last = input.pumpCapability.capabilityCurve[input.pumpCapability.capabilityCurve.length - 1];
     if (first && last && Number.isFinite(p.targetFlowRateM3s) && (p.targetFlowRateM3s < first.flowRateM3s || p.targetFlowRateM3s > last.flowRateM3s)) block('readiness.pump.noExtrapolation', 'pipeline.targetFlowRateM3s', 'Target flow is outside the supplied pump capability curve; extrapolation is prohibited.', 'RG-PUMP-005');
-
-    if (!input.pumpCapability.operatingEnvelope) {
-      warn('readiness.pump.envelopeMetadataMissing', 'pumpCapability.operatingEnvelope', 'Pump make/model/configuration revision and source document metadata are missing; the pump assessment remains PRELIMINARY.', 'RG-PUMP-ENVELOPE-001');
-    } else {
-      const envelope = qualifyPumpOperatingEnvelope({
-        identity: {
-          manufacturer: input.pumpCapability.operatingEnvelope.manufacturer,
-          model: input.pumpCapability.operatingEnvelope.model,
-          configurationRevision: input.pumpCapability.operatingEnvelope.configurationRevision,
-        },
-        source: {
-          documentId: input.pumpCapability.operatingEnvelope.sourceDocumentId,
-          documentRevision: input.pumpCapability.operatingEnvelope.sourceDocumentRevision,
-          ...(input.pumpCapability.operatingEnvelope.sourceHash ? { sourceHash: input.pumpCapability.operatingEnvelope.sourceHash } : {}),
-        },
-        provenance: input.pumpCapability.provenance,
-        capabilityCurve: input.pumpCapability.capabilityCurve,
-      });
-      envelope.findings.forEach((finding, index) => {
-        const field = 'pumpCapability.operatingEnvelope';
-        const message = finding.replace(/^(BLOCK|PRELIMINARY):/, '').replaceAll('-', ' ');
-        if (finding.startsWith('BLOCK:')) block(`readiness.pump.envelope.${index}`, field, message, 'RG-PUMP-ENVELOPE-002');
-        else warn(`readiness.pump.envelope.${index}`, field, message, 'RG-PUMP-ENVELOPE-003');
-      });
+    if (!input.pumpCapability.operatingEnvelope) warn('readiness.pump.envelopeMetadataMissing', 'pumpCapability.operatingEnvelope', 'Pump make/model/configuration revision and source document metadata are missing; the pump assessment remains PRELIMINARY.', 'RG-PUMP-ENVELOPE-001');
+    else {
+      const envelope = qualifyPumpOperatingEnvelope({ identity: { manufacturer: input.pumpCapability.operatingEnvelope.manufacturer, model: input.pumpCapability.operatingEnvelope.model, configurationRevision: input.pumpCapability.operatingEnvelope.configurationRevision }, source: { documentId: input.pumpCapability.operatingEnvelope.sourceDocumentId, documentRevision: input.pumpCapability.operatingEnvelope.sourceDocumentRevision, ...(input.pumpCapability.operatingEnvelope.sourceHash ? { sourceHash: input.pumpCapability.operatingEnvelope.sourceHash } : {}) }, provenance: input.pumpCapability.provenance, capabilityCurve: input.pumpCapability.capabilityCurve });
+      envelope.findings.forEach((finding, index) => { const field = 'pumpCapability.operatingEnvelope'; const message = finding.replace(/^(BLOCK|PRELIMINARY):/, '').replaceAll('-', ' '); if (finding.startsWith('BLOCK:')) block(`readiness.pump.envelope.${index}`, field, message, 'RG-PUMP-ENVELOPE-002'); else warn(`readiness.pump.envelope.${index}`, field, message, 'RG-PUMP-ENVELOPE-003'); });
     }
   }
 
   if (input.provenance) {
     const evidence = assessInputEvidence(input.provenance);
-    evidence.findings.forEach((finding, index) => {
-      const id = `readiness.provenance.${finding.field}.${index}`;
-      const field = `provenance.${finding.field}`;
-      if (finding.severity === 'blocking') block(id, field, finding.message, finding.ruleId);
-      else warn(id, field, finding.message, finding.ruleId);
-    });
-  } else {
-    warn('readiness.provenance.missing', 'provenance', 'Structured input provenance is not supplied; execution may proceed only as PRELIMINARY unless a project-calibrated local-loss segment requires provenance binding.', 'RG-PROV-002');
-  }
+    evidence.findings.forEach((finding, index) => { const id = `readiness.provenance.${finding.field}.${index}`; const field = `provenance.${finding.field}`; if (finding.severity === 'blocking') block(id, field, finding.message, finding.ruleId); else warn(id, field, finding.message, finding.ruleId); });
+  } else warn('readiness.provenance.missing', 'provenance', 'Structured input provenance is not supplied; execution may proceed only as PRELIMINARY unless a project-calibrated local-loss segment requires provenance binding.', 'RG-PROV-002');
 
   const llQualification = assessLubricationLayerQualification(input.lubricationLayerQualification, input.provenance);
-  llQualification.findings.forEach((finding, index) => {
-    const id = `readiness.lubricationLayerQualification.${index}`;
-    if (finding.severity === 'blocking') block(id, 'lubricationLayerQualification', finding.message, finding.ruleId);
-    else warn(id, 'lubricationLayerQualification', finding.message, finding.ruleId);
-  });
+  llQualification.findings.forEach((finding, index) => { const id = `readiness.lubricationLayerQualification.${index}`; if (finding.severity === 'blocking') block(id, 'lubricationLayerQualification', finding.message, finding.ruleId); else warn(id, 'lubricationLayerQualification', finding.message, finding.ruleId); });
 
-  if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
+  const nonPlaceholderAssumptions = (input.assumptions ?? []).filter(assumption => assumption !== DRAFT_PLACEHOLDER_ASSUMPTION);
+  if (nonPlaceholderAssumptions.length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
-  if (p.segments.some(segment => segment.kind === 'straight')) {
-    warn('readiness.model.straightPipe.validationPending','pipeline.segments','The current two-fluid Bingham straight-pipe solver is still pending commercial Tier-B/Tier-C validation. Execution is permitted for engineering evaluation, but the run remains PRELIMINARY and must not be treated as an unqualified production prediction.','RG-MODEL-STRAIGHT-VALIDATION-001');
-  }
+  if (p.segments.some(segment => segment.kind === 'straight')) warn('readiness.model.straightPipe.validationPending','pipeline.segments','The current two-fluid Bingham straight-pipe solver is still pending commercial Tier-B/Tier-C validation. Execution is permitted for engineering evaluation, but the run remains PRELIMINARY and must not be treated as an unqualified production prediction.','RG-MODEL-STRAIGHT-VALIDATION-001');
 
   const blocked = findings.some(f => f.severity === 'blocking');
   const preliminary = !blocked && findings.some(f => f.severity === 'warning');
