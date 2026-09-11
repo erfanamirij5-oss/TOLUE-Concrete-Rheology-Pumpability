@@ -16,6 +16,16 @@ export interface RendererPlatform {
   readonly loadVerificationEvidencePackage: TolueBridge['loadVerificationEvidencePackage'];
 }
 
+export const COMMERCIAL_WORKSPACE_LAYOUT = Object.freeze({
+  minWidthPx: 920,
+  treeWidthPx: 248,
+  inspectorWidthPx: 348,
+  centerMinWidthPx: 320,
+  bottomMinHeightPx: 160,
+  bottomMaxHeightPx: 300,
+  bottomPreferredVh: 26,
+});
+
 export function createRendererPlatform(bridge: Readonly<TolueBridge>): Readonly<RendererPlatform> {
   if (!bridge || typeof bridge.executeEngineeringAnalysis !== 'function' || typeof bridge.loadEngineeringRun !== 'function' || typeof bridge.listEngineeringRuns !== 'function' || typeof bridge.compareEngineeringRuns !== 'function' || typeof bridge.exportEngineeringPdf !== 'function' || typeof bridge.importVerificationEvidence !== 'function' || typeof bridge.listVerificationEvidencePackages !== 'function' || typeof bridge.loadVerificationEvidencePackage !== 'function') {
     throw new Error('RENDERER-BRIDGE-001');
@@ -37,7 +47,14 @@ function installPersistentWorkspacePolish(root: HTMLElement): void {
   const style=document.createElement('style');
   style.dataset.tolueWorkspacePolish='v2';
   style.textContent=`
-[data-commercial-ui="v2"] > div { min-width: 920px !important; }
+[data-commercial-ui="v2"] > div {
+  min-width:${COMMERCIAL_WORKSPACE_LAYOUT.minWidthPx}px !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  grid-template-rows:54px minmax(0,1fr) clamp(${COMMERCIAL_WORKSPACE_LAYOUT.bottomMinHeightPx}px,${COMMERCIAL_WORKSPACE_LAYOUT.bottomPreferredVh}vh,${COMMERCIAL_WORKSPACE_LAYOUT.bottomMaxHeightPx}px) !important;
+}
+[data-commercial-ui="v2"] > div > header { min-width:0; overflow:hidden; }
+[data-commercial-ui="v2"] > div > div { min-width:0; min-height:0; overflow:hidden; }
 [data-commercial-ui="v2"] > div > header button,
 [data-commercial-ui="v2"] > div > div > aside button,
 [data-commercial-ui="v2"] > div > section button { transition: background-color .15s ease,border-color .15s ease,color .15s ease,transform .12s ease,box-shadow .15s ease; }
@@ -52,18 +69,20 @@ function installPersistentWorkspacePolish(root: HTMLElement): void {
 [data-commercial-ui="v2"] > div > div > aside:first-child button { position:relative; overflow:hidden; }
 [data-commercial-ui="v2"] > div > div > aside:first-child button::after { content:""; position:absolute; inset-inline-start:0; top:7px; bottom:7px; width:2px; border-radius:4px; background:transparent; }
 [data-commercial-ui="v2"] > div > div > aside:first-child button:hover::after { background:#2498c5; }
-[data-commercial-ui="v2"] > div > section { border-top:1px solid #2b414f !important; background:linear-gradient(180deg,#101a21 0%,#0d151b 100%) !important; box-shadow:0 -10px 30px rgba(0,0,0,.20) !important; }
-[data-commercial-ui="v2"] > div > section > div:first-child { min-height:38px; padding:4px 10px !important; gap:5px !important; background:linear-gradient(180deg,#142029,#101920); border-bottom:1px solid #263a47 !important; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
+[data-commercial-ui="v2"] > div > section { min-height:0; overflow:hidden; border-top:1px solid #2b414f !important; background:linear-gradient(180deg,#101a21 0%,#0d151b 100%) !important; box-shadow:0 -10px 30px rgba(0,0,0,.20) !important; }
+[data-commercial-ui="v2"] > div > section > div:first-child { min-width:0; min-height:38px; padding:4px 10px !important; gap:5px !important; background:linear-gradient(180deg,#142029,#101920); border-bottom:1px solid #263a47 !important; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
 [data-commercial-ui="v2"] > div > section > div:first-child button { min-height:28px; padding:5px 10px !important; white-space:nowrap; border-radius:7px !important; }
-[data-commercial-ui="v2"] > div > section > div:last-child { padding:10px 12px !important; background:radial-gradient(circle at 50% 0%,rgba(36,152,197,.035),transparent 42%); }
-[data-commercial-ui="v2"] > div > div > aside { scrollbar-width:thin; scrollbar-color:#334b5a transparent; }
-[data-commercial-ui="v2"] > div > div > main { border-inline:1px solid rgba(60,83,98,.25); }
+[data-commercial-ui="v2"] > div > section > div:last-child { min-width:0; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:10px 12px !important; background:radial-gradient(circle at 50% 0%,rgba(36,152,197,.035),transparent 42%); }
+[data-commercial-ui="v2"] > div > div > aside { min-width:0; min-height:0; overscroll-behavior:contain; scrollbar-gutter:stable; scrollbar-width:thin; scrollbar-color:#334b5a transparent; }
+[data-commercial-ui="v2"] > div > div > main { min-width:0; min-height:0; overflow:hidden; border-inline:1px solid rgba(60,83,98,.25); }
+[data-commercial-ui="v2"] > div > div > main > * { min-width:0; }
+[data-commercial-ui="v2"] > div > div > main > div:last-child { min-height:0; overflow:hidden; }
 [data-commercial-ui="v2"] input:focus,[data-commercial-ui="v2"] select:focus,[data-commercial-ui="v2"] textarea:focus { outline:none; border-color:#59b8df !important; box-shadow:0 0 0 2px rgba(89,184,223,.14); }
 @media (max-width:1180px) {
-  [data-commercial-ui="v2"] > div > div { grid-template-columns:220px minmax(0,1fr) 310px !important; }
+  [data-commercial-ui="v2"] > div > div { grid-template-columns:220px minmax(${COMMERCIAL_WORKSPACE_LAYOUT.centerMinWidthPx}px,1fr) 310px !important; }
 }
 @media (max-width:1020px) {
-  [data-commercial-ui="v2"] > div > div { grid-template-columns:200px minmax(0,1fr) 286px !important; }
+  [data-commercial-ui="v2"] > div > div { grid-template-columns:200px minmax(${COMMERCIAL_WORKSPACE_LAYOUT.centerMinWidthPx}px,1fr) 286px !important; }
   [data-commercial-ui="v2"] > div > header { gap:6px !important; padding-inline:10px !important; }
   [data-commercial-ui="v2"] > div > header [data-product-stage="true"] { display:none; }
 }
@@ -106,7 +125,7 @@ function installCommercialWorkspaceChrome(root: HTMLElement, sampleLoaded: boole
   }
 
   const work = shell?.querySelector(':scope > header + div');
-  if (work instanceof HTMLElement) work.style.gridTemplateColumns = '248px minmax(0,1fr) 348px';
+  if (work instanceof HTMLElement) work.style.gridTemplateColumns = `${COMMERCIAL_WORKSPACE_LAYOUT.treeWidthPx}px minmax(${COMMERCIAL_WORKSPACE_LAYOUT.centerMinWidthPx}px,1fr) ${COMMERCIAL_WORKSPACE_LAYOUT.inspectorWidthPx}px`;
 
   const asides = work?.querySelectorAll(':scope > aside');
   const tree = asides?.item(0);
