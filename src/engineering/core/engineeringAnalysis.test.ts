@@ -80,7 +80,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
   it('executes PRELIMINARY input through every downstream stage with one identity and hash', () => {
     const result = executeEngineeringAnalysis(fixture());
     expect(result.readiness.status).toBe('PRELIMINARY');
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-COMMERCIAL-001')).toBe(true);
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
     expect(result.executionStatus).toBe('EXECUTED');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed analysis');
 
@@ -160,7 +160,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     input.pumpCapability = { provenance: 'manufacturer_rated_point', capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 1_000 }] };
     const result = executeEngineeringAnalysis(input);
     expect(result.readiness.status).toBe('PRELIMINARY');
-    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-COMMERCIAL-001')).toBe(true);
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
     expect(result.executionStatus).toBe('EXECUTED');
     expect(result.completeness).toBe('complete');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed pump-fail analysis');
