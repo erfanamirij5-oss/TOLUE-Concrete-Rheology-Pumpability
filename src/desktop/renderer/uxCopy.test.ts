@@ -12,12 +12,48 @@ const state = (status: ApplicationDataFlowState['status'], isStale = false): App
   isStale,
 });
 
+const succeededWithDecision = (decisionStatus: string): ApplicationDataFlowState => ({
+  ...state('SUCCEEDED'),
+  activeRunId: 'run-ux',
+  activeInputSnapshotHash: 'hash-ux',
+  analysis: {
+    runId: 'run-ux',
+    engineVersion: 'v1.1.0-rc.3',
+    executionStatus: 'EXECUTED',
+    completeness: 'COMPLETE',
+    inputSnapshotHash: 'hash-ux',
+    pipeline: null,
+    pressureProfile: null,
+    pressureComposition: null,
+    rheologyCurves: null,
+    visualization3d: null,
+    pump: null,
+    diagnostics: null,
+    report: null,
+    results: {
+      runId: 'run-ux',
+      engineVersion: 'v1.1.0-rc.3',
+      inputSnapshotHash: 'hash-ux',
+      completeness: 'COMPLETE',
+      method: 'tolue-engineering-result-center-v1',
+      warnings: [],
+      results: [],
+      pumpabilityDecision: {
+        pressureFeasibility: decisionStatus === 'FAIL_PRESSURE' ? 'FAIL' : 'PASS',
+        stability: decisionStatus === 'FAIL_STABILITY' ? 'UNACCEPTABLE' : 'NOT_ASSESSED',
+        blockageRisk: decisionStatus === 'FAIL_BLOCKAGE' ? 'UNACCEPTABLE' : 'NOT_ASSESSED',
+        status: decisionStatus,
+        method: 'tolue-pumpability-decision-v2',
+      },
+    },
+  } as ApplicationDataFlowState['analysis'],
+});
+
 describe('session UX copy', () => {
   it('translates internal lifecycle states into user-facing Persian guidance', () => {
     expect(sessionUxCopy(state('IDLE')).title).toBe('آماده شروع');
     expect(sessionUxCopy(state('READY')).title).toBe('آماده تحلیل');
     expect(sessionUxCopy(state('RUNNING')).title).toBe('در حال تحلیل');
-    expect(sessionUxCopy(state('SUCCEEDED')).title).toBe('نتایج به‌روز هستند');
     expect(sessionUxCopy(state('REJECTED')).title).toBe('تحلیل تکمیل نشد');
   });
 
@@ -25,10 +61,20 @@ describe('session UX copy', () => {
     const copy = sessionUxCopy(state('SUCCEEDED', true));
     expect(copy.title).toBe('نیاز به محاسبه مجدد');
     expect(copy.tone).toBe('warning');
+    expect(copy.detail).toContain('KPI');
   });
 
-  it('does not expose internal English state labels to the user copy', () => {
-    for (const status of ['IDLE', 'READY', 'RUNNING', 'SUCCEEDED', 'REJECTED', 'STALE'] as const) {
+  it('maps successful engineering decisions into explicit post-run feedback', () => {
+    expect(sessionUxCopy(succeededWithDecision('PROJECT_QUALIFIED_ACCEPTABLE')).tone).toBe('success');
+    expect(sessionUxCopy(succeededWithDecision('PRESSURE_ONLY_ACCEPTABLE')).title).toContain('فشار قابل قبول');
+    expect(sessionUxCopy(succeededWithDecision('FAIL_PRESSURE')).title).toBe('عدم کفایت فشار پمپ');
+    expect(sessionUxCopy(succeededWithDecision('FAIL_STABILITY')).tone).toBe('danger');
+    expect(sessionUxCopy(succeededWithDecision('FAIL_BLOCKAGE')).detail).toContain('محل فیزیکی گرفتگی');
+    expect(sessionUxCopy(succeededWithDecision('INSUFFICIENT_DATA')).tone).toBe('warning');
+  });
+
+  it('does not expose internal lifecycle labels to the user copy', () => {
+    for (const status of ['IDLE', 'READY', 'RUNNING', 'REJECTED', 'STALE'] as const) {
       const copy = sessionUxCopy(state(status, status === 'STALE'));
       expect(copy.title).not.toContain(status);
       expect(copy.detail).not.toContain(status);
