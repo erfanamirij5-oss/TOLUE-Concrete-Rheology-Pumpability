@@ -5,6 +5,16 @@ Status: P0-02 in progress
 ## Admission rule
 A publication is only promoted from `candidate` to `accepted_verification_case` when the exact numerical inputs required by the executable model and the measured comparison output are traceable to the source material. Missing values are never back-filled from TOLUE output, generic defaults, or memory.
 
+Admission is now an explicit controlled action. An `ADMITTED` or `EXCLUDED` verification record must carry:
+- reviewer ID;
+- review timestamp;
+- decision basis;
+- exact controlled source-artifact hash.
+
+The review hash must exactly equal the evidence source hash. A direct status edit to `ADMITTED` without this review contract is rejected by the executable portfolio. Candidate evidence may be retained without affecting metrics.
+
+Controlled transfer/evaluation packages use schema `tolue-verification-evidence-package-v1`. Package integrity requires a non-empty package ID, generation trace, purpose, unique case identity within each tier, and successful portfolio-governance evaluation. Package acceptance does not imply scientific acceptance or production validation.
+
 ## Candidate TB-FEYS-2015-001
 
 - Status: `candidate_source_acquisition`
@@ -42,30 +52,11 @@ This candidate is **not yet an accepted TOLUE verification case** because the ex
 The executable verification contracts are implemented in:
 - `src/engineering/core/publishedFullScaleVerification.ts`
 - `src/engineering/core/publishedVerificationMetrics.ts`
+- `src/engineering/core/verificationEvidencePortfolio.ts`
+- `src/engineering/core/verificationEvidencePackage.ts`
 - `src/engineering/core/fieldValidationDataset.ts`
 - `src/engineering/core/fieldValidationEvaluation.ts`
-- `src/engineering/core/verificationEvidencePortfolio.ts`
 
-### Admission semantics
-Verification evidence has three explicit states:
-- `CANDIDATE`: retained for acquisition/review but excluded from metrics;
-- `ADMITTED`: structurally validated and executable through the corresponding Tier-B or Tier-C comparison contract;
-- `EXCLUDED`: retained for auditability with an explicit exclusion reason and excluded from metrics.
+The harness intentionally has no universal pass/fail percentage. It reports signed absolute and relative error. Acceptance tolerances, if any, must be justified per evidence family after uncertainty, instrumentation, model-form limitations, and source methodology are reviewed.
 
-The portfolio never converts a candidate into admitted evidence automatically. It also never marks production validation complete automatically.
-
-### Tier-C comparison rule
-A field gauge reading is not silently interpreted as a model-comparison pressure drop. Tier-C evaluation requires an explicit comparison basis containing:
-- straight-pipe comparison length;
-- elevation change over that same comparison scope;
-- concrete density;
-- measured pressure drop between controlled pressure references;
-- pressure-reference description;
-- source trace for the comparison basis.
-
-This prevents fitting/boom/hose losses, unknown reference pressures, or ambiguous sensor locations from being hidden inside the straight-pipe two-fluid model comparison.
-
-## Acceptance policy
-The verification harness intentionally has no universal pass/fail percentage. It reports signed absolute and relative error, family bias, MAE, RMSE and MARE where defined. Acceptance tolerances, if any, must be justified per evidence family after uncertainty, instrumentation, model-form limitations, evidence representativeness and source methodology are reviewed.
-
-Presence of at least one admitted Tier-B case and at least one admitted Tier-C case is evidence coverage only. It is **not** equivalent to commercial production validation and does not automatically change the executable model registry lifecycle.
+Even when Tier-B and Tier-C entries are both present, the software keeps `productionValidationComplete=false` until a separate controlled scientific release decision is made. No Model Registry lifecycle promotion is automatic.
