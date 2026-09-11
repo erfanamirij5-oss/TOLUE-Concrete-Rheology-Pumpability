@@ -5,6 +5,7 @@ import { registerEngineeringAnalysisIpc } from './electronAnalysisAdapter';
 import { registerLicenseIpc } from './electronLicenseAdapter';
 import { registerEngineeringPdfIpc } from './electronPdfAdapter';
 import { registerEngineeringRunLoadIpc } from './electronRunAdapter';
+import { registerVerificationEvidenceIpc } from './electronVerificationEvidenceAdapter';
 import { bootstrapPersistence } from './persistence/persistenceBootstrap';
 import type { EngineeringRunRepository } from './persistence/engineeringRunRepository';
 
@@ -55,8 +56,9 @@ export function startDesktopShell(preloadPath: string, rendererPath: string): vo
       const disposePdf = registerEngineeringPdfIpc(win, DESKTOP_URL);
       const disposeAnalysis = registerEngineeringAnalysisIpc(win, DESKTOP_URL, engineeringRuns);
       const disposeRunLoad = registerEngineeringRunLoadIpc(win, DESKTOP_URL, engineeringRuns);
+      const disposeVerificationEvidence = registerVerificationEvidenceIpc({ owner: win, trustedDocumentUrl: DESKTOP_URL });
       const disposeLicense = registerLicenseIpc({ owner: win, trustedDocumentUrl: DESKTOP_URL, userDataPath: app.getPath('userData'), resourcesPath: process.resourcesPath, nowIso: () => new Date().toISOString() });
-      win.once('closed', () => { disposeLicense(); disposeRunLoad(); disposeAnalysis(); disposePdf(); owner = undefined; });
+      win.once('closed', () => { disposeLicense(); disposeVerificationEvidence(); disposeRunLoad(); disposeAnalysis(); disposePdf(); owner = undefined; });
       try { await win.loadURL(DESKTOP_URL); if (!win.isDestroyed()) win.show(); }
       catch { if (!win.isDestroyed()) win.destroy(); throw new Error('DESKTOP-LOAD-001'); }
     } finally { opening = false; }
