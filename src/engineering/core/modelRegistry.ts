@@ -21,6 +21,17 @@ export interface ExecutableModelRegistryRecord {
   knownLimitations: readonly string[];
 }
 
+export type ModelReadinessDisposition = 'QUALIFIED' | 'PRELIMINARY' | 'BLOCKED';
+export interface ModelReadinessGovernanceResult {
+  readonly modelId: string;
+  readonly disposition: ModelReadinessDisposition;
+  readonly status: ModelLifecycleStatus | 'unknown';
+  readonly productionEligible: boolean;
+  readonly message: string;
+  readonly requiredEvidence: readonly string[];
+  readonly method: 'tolue-model-registry-readiness-v1';
+}
+
 const RECORDS: readonly Readonly<ExecutableModelRegistryRecord>[] = Object.freeze([
   Object.freeze({
     id: 'PRESSURE-STRAIGHT-TWOFLUID-BINGHAM-001',
@@ -74,6 +85,61 @@ export function getExecutableModelRecord(id: string): Readonly<ExecutableModelRe
 
 export function listExecutableModelRecords(): readonly Readonly<ExecutableModelRegistryRecord>[] {
   return RECORDS;
+}
+
+/**
+ * Executable readiness policy. Unknown, blocked, deprecated, research, or specified
+ * models fail closed. Implemented/numerically-verified/calibrated/experimental models
+ * may execute only as PRELIMINARY unless the registry explicitly marks the model
+ * production + productionEligible.
+ */
+export function evaluateModelReadinessGovernance(id: string): Readonly<ModelReadinessGovernanceResult> {
+  const record = getExecutableModelRecord(id);
+  if (!record) {
+    return Object.freeze({
+      modelId: id,
+      disposition: 'BLOCKED',
+      status: 'unknown',
+      productionEligible: false,
+      message: `Model '${id}' is not present in the executable registry; execution is fail-closed.`,
+      requiredEvidence: Object.freeze([]),
+      method: 'tolue-model-registry-readiness-v1',
+    });
+  }
+
+  if (record.status === 'blocked' || record.status === 'deprecated' || record.status === 'research' || record.status === 'specified') {
+    return Object.freeze({
+      modelId: record.id,
+      disposition: 'BLOCKED',
+      status: record.status,
+      productionEligible: record.productionEligible,
+      message: `Model '${record.id}' is registry status '${record.status}' and is not permitted to execute as an engineering prediction.`,
+      requiredEvidence: record.requiredEvidence,
+      method: 'tolue-model-registry-readiness-v1',
+    });
+  }
+
+  if (record.status === 'production' && record.productionEligible) {
+    return Object.freeze({
+      modelId: record.id,
+      disposition: 'QUALIFIED',
+      status: record.status,
+      productionEligible: true,
+      message: `Model '${record.id}' is production-qualified by the executable registry.`,
+      requiredEvidence: record.requiredEvidence,
+      method: 'tolue-model-registry-readiness-v1',
+    });
+  }
+
+  return Object.freeze({
+    modelId: record.id,
+    disposition: 'PRELIMINARY',
+    status: record.status,
+    productionEligible: record.productionEligible,
+    message: `Model '${record.id}' is registry status '${record.status}' and is not production-qualified. Required evidence: ${record.requiredEvidence.join('; ') || 'none declared'}.`,
+    requiredEvidence: record.requiredEvidence,
+    method: 'tolue-model-registry-readiness-v1',
+  });
 }
 
 export function assertModelMayProduceProductionQualifiedResult(id: string): void {
