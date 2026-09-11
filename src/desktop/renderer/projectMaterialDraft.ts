@@ -5,7 +5,8 @@ export type ProjectMetadataField = keyof ProjectMetadataInput;
 export type MaterialIdentityField = 'name' | 'supplier' | 'source' | 'standardReference';
 
 type MutableProjectMetadata = { -readonly [K in keyof ProjectMetadataInput]: ProjectMetadataInput[K] };
-type MutableMaterial = Omit<MaterialEngineeringInput, 'properties'> & { properties: MaterialPropertyInput[] };
+type MutableMaterialBase = { -readonly [K in keyof MaterialEngineeringInput]: MaterialEngineeringInput[K] };
+type MutableMaterial = Omit<MutableMaterialBase, 'properties'> & { properties: MaterialPropertyInput[] };
 
 function text(value: string): string { return value.trim(); }
 
