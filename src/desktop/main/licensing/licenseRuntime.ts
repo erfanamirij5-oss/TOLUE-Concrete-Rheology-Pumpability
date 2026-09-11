@@ -105,7 +105,7 @@ export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInp
   const reader = input.machineGuidReader ?? windowsRegistryMachineGuidReader;
   const machineId = deriveMachineId(reader);
   const clock = evaluateLicenseClockGuard(userDataPath, effectiveNowIso);
-  const gate = clock.accepted && publicKeyPem.trim()
+  const gate = clock.accepted
     ? evaluateLicenseStartupGate({ signedEnvelope, publicKeyPem, machineId, nowIso: effectiveNowIso })
     : rejectedGate();
 
