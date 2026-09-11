@@ -2,6 +2,7 @@ import { SimulationRunInput } from './simulationRun';
 import { assessInputEvidence } from './inputProvenance';
 import { evaluateProjectCalibratedLocalLoss } from './projectCalibratedLocalLoss';
 import { assessLubricationLayerQualification } from './lubricationLayerQualification';
+import { qualifyPumpOperatingEnvelope } from './pumpOperatingEnvelope';
 
 export type ReadinessStatus = 'READY' | 'PRELIMINARY' | 'BLOCKED';
 export type ReadinessSeverity = 'info' | 'warning' | 'blocking';
@@ -98,6 +99,31 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
     const first = input.pumpCapability.capabilityCurve[0];
     const last = input.pumpCapability.capabilityCurve[input.pumpCapability.capabilityCurve.length - 1];
     if (first && last && Number.isFinite(p.targetFlowRateM3s) && (p.targetFlowRateM3s < first.flowRateM3s || p.targetFlowRateM3s > last.flowRateM3s)) block('readiness.pump.noExtrapolation', 'pipeline.targetFlowRateM3s', 'Target flow is outside the supplied pump capability curve; extrapolation is prohibited.', 'RG-PUMP-005');
+
+    if (!input.pumpCapability.operatingEnvelope) {
+      warn('readiness.pump.envelopeMetadataMissing', 'pumpCapability.operatingEnvelope', 'Pump make/model/configuration revision and source document metadata are missing; the pump assessment remains PRELIMINARY.', 'RG-PUMP-ENVELOPE-001');
+    } else {
+      const envelope = qualifyPumpOperatingEnvelope({
+        identity: {
+          manufacturer: input.pumpCapability.operatingEnvelope.manufacturer,
+          model: input.pumpCapability.operatingEnvelope.model,
+          configurationRevision: input.pumpCapability.operatingEnvelope.configurationRevision,
+        },
+        source: {
+          documentId: input.pumpCapability.operatingEnvelope.sourceDocumentId,
+          documentRevision: input.pumpCapability.operatingEnvelope.sourceDocumentRevision,
+          ...(input.pumpCapability.operatingEnvelope.sourceHash ? { sourceHash: input.pumpCapability.operatingEnvelope.sourceHash } : {}),
+        },
+        provenance: input.pumpCapability.provenance,
+        capabilityCurve: input.pumpCapability.capabilityCurve,
+      });
+      envelope.findings.forEach((finding, index) => {
+        const field = 'pumpCapability.operatingEnvelope';
+        const message = finding.replace(/^(BLOCK|PRELIMINARY):/, '').replaceAll('-', ' ');
+        if (finding.startsWith('BLOCK:')) block(`readiness.pump.envelope.${index}`, field, message, 'RG-PUMP-ENVELOPE-002');
+        else warn(`readiness.pump.envelope.${index}`, field, message, 'RG-PUMP-ENVELOPE-003');
+      });
+    }
   }
 
   if (input.provenance) {
@@ -121,12 +147,6 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
 
   if ((input.assumptions ?? []).length > 0) warn('readiness.assumptions.present', 'assumptions', 'Explicit assumptions are present; if no blocking finding exists, the run is classified PRELIMINARY and assumptions must remain traceable.', 'RG-PROV-001');
 
-  // Commercial engineering integrity gate: the current executable straight-pipe solver is
-  // mathematically verified for controlled cases, but its controlled model lifecycle has not
-  // yet completed the required published full-scale (Tier B) and TOLUE field (Tier C)
-  // validation gates. It may execute for engineering evaluation, but it must not silently
-  // produce an unqualified READY result until that evidence is accepted and registry status
-  // is promoted.
   if (p.segments.some(segment => segment.kind === 'straight')) {
     warn(
       'readiness.model.straightPipe.validationPending',
