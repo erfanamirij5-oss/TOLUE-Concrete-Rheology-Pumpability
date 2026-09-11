@@ -88,7 +88,7 @@ export function canonicalLicensePayload(entitlement: Readonly<LicenseEntitlement
   });
 }
 
-export function verifySignedLicenseEnvelope(value: unknown, legacyPublicKeyPem = '', expectedProductionFingerprint = PRODUCTION_PUBLIC_PEM_SHA256): Readonly<VerifiedLicenseEntitlement> | null {
+export function verifySignedLicenseEnvelope(value: unknown, legacyPublicKeyPem = '', expectedProductionFingerprint: string = PRODUCTION_PUBLIC_PEM_SHA256): Readonly<VerifiedLicenseEntitlement> | null {
   const envelope = parseEnvelope(value);
   if (!envelope) return null;
   const publicKeyPem = envelope.schemaVersion === 'tolue-license-v2' ? envelope.publicKeyPem : legacyPublicKeyPem;
