@@ -1,6 +1,7 @@
 import type { PumpCapabilityProvenance } from '../../engineering/core/pumpCapability';
 import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
+import { appendEngineeringSectionHeader, styleEngineeringButton, styleEngineeringField, styleEngineeringSection } from './engineeringPanelStyle';
 import {
   addPumpCapabilityPointDraft,
   createPumpCapabilityDraft,
@@ -17,189 +18,33 @@ import { renderPumpFlowPressureCurveView } from './pumpFlowPressureCurveView';
 import { renderPumpPressureChartView } from './pumpPressureChartView';
 
 export interface PumpViewActions { readonly updateInput: (input: Readonly<SimulationRunInput>) => void; }
+function pressureText(value:number|null):string{return value===null?'—':`${(value/1_000_000).toFixed(3)} MPa`;}
+function styledInput(type:'text'|'number'='text'):HTMLInputElement{const input=document.createElement('input');input.type=type;if(type==='number'){input.step='any';input.min='0';}return input;}
+function button(text:string,primary=false,danger=false):HTMLButtonElement{const control=document.createElement('button');control.type='button';control.textContent=text;styleEngineeringButton(control,primary,danger);return control;}
+function pointEditor(labelText:string,value:number,onCommit:(value:number)=>void):HTMLElement{const label=document.createElement('label');const caption=document.createElement('span');caption.textContent=labelText;const input=styledInput('number');input.value=String(value);styleEngineeringField(label,input,caption);const error=document.createElement('small');error.style.minHeight='1.2em';error.style.color=TOLUE_DESIGN_TOKENS.color.statusCritical;input.addEventListener('change',()=>{try{onCommit(Number(input.value));input.setAttribute('aria-invalid','false');error.textContent='';}catch{input.setAttribute('aria-invalid','true');error.textContent='مقدار معتبر نیست یا ترتیب صعودی دبی‌ها را نقض می‌کند.';}});label.append(caption,input,error);return label;}
 
-function pressureText(value: number | null): string {
-  return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} MPa`;
+function renderCreatePumpCapability(root:HTMLElement,engineeringInput:Readonly<SimulationRunInput>,actions:Readonly<PumpViewActions>):void{
+  const panel=document.createElement('section');styleEngineeringSection(panel,true);Object.assign(panel.style,{marginBottom:TOLUE_DESIGN_TOKENS.spacing.md});appendEngineeringSectionHeader(panel,'تعریف قابلیت پمپ','هیچ منحنی یا عدد پیش‌فرض ساخته نمی‌شود. منشأ داده و نقاط واقعی Q–P باید صریحاً ثبت شوند.','PUMP DATA');
+  const body=document.createElement('div');Object.assign(body.style,{padding:'14px',display:'grid',gap:'10px'});
+  const label=document.createElement('label');const caption=document.createElement('span');caption.textContent='منشأ داده پمپ';const select=document.createElement('select');const options:readonly [PumpCapabilityProvenance,string][]=[['manufacturer_curve','منحنی سازنده'],['manufacturer_rated_point','نقطه نامی سازنده'],['calibrated_project_data','داده کالیبره‌شده پروژه']];const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='انتخاب منشأ داده…';placeholder.selected=true;placeholder.disabled=true;select.appendChild(placeholder);for(const[value,text]of options){const option=document.createElement('option');option.value=value;option.textContent=text;select.appendChild(option);}styleEngineeringField(label,select,caption);label.append(caption,select);body.appendChild(label);
+  const create=button('ایجاد رکورد پمپ',true);create.disabled=true;select.addEventListener('change',()=>{create.disabled=!select.value;});create.addEventListener('click',()=>{if(select.value)actions.updateInput(createPumpCapabilityDraft(engineeringInput,select.value as PumpCapabilityProvenance));});body.appendChild(create);panel.appendChild(body);root.appendChild(panel);
 }
 
-function styledInput(type: 'text' | 'number' = 'text'): HTMLInputElement {
-  const input = document.createElement('input');
-  input.type = type;
-  if (type === 'number') { input.step = 'any'; input.min = '0'; }
-  input.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-  input.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  input.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-  input.style.fontFamily = 'inherit';
-  input.style.width = '100%';
-  input.style.boxSizing = 'border-box';
-  return input;
+function renderPumpEditor(root:HTMLElement,engineeringInput:Readonly<SimulationRunInput>,actions:Readonly<PumpViewActions>):void{
+  const capability=engineeringInput.pumpCapability!;const editor=document.createElement('section');editor.setAttribute('aria-label','ورودی‌های قابلیت پمپ');styleEngineeringSection(editor,true);Object.assign(editor.style,{marginBottom:TOLUE_DESIGN_TOKENS.spacing.md});appendEngineeringSectionHeader(editor,'Pump Operating Envelope','اطلاعات سازنده/پروژه، سند منبع و نقاط Q–P. Extrapolation خارج از دامنه در Core مجاز نیست.',capability.provenance);
+  const body=document.createElement('div');Object.assign(body.style,{padding:'14px'});editor.appendChild(body);
+  const provenanceLabel=document.createElement('label');const provenanceCaption=document.createElement('span');provenanceCaption.textContent='منشأ داده';const provenanceSelect=document.createElement('select');const provenanceOptions:readonly PumpCapabilityProvenance[]=['manufacturer_curve','manufacturer_rated_point','calibrated_project_data'];for(const value of provenanceOptions){const option=document.createElement('option');option.value=value;option.textContent=value;option.selected=capability.provenance===value;provenanceSelect.appendChild(option);}styleEngineeringField(provenanceLabel,provenanceSelect,provenanceCaption);provenanceLabel.append(provenanceCaption,provenanceSelect);provenanceSelect.addEventListener('change',()=>actions.updateInput(updatePumpCapabilityProvenanceDraft(engineeringInput,provenanceSelect.value as PumpCapabilityProvenance)));body.appendChild(provenanceLabel);
+  const envelope=capability.operatingEnvelope;const metadataGrid=document.createElement('div');Object.assign(metadataGrid.style,{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:TOLUE_DESIGN_TOKENS.spacing.md,marginTop:TOLUE_DESIGN_TOKENS.spacing.md});const fields:readonly [PumpOperatingEnvelopeField,string][]=[['manufacturer','سازنده'],['model','مدل'],['configurationRevision','Revision / Configuration'],['sourceDocumentId','شناسه سند منبع'],['sourceDocumentRevision','Revision سند'],['sourceHash','Source hash']];for(const[field,labelText]of fields){const label=document.createElement('label');const caption=document.createElement('span');caption.textContent=labelText;const input=styledInput();input.value=envelope?.[field]??'';styleEngineeringField(label,input,caption);input.addEventListener('change',()=>actions.updateInput(updatePumpOperatingEnvelopeDraft(engineeringInput,field,input.value)));label.append(caption,input);metadataGrid.appendChild(label);}body.appendChild(metadataGrid);
+  const pointsHeader=document.createElement('div');Object.assign(pointsHeader.style,{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',marginTop:'16px',marginBottom:'8px'});const pointsTitle=document.createElement('strong');pointsTitle.textContent='نقاط واقعی Q–P';const count=document.createElement('small');count.textContent=`${capability.capabilityCurve.length} point`;Object.assign(count.style,{direction:'ltr',color:TOLUE_DESIGN_TOKENS.color.info});pointsHeader.append(pointsTitle,count);body.appendChild(pointsHeader);
+  if(capability.capabilityCurve.length===0){const empty=document.createElement('div');empty.textContent='بدون نقطه واقعی، تحلیل پمپ BLOCKED می‌ماند.';Object.assign(empty.style,{padding:'10px',border:`1px dashed ${TOLUE_DESIGN_TOKENS.color.statusWarning}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,color:TOLUE_DESIGN_TOKENS.color.statusWarning});body.appendChild(empty);}
+  capability.capabilityCurve.forEach((point,index)=>{const card=document.createElement('section');Object.assign(card.style,{marginTop:'8px',padding:'10px',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.md,background:'rgba(7,16,22,.52)'});const header=document.createElement('div');Object.assign(header.style,{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'});const name=document.createElement('strong');name.textContent=`Point ${index+1}`;name.style.direction='ltr';const remove=button('حذف نقطه',false,true);remove.addEventListener('click',()=>actions.updateInput(removePumpCapabilityPointDraft(engineeringInput,index)));header.append(name,remove);card.appendChild(header);const grid=document.createElement('div');Object.assign(grid.style,{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:TOLUE_DESIGN_TOKENS.spacing.md});const pointFields:readonly [PumpCapabilityPointField,string,number][]=[['flowRateM3s','دبی · m³/s',point.flowRateM3s],['availableConcretePressurePa','فشار قابل تأمین · Pa',point.availableConcretePressurePa]];for(const[field,label,value]of pointFields)grid.appendChild(pointEditor(label,value,next=>actions.updateInput(updatePumpCapabilityPointDraft(engineeringInput,index,field,next))));card.appendChild(grid);body.appendChild(card);});
+  const addCard=document.createElement('section');Object.assign(addCard.style,{marginTop:'10px',padding:'10px',border:`1px dashed ${TOLUE_DESIGN_TOKENS.color.borderStrong}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.md});const addGrid=document.createElement('div');Object.assign(addGrid.style,{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:'8px'});const flow=styledInput('number');flow.placeholder='دبی واقعی m³/s';const pressure=styledInput('number');pressure.placeholder='فشار واقعی Pa';Object.assign(flow.style,{padding:'9px'});Object.assign(pressure.style,{padding:'9px'});const add=button('افزودن نقطه',true);const error=document.createElement('small');Object.assign(error.style,{color:TOLUE_DESIGN_TOKENS.color.statusCritical,gridColumn:'1 / -1'});add.addEventListener('click',()=>{if(flow.value.trim()===''||pressure.value.trim()===''){error.textContent='هر دو مقدار باید صریحاً وارد شوند.';return;}try{actions.updateInput(addPumpCapabilityPointDraft(engineeringInput,Number(flow.value),Number(pressure.value)));error.textContent='';}catch{error.textContent='نقطه معتبر نیست یا دبی تکراری است.';}});addGrid.append(flow,pressure,add,error);addCard.appendChild(addGrid);body.appendChild(addCard);
+  const removeCapability=button('حذف کامل رکورد پمپ',false,true);removeCapability.style.marginTop='12px';removeCapability.addEventListener('click',()=>actions.updateInput(removePumpCapabilityDraft(engineeringInput)));body.appendChild(removeCapability);root.appendChild(editor);
 }
 
-function button(text: string): HTMLButtonElement {
-  const control = document.createElement('button');
-  control.type = 'button';
-  control.textContent = text;
-  control.style.padding = `${TOLUE_DESIGN_TOKENS.spacing.sm} ${TOLUE_DESIGN_TOKENS.spacing.md}`;
-  control.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  control.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-  control.style.cursor = 'pointer';
-  control.style.fontFamily = 'inherit';
-  return control;
-}
-
-function pointEditor(labelText: string, value: number, onCommit: (value: number) => void): HTMLElement {
-  const label = document.createElement('label'); label.style.display = 'grid'; label.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
-  const caption = document.createElement('span'); caption.textContent = labelText;
-  const input = styledInput('number'); input.value = String(value);
-  const error = document.createElement('small'); error.style.minHeight = '1.2em'; error.style.color = TOLUE_DESIGN_TOKENS.color.statusCritical;
-  input.addEventListener('change', () => {
-    try { onCommit(Number(input.value)); input.setAttribute('aria-invalid', 'false'); error.textContent = ''; }
-    catch { input.setAttribute('aria-invalid', 'true'); error.textContent = 'مقدار معتبر نیست یا ترتیب صعودی دبی‌ها را نقض می‌کند.'; }
-  });
-  label.append(caption, input, error); return label;
-}
-
-function renderCreatePumpCapability(root: HTMLElement, engineeringInput: Readonly<SimulationRunInput>, actions: Readonly<PumpViewActions>): void {
-  const panel = document.createElement('section');
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.marginBottom = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const title = document.createElement('h2'); title.textContent = 'تعریف قابلیت پمپ'; title.style.marginTop = '0';
-  const note = document.createElement('p');
-  note.textContent = 'هیچ منحنی یا عدد پیش‌فرضی ساخته نمی‌شود. ابتدا منشأ داده را انتخاب کنید؛ سپس مشخصات پمپ و نقاط واقعی Q–P را وارد کنید.';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-
-  const select = document.createElement('select'); select.style.padding = TOLUE_DESIGN_TOKENS.spacing.md; select.style.fontFamily = 'inherit';
-  const options: readonly [PumpCapabilityProvenance, string][] = [
-    ['manufacturer_curve', 'منحنی سازنده'],
-    ['manufacturer_rated_point', 'نقطه نامی سازنده'],
-    ['calibrated_project_data', 'داده کالیبره‌شده پروژه'],
-  ];
-  const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = 'انتخاب منشأ داده…'; placeholder.selected = true; placeholder.disabled = true; select.appendChild(placeholder);
-  for (const [value, label] of options) { const option = document.createElement('option'); option.value = value; option.textContent = label; select.appendChild(option); }
-
-  const create = button('ایجاد رکورد پمپ'); create.disabled = true;
-  select.addEventListener('change', () => { create.disabled = !select.value; });
-  create.addEventListener('click', () => {
-    if (!select.value) return;
-    actions.updateInput(createPumpCapabilityDraft(engineeringInput, select.value as PumpCapabilityProvenance));
-  });
-  panel.append(title, note, select, create);
-  root.appendChild(panel);
-}
-
-function renderPumpEditor(root: HTMLElement, engineeringInput: Readonly<SimulationRunInput>, actions: Readonly<PumpViewActions>): void {
-  const capability = engineeringInput.pumpCapability!;
-  const editor = document.createElement('section');
-  editor.setAttribute('aria-label', 'ورودی‌های قابلیت پمپ');
-  editor.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  editor.style.marginBottom = TOLUE_DESIGN_TOKENS.spacing.lg;
-  editor.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  editor.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  editor.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const title = document.createElement('h2'); title.textContent = 'Pump Operating Envelope'; title.style.marginTop = '0';
-  const note = document.createElement('p');
-  note.textContent = 'فقط داده واقعی سازنده/پروژه را وارد کنید. Extrapolation خارج از محدوده نقاط در Engineering Core ممنوع است.';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  editor.append(title, note);
-
-  const provenanceLabel = document.createElement('label'); provenanceLabel.style.display = 'grid'; provenanceLabel.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
-  provenanceLabel.appendChild(document.createTextNode('منشأ داده'));
-  const provenanceSelect = document.createElement('select'); provenanceSelect.style.padding = TOLUE_DESIGN_TOKENS.spacing.md; provenanceSelect.style.fontFamily = 'inherit';
-  const provenanceOptions: readonly PumpCapabilityProvenance[] = ['manufacturer_curve', 'manufacturer_rated_point', 'calibrated_project_data'];
-  for (const value of provenanceOptions) { const option = document.createElement('option'); option.value = value; option.textContent = value; option.selected = capability.provenance === value; provenanceSelect.appendChild(option); }
-  provenanceSelect.addEventListener('change', () => actions.updateInput(updatePumpCapabilityProvenanceDraft(engineeringInput, provenanceSelect.value as PumpCapabilityProvenance)));
-  provenanceLabel.appendChild(provenanceSelect);
-  editor.appendChild(provenanceLabel);
-
-  const envelope = capability.operatingEnvelope;
-  const metadataGrid = document.createElement('div'); metadataGrid.style.display = 'grid'; metadataGrid.style.gridTemplateColumns = 'repeat(auto-fit,minmax(220px,1fr))'; metadataGrid.style.gap = TOLUE_DESIGN_TOKENS.spacing.md; metadataGrid.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  const fields: readonly [PumpOperatingEnvelopeField, string][] = [
-    ['manufacturer', 'سازنده'], ['model', 'مدل'], ['configurationRevision', 'Revision / Configuration'],
-    ['sourceDocumentId', 'شناسه سند منبع'], ['sourceDocumentRevision', 'Revision سند'], ['sourceHash', 'Source hash (اختیاری/برای داده کالیبره‌شده مهم)'],
-  ];
-  for (const [field, labelText] of fields) {
-    const label = document.createElement('label'); label.style.display = 'grid'; label.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
-    const caption = document.createElement('span'); caption.textContent = labelText;
-    const input = styledInput(); input.value = envelope?.[field] ?? '';
-    input.addEventListener('change', () => actions.updateInput(updatePumpOperatingEnvelopeDraft(engineeringInput, field, input.value)));
-    label.append(caption, input); metadataGrid.appendChild(label);
-  }
-  editor.appendChild(metadataGrid);
-
-  const pointsTitle = document.createElement('h3'); pointsTitle.textContent = 'نقاط Q–P'; pointsTitle.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg; editor.appendChild(pointsTitle);
-  if (capability.capabilityCurve.length === 0) {
-    const empty = document.createElement('p'); empty.textContent = 'هنوز نقطه‌ای ثبت نشده است. بدون نقطه واقعی، تحلیل پمپ BLOCKED می‌ماند.'; empty.style.color = TOLUE_DESIGN_TOKENS.color.textMuted; editor.appendChild(empty);
-  }
-
-  capability.capabilityCurve.forEach((point, index) => {
-    const fieldset = document.createElement('fieldset'); fieldset.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.md; fieldset.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`; fieldset.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const legend = document.createElement('legend'); legend.textContent = `نقطه ${index + 1}`; fieldset.appendChild(legend);
-    const grid = document.createElement('div'); grid.style.display = 'grid'; grid.style.gridTemplateColumns = 'repeat(auto-fit,minmax(220px,1fr))'; grid.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-    const pointFields: readonly [PumpCapabilityPointField, string, number][] = [['flowRateM3s', 'دبی (m³/s)', point.flowRateM3s], ['availableConcretePressurePa', 'فشار قابل تأمین بتن (Pa)', point.availableConcretePressurePa]];
-    for (const [field, label, value] of pointFields) grid.appendChild(pointEditor(label, value, next => actions.updateInput(updatePumpCapabilityPointDraft(engineeringInput, index, field, next))));
-    const remove = button('حذف نقطه'); remove.addEventListener('click', () => actions.updateInput(removePumpCapabilityPointDraft(engineeringInput, index))); grid.appendChild(remove);
-    fieldset.appendChild(grid); editor.appendChild(fieldset);
-  });
-
-  const addBox = document.createElement('div'); addBox.style.display = 'grid'; addBox.style.gridTemplateColumns = 'repeat(auto-fit,minmax(180px,1fr))'; addBox.style.gap = TOLUE_DESIGN_TOKENS.spacing.md; addBox.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  const flow = styledInput('number'); flow.placeholder = 'دبی واقعی m³/s';
-  const pressure = styledInput('number'); pressure.placeholder = 'فشار واقعی Pa';
-  const add = button('افزودن نقطه');
-  const error = document.createElement('small'); error.style.color = TOLUE_DESIGN_TOKENS.color.statusCritical; error.style.gridColumn = '1 / -1';
-  add.addEventListener('click', () => {
-    if (flow.value.trim() === '' || pressure.value.trim() === '') { error.textContent = 'هر دو مقدار باید صریحاً وارد شوند؛ مقدار پیش‌فرض ساخته نمی‌شود.'; return; }
-    try {
-      actions.updateInput(addPumpCapabilityPointDraft(engineeringInput, Number(flow.value), Number(pressure.value)));
-      error.textContent = '';
-    } catch {
-      error.textContent = 'نقطه معتبر نیست یا دبی تکراری است.';
-    }
-  });
-  addBox.append(flow, pressure, add, error); editor.appendChild(addBox);
-
-  const removeCapability = button('حذف کامل رکورد پمپ'); removeCapability.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  removeCapability.addEventListener('click', () => actions.updateInput(removePumpCapabilityDraft(engineeringInput)));
-  editor.appendChild(removeCapability);
-  root.appendChild(editor);
-}
-
-export function renderPumpView(root: HTMLElement, result?: Readonly<PumpCapabilityPresentation>, engineeringInput?: Readonly<SimulationRunInput> | null, actions?: Readonly<PumpViewActions>): void {
-  if (engineeringInput && actions) {
-    if (engineeringInput.pumpCapability) renderPumpEditor(root, engineeringInput, actions);
-    else renderCreatePumpCapability(root, engineeringInput, actions);
-  }
-
-  const panel = document.createElement('section');
-  panel.setAttribute('aria-label', 'قابلیت فشار پمپ');
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-  const title = document.createElement('h2'); title.textContent = 'قابلیت پمپ و تطابق فشار'; title.style.marginTop = '0';
-  const note = document.createElement('p'); note.textContent = 'وضعیت PASS/FAIL/INSUFFICIENT_DATA مستقیماً از Engineering Core نمایش داده می‌شود. Renderer آستانه یا حاشیه ایمنی جدید ایجاد نمی‌کند.'; note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  panel.append(title, note);
-
-  if (!result) {
-    const empty = document.createElement('div');
-    empty.textContent = engineeringInput?.pumpCapability ? 'بعد از اجرای تحلیل، نتیجه تطابق فشار در این بخش نمایش داده می‌شود.' : 'داده قابلیت پمپ در Session موجود نیست؛ از بخش بالا یک رکورد واقعی پمپ تعریف کنید.';
-    empty.style.padding = TOLUE_DESIGN_TOKENS.spacing.md; empty.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted; empty.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    panel.appendChild(empty); root.appendChild(panel); renderPumpPressureChartView(root); renderPumpFlowPressureCurveView(root); return;
-  }
-
-  const values: readonly [string, string][] = [
-    ['دبی هدف', `${result.targetFlowRateM3s} m³/s`], ['فشار موردنیاز', pressureText(result.requiredPressurePa)], ['فشار قابل تأمین', pressureText(result.availablePressurePa)],
-    ['حاشیه فشار', pressureText(result.pressureMarginPa)], ['وضعیت', result.status], ['روش درون‌یابی', result.interpolation], ['منشأ داده', result.provenance], ['روش', result.method],
-  ];
-  const grid = document.createElement('div'); grid.style.display = 'grid'; grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(210px, 1fr))'; grid.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-  for (const [labelText, valueText] of values) {
-    const card = document.createElement('article'); card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md; card.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted; card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`; card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const label = document.createElement('small'); label.textContent = labelText; label.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    const value = document.createElement('div'); value.textContent = valueText; value.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm; card.append(label, value); grid.appendChild(card);
-  }
-  panel.appendChild(grid); root.appendChild(panel); renderPumpPressureChartView(root, result); renderPumpFlowPressureCurveView(root, result);
+export function renderPumpView(root:HTMLElement,result?:Readonly<PumpCapabilityPresentation>,engineeringInput?:Readonly<SimulationRunInput>|null,actions?:Readonly<PumpViewActions>):void{
+  root.replaceChildren();if(engineeringInput&&actions){if(engineeringInput.pumpCapability)renderPumpEditor(root,engineeringInput,actions);else renderCreatePumpCapability(root,engineeringInput,actions);}
+  const panel=document.createElement('section');panel.setAttribute('aria-label','قابلیت فشار پمپ');styleEngineeringSection(panel);appendEngineeringSectionHeader(panel,'قابلیت پمپ و تطابق فشار','PASS / FAIL / INSUFFICIENT_DATA مستقیماً از Engineering Core. Renderer آستانه جدید تولید نمی‌کند.',result?.status??'NO RESULT');const body=document.createElement('div');Object.assign(body.style,{padding:'14px'});panel.appendChild(body);
+  if(!result){const empty=document.createElement('div');empty.textContent=engineeringInput?.pumpCapability?'پس از اجرای تحلیل، نتیجه تطابق فشار اینجا نمایش داده می‌شود.':'ابتدا رکورد واقعی قابلیت پمپ تعریف کنید.';Object.assign(empty.style,{padding:'12px',background:TOLUE_DESIGN_TOKENS.color.surfaceMuted,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,color:TOLUE_DESIGN_TOKENS.color.textMuted});body.appendChild(empty);root.appendChild(panel);renderPumpPressureChartView(root);renderPumpFlowPressureCurveView(root);return;}
+  const values:readonly [string,string,string?][]=[['دبی هدف',`${result.targetFlowRateM3s} m³/s`],['فشار موردنیاز',pressureText(result.requiredPressurePa)],['فشار قابل تأمین',pressureText(result.availablePressurePa)],['حاشیه فشار',pressureText(result.pressureMarginPa)],['وضعیت',result.status,result.status==='PASS'?'ok':'warn'],['روش درون‌یابی',result.interpolation],['منشأ داده',result.provenance],['روش',result.method]];const grid=document.createElement('div');Object.assign(grid.style,{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'8px'});for(const[labelText,valueText,tone]of values){const card=document.createElement('article');Object.assign(card.style,{padding:'10px',background:TOLUE_DESIGN_TOKENS.color.surfaceMuted,border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm});const label=document.createElement('small');label.textContent=labelText;label.style.color=TOLUE_DESIGN_TOKENS.color.textMuted;const value=document.createElement('strong');value.textContent=valueText;Object.assign(value.style,{display:'block',marginTop:'4px',fontFamily:TOLUE_DESIGN_TOKENS.typography.monoFamily,direction:'ltr',color:tone==='ok'?TOLUE_DESIGN_TOKENS.color.statusNominal:tone==='warn'?TOLUE_DESIGN_TOKENS.color.statusWarning:TOLUE_DESIGN_TOKENS.color.text});card.append(label,value);grid.appendChild(card);}body.appendChild(grid);root.appendChild(panel);renderPumpPressureChartView(root,result);renderPumpFlowPressureCurveView(root,result);
 }
