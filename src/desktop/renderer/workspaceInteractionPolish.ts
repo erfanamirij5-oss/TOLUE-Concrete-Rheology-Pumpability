@@ -31,6 +31,14 @@ function decorateTreeSelection(tree: HTMLElement): void {
   }
 }
 
+function removeRedundantCollapseControls(shell: HTMLElement): void {
+  const selector = '[data-pane-header-controls="true"] button[aria-label^="جمع‌کردن"], [data-bottom-pane-controls="true"] button[aria-label^="جمع‌کردن"]';
+  for (const button of Array.from(shell.querySelectorAll(selector))) button.remove();
+  for (const controls of Array.from(shell.querySelectorAll('[data-pane-header-controls="true"], [data-bottom-pane-controls="true"]'))) {
+    if (controls instanceof HTMLElement && controls.childElementCount === 0) controls.remove();
+  }
+}
+
 export function installWorkspaceInteractionPolish(root: HTMLElement, sampleLoaded: boolean): void {
   const shell = root.firstElementChild instanceof HTMLStyleElement ? root.children.item(1) : root.firstElementChild;
   const header = shell?.querySelector(':scope > header');
@@ -94,4 +102,6 @@ export function installWorkspaceInteractionPolish(root: HTMLElement, sampleLoade
       root.dataset.resizableWorkspace='true';
     }
   }
+
+  removeRedundantCollapseControls(shell);
 }
