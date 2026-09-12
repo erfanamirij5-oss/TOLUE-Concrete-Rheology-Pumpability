@@ -2,8 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import type { EngineeringRunRowStore, PersistedEngineeringRunRow } from './engineeringRunRepository';
 import type { PersistenceMigrationStore } from './persistenceMigration';
 import type { PersistenceMigration } from './persistenceSchema';
+import type { PersistedVerificationEvidencePackageRow, VerificationEvidencePackageRowStore } from './verificationEvidenceRepository';
 
-export interface SqlitePersistenceAdapter extends PersistenceMigrationStore, EngineeringRunRowStore {
+export interface SqlitePersistenceAdapter extends PersistenceMigrationStore, EngineeringRunRowStore, VerificationEvidencePackageRowStore {
   readonly databasePath: string;
   readonly close: () => void;
 }
@@ -57,5 +58,37 @@ export function openSqlitePersistenceAdapter(databasePath: string): Readonly<Sql
     return Object.freeze(rows.map(row => Object.freeze(row)));
   };
 
-  return Object.freeze({ databasePath, readSchemaVersion, applyMigrationAtomically, insertEngineeringRun, readEngineeringRun, listEngineeringRuns, close: () => database.close() });
+  const insertVerificationEvidencePackage = (row: Readonly<PersistedVerificationEvidencePackageRow>): void => {
+    database.prepare(`INSERT INTO verification_evidence_packages (
+      package_id, generated_at_iso, generated_by, purpose, entry_count, package_json, imported_at_iso
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(row.packageId, row.generatedAtIso, row.generatedBy, row.purpose, row.entryCount, row.packageJson, row.importedAtIso);
+  };
+
+  const verificationSelect = `SELECT package_id AS packageId, generated_at_iso AS generatedAtIso, generated_by AS generatedBy,
+    purpose, entry_count AS entryCount, package_json AS packageJson, imported_at_iso AS importedAtIso
+    FROM verification_evidence_packages`;
+
+  const readVerificationEvidencePackage = (packageId: string): Readonly<PersistedVerificationEvidencePackageRow> | null => {
+    const row = database.prepare(`${verificationSelect} WHERE package_id = ?`).get(packageId) as PersistedVerificationEvidencePackageRow | undefined;
+    return row ? Object.freeze(row) : null;
+  };
+
+  const listVerificationEvidencePackages = (): readonly Readonly<PersistedVerificationEvidencePackageRow>[] => {
+    const rows = database.prepare(`${verificationSelect} ORDER BY imported_at_iso DESC, package_id ASC`).all() as unknown as PersistedVerificationEvidencePackageRow[];
+    return Object.freeze(rows.map(row => Object.freeze(row)));
+  };
+
+  return Object.freeze({
+    databasePath,
+    readSchemaVersion,
+    applyMigrationAtomically,
+    insertEngineeringRun,
+    readEngineeringRun,
+    listEngineeringRuns,
+    insertVerificationEvidencePackage,
+    readVerificationEvidencePackage,
+    listVerificationEvidencePackages,
+    close: () => database.close(),
+  });
 }

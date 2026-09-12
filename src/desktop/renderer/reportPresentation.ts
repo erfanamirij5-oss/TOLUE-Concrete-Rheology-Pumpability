@@ -1,4 +1,8 @@
-import type { EngineeringPdfExportRequest } from '../../engineering/core/engineeringPdfExport';
+import {
+  buildEngineeringReportTextExportRequest,
+  type EngineeringPdfExportRequest,
+  type EngineeringReportTextExportRequest,
+} from '../../engineering/core/engineeringPdfExport';
 import type { EngineeringReportExportBundle } from '../../engineering/core/engineeringReportExport';
 
 export interface ReportExportPresentation {
@@ -11,6 +15,12 @@ export interface ReportExportPresentation {
   readonly jsonMediaType: EngineeringReportExportBundle['json']['mediaType'];
   readonly bundleMethod: EngineeringReportExportBundle['method'];
   readonly pdfRequest: Readonly<EngineeringPdfExportRequest>;
+  readonly htmlRequest: Readonly<EngineeringReportTextExportRequest>;
+  readonly jsonRequest: Readonly<EngineeringReportTextExportRequest>;
+}
+
+function freezeTextRequest(request: EngineeringReportTextExportRequest): Readonly<EngineeringReportTextExportRequest> {
+  return Object.freeze({ ...request });
 }
 
 export function createReportExportPresentation(
@@ -20,6 +30,8 @@ export function createReportExportPresentation(
   if (bundle.runId !== pdfRequest.runId) throw new Error('REPORT-PRESENTATION-RUN-001');
   if (bundle.engineVersion !== pdfRequest.engineVersion) throw new Error('REPORT-PRESENTATION-ENGINE-001');
   if (bundle.inputSnapshotHash !== pdfRequest.inputSnapshotHash) throw new Error('REPORT-PRESENTATION-HASH-001');
+  const htmlRequest = buildEngineeringReportTextExportRequest(bundle, 'html');
+  const jsonRequest = buildEngineeringReportTextExportRequest(bundle, 'json');
   return Object.freeze({
     runId: bundle.runId,
     engineVersion: bundle.engineVersion,
@@ -36,5 +48,7 @@ export function createReportExportPresentation(
         marginsMm: Object.freeze({ ...pdfRequest.page.marginsMm }),
       }),
     }),
+    htmlRequest: freezeTextRequest(htmlRequest),
+    jsonRequest: freezeTextRequest(jsonRequest),
   });
 }

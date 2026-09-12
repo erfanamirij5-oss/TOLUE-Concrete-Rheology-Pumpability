@@ -19,7 +19,6 @@ const METHOD = 'tolue-license-startup-gate-v1' as const;
 
 export function evaluateLicenseStartupGate(input: Readonly<LicenseStartupGateInput>): Readonly<LicenseStartupGateResult> {
   if (!input.machineId.trim()) throw new Error('LICENSE-STARTUP-MACHINE-001');
-  if (!input.publicKeyPem.trim()) throw new Error('LICENSE-STARTUP-PUBLIC-KEY-001');
   if (!input.nowIso.trim()) throw new Error('LICENSE-STARTUP-TIME-001');
 
   const entitlement = verifySignedLicenseEnvelope(input.signedEnvelope, input.publicKeyPem);

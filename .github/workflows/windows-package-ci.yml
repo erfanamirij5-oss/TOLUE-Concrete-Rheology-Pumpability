@@ -16,7 +16,7 @@ jobs:
   windows-package:
     name: Build Windows NSIS Installer
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repository
@@ -41,16 +41,16 @@ jobs:
       - name: Prepare ephemeral machine-bound CI license
         run: node scripts/create-windows-ci-license.mjs
 
-      - name: Build Windows NSIS installer
+      - name: Build Windows CI smoke installer
         run: npm run package:win
 
-      - name: Verify installer artifact
+      - name: Verify CI smoke installer artifact
         shell: pwsh
         run: |
           $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
           if ($installer.Count -ne 1) { throw "WINDOWS-PACKAGE-ARTIFACT-001: expected exactly one NSIS installer, found $($installer.Count)" }
           if ($installer[0].Length -le 0) { throw 'WINDOWS-PACKAGE-ARTIFACT-002: installer is empty' }
-          Write-Host "Installer: $($installer[0].FullName)"
+          Write-Host "CI smoke installer: $($installer[0].FullName)"
           Write-Host "Bytes: $($installer[0].Length)"
 
       - name: Silent install smoke test
@@ -58,7 +58,7 @@ jobs:
         run: |
           $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)[0]
           $programsRoot = Join-Path $env:LOCALAPPDATA 'Programs'
-          $expectedCrash = -1073741819 # 0xC0000005: known intermittent NSIS System.dll access violation on fresh per-user install
+          $expectedCrash = -1073741819
           $maxAttempts = 2
           $lastExitCode = $null
 
@@ -162,6 +162,39 @@ jobs:
           if ($db[0].Length -lt $beforeLength) { throw "WINDOWS-USERDATA-006: persistence database shrank across restart" }
           Stop-Process -Id $process.Id -Force
           Write-Host 'Persistence database survived licensed installed-app restart at the same userData path.'
+
+      - name: Prepare distributable legacy trust resources
+        shell: pwsh
+        run: |
+          $source = 'release/stable/v1.0.0'
+          $dest = 'build/license'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Copy-Item (Join-Path $source 'tolue-license-public-key.pem') (Join-Path $dest 'tolue-license-public-key.pem') -Force
+          Copy-Item (Join-Path $source 'tolue-license-public-keyring.json') (Join-Path $dest 'tolue-license-public-keyring.json') -Force
+          $privateMaterial = Select-String -Path (Join-Path $dest '*') -Pattern 'BEGIN .*PRIVATE KEY' -ErrorAction SilentlyContinue
+          if ($privateMaterial) { throw 'WINDOWS-PRODUCTION-TRUST-001: private key material detected in distributable trust resources' }
+          Remove-Item 'release/windows' -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host 'Prepared checked-in public trust resources for final distributable build.'
+
+      - name: Build final distributable Windows installer
+        run: npm run package:win
+
+      - name: Verify distributable trust and installer
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path release/windows -Filter 'TOLUE-Concrete-Rheology-Pumpability-*-Setup.exe' -File)
+          if ($installer.Count -ne 1) { throw "WINDOWS-DISTRIBUTABLE-001: expected one final installer, found $($installer.Count)" }
+          $embedded = 'release/windows/win-unpacked/resources/license'
+          foreach ($name in @('tolue-license-public-key.pem', 'tolue-license-public-keyring.json')) {
+            $expected = Join-Path 'release/stable/v1.0.0' $name
+            $actual = Join-Path $embedded $name
+            if (-not (Test-Path $actual -PathType Leaf)) { throw "WINDOWS-DISTRIBUTABLE-002: missing embedded trust resource $name" }
+            $expectedHash = (Get-FileHash $expected -Algorithm SHA256).Hash
+            $actualHash = (Get-FileHash $actual -Algorithm SHA256).Hash
+            if ($expectedHash -ne $actualHash) { throw "WINDOWS-DISTRIBUTABLE-003: embedded trust mismatch for $name" }
+          }
+          Write-Host "Final distributable: $($installer[0].FullName)"
+          Write-Host "Bytes: $($installer[0].Length)"
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4

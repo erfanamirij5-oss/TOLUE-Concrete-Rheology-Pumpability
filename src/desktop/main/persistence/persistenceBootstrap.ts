@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { createEngineeringRunRepository, type EngineeringRunRepository } from './engineeringRunRepository';
 import { migratePersistenceSchema, type PersistenceMigrationResult } from './persistenceMigration';
 import { openSqlitePersistenceAdapter, type SqlitePersistenceAdapter } from './sqlitePersistenceAdapter';
+import { createVerificationEvidenceRepository, type VerificationEvidenceRepository } from './verificationEvidenceRepository';
 
 export const TOLUE_DATABASE_FILENAME = 'tolue-rheology.sqlite3' as const;
 
@@ -9,6 +10,7 @@ export interface PersistenceBootstrapResult {
   readonly databasePath: string;
   readonly migration: Readonly<PersistenceMigrationResult>;
   readonly engineeringRuns: Readonly<EngineeringRunRepository>;
+  readonly verificationEvidencePackages: Readonly<VerificationEvidenceRepository>;
   readonly close: () => void;
 }
 
@@ -20,7 +22,8 @@ export function bootstrapPersistence(userDataPath: string, nowIso = new Date().t
     adapter = openSqlitePersistenceAdapter(databasePath);
     const migration = migratePersistenceSchema(adapter, nowIso);
     const engineeringRuns = createEngineeringRunRepository(adapter);
-    return Object.freeze({ databasePath, migration, engineeringRuns, close: adapter.close });
+    const verificationEvidencePackages = createVerificationEvidenceRepository(adapter);
+    return Object.freeze({ databasePath, migration, engineeringRuns, verificationEvidencePackages, close: adapter.close });
   } catch (error) {
     try { adapter?.close(); } catch { /* preserve bootstrap failure */ }
     throw error;

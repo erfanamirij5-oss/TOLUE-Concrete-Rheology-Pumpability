@@ -3,7 +3,7 @@
 const { createHash, createPrivateKey, createPublicKey, sign, verify } = require('node:crypto');
 
 const PRODUCT_ID = 'tolue-concrete-rheology-pumpability';
-const SCHEMA_VERSION = 'tolue-license-v1';
+const SCHEMA_VERSION = 'tolue-license-v2';
 const PRODUCTION_KEY_ID = 'tolue-prod-2026-03';
 const PRODUCTION_PUBLIC_PEM_SHA256 = '1cb27a3646b957ceb02d1d3649604a8677f702450a6f1f3293422e301b5b7517';
 
@@ -36,7 +36,7 @@ function inspectPrivateKey(privateKeyPem, expectedFingerprint = PRODUCTION_PUBLI
   if (fingerprint !== expectedFingerprint.toLowerCase()) {
     throw new Error(`LM-KEY-004: این کلید متعلق به کلید تولیدی تأییدشده نیست. fingerprint=${fingerprint}`);
   }
-  return Object.freeze({ privateKey, publicKey, fingerprint });
+  return Object.freeze({ privateKey, publicKey, publicKeyPem, fingerprint });
 }
 
 function normalizeInput(input) {
@@ -68,14 +68,21 @@ function issueLicense(input, privateKeyPem, expectedFingerprint = PRODUCTION_PUB
   const payload = Buffer.from(canonicalLicensePayload(entitlement), 'utf8');
   const signature = sign(null, payload, key.privateKey);
   if (signature.byteLength !== 64 || !verify(null, payload, key.publicKey, signature)) throw new Error('LM-SIGN-001: بررسی امضای تولیدشده ناموفق بود.');
-  const envelope = Object.freeze({ schemaVersion: SCHEMA_VERSION, entitlement, signatureBase64: signature.toString('base64') });
+  const envelope = Object.freeze({
+    schemaVersion: SCHEMA_VERSION,
+    keyId: PRODUCTION_KEY_ID,
+    publicKeyPem: key.publicKeyPem,
+    entitlement,
+    signatureBase64: signature.toString('base64'),
+  });
   return Object.freeze({ envelope, fingerprint: key.fingerprint, keyId: PRODUCTION_KEY_ID });
 }
 
 function verifyLicenseEnvelope(envelope, publicKey) {
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) return false;
-  if (Object.keys(envelope).some(key => !['schemaVersion', 'entitlement', 'signatureBase64'].includes(key))) return false;
-  if (envelope.schemaVersion !== SCHEMA_VERSION || !envelope.entitlement || typeof envelope.signatureBase64 !== 'string') return false;
+  if (Object.keys(envelope).some(key => !['schemaVersion', 'keyId', 'publicKeyPem', 'entitlement', 'signatureBase64'].includes(key))) return false;
+  if (envelope.schemaVersion !== SCHEMA_VERSION || envelope.keyId !== PRODUCTION_KEY_ID || !envelope.entitlement || typeof envelope.signatureBase64 !== 'string') return false;
+  if (normalizePem(String(envelope.publicKeyPem ?? '')) !== normalizePem(publicKey.export({ type: 'spki', format: 'pem' }).toString())) return false;
   const signature = Buffer.from(envelope.signatureBase64, 'base64');
   if (signature.byteLength !== 64) return false;
   return verify(null, Buffer.from(canonicalLicensePayload(envelope.entitlement), 'utf8'), publicKey, signature);
