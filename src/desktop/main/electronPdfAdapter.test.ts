@@ -25,7 +25,7 @@ const payload = (): EngineeringPdfExportRequest => ({
   mediaType: 'application/pdf', sourceMediaType: 'text/html', rendererBoundary: 'privileged_desktop_main_process',
   scientificClaim: 'presentation_only_no_new_engineering_inference', method: 'tolue-engineering-pdf-export-request-v1',
   page: { format: 'A4', landscape: false, printBackground: true, preferCssPageSize: true, displayHeaderFooter: false,
-    marginsMm: { top: 14, right: 14, bottom: 14, left: 14 } },
+    marginsMm: { top: 5, right: 5, bottom: 5, left: 5 } },
 });
 beforeEach(() => { vi.clearAllMocks(); mock.save.mockResolvedValue({ canceled: false, filePath: process.platform === 'win32' ? 'C:\\reports\\report.pdf' : '/reports/report.pdf' }); mock.print.mockResolvedValue(new Uint8Array([37,80,68,70])); mock.write.mockResolvedValue(undefined); mock.load.mockResolvedValue(undefined); });
 describe('Electron PDF adapter', () => {
@@ -35,7 +35,7 @@ describe('Electron PDF adapter', () => {
     expect(result).toMatchObject({ status: 'SUCCESS', runId: 'run', engineVersion: 'v1', inputSnapshotHash: 'hash', bytesWritten: 4 });
     expect(request).toEqual(snapshot);
     expect(mock.windowOptions).toHaveBeenCalledWith(expect.objectContaining({ show: false, webPreferences: expect.objectContaining({ sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false }) }));
-    expect(mock.print).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 'A4', preferCSSPageSize: true, margins: { top: 14/25.4, right: 14/25.4, bottom: 14/25.4, left: 14/25.4 } }));
+    expect(mock.print).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 'A4', preferCSSPageSize: true, margins: { top: 5/25.4, right: 5/25.4, bottom: 5/25.4, left: 5/25.4 } }));
     expect(decodeURIComponent(mock.load.mock.calls[0]![0])).toContain(request.payload.html);
     expect(mock.write).toHaveBeenCalledWith(expect.any(String), expect.any(Uint8Array), { flag: 'wx' });
     const callback = vi.fn(); mock.request.mock.calls[0]![0]({ url: 'https://evil.test' }, callback); expect(callback).toHaveBeenCalledWith({ cancel: true });
