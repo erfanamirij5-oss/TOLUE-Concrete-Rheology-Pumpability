@@ -22,6 +22,17 @@ describe('executable model registry', () => {
     expect(result.requiredEvidence).toContain('Tier-C TOLUE field validation');
   });
 
+  it('registers stability and blockage screening as explicit preliminary models', () => {
+    const stability = getExecutableModelRecord('STABILITY-STATIC-ROUSSEL-001');
+    const blockage = getExecutableModelRecord('BLOCKAGE-GEOMETRY-ACI-001');
+    expect(stability?.status).toBe('implemented');
+    expect(blockage?.status).toBe('implemented');
+    expect(stability?.productionEligible).toBe(false);
+    expect(blockage?.productionEligible).toBe(false);
+    expect(evaluateModelReadinessGovernance('STABILITY-STATIC-ROUSSEL-001').disposition).toBe('PRELIMINARY');
+    expect(evaluateModelReadinessGovernance('BLOCKAGE-GEOMETRY-ACI-001').disposition).toBe('PRELIMINARY');
+  });
+
   it('fails closed at readiness for unknown and blocked models', () => {
     const unknown = evaluateModelReadinessGovernance('UNKNOWN-MODEL');
     expect(unknown.disposition).toBe('BLOCKED');
@@ -46,10 +57,10 @@ describe('executable model registry', () => {
       .toThrow('MODEL-REGISTRY-UNKNOWN:UNKNOWN-MODEL');
   });
 
-  it('keeps blockage physically blocked', () => {
+  it('keeps exact physical blockage location blocked while allowing only the geometric screen', () => {
     const blockage = getExecutableModelRecord('BLOCKAGE-001');
     expect(blockage?.status).toBe('blocked');
     expect(blockage?.productionEligible).toBe(false);
-    expect(listExecutableModelRecords().length).toBeGreaterThanOrEqual(4);
+    expect(listExecutableModelRecords().length).toBeGreaterThanOrEqual(6);
   });
 });
