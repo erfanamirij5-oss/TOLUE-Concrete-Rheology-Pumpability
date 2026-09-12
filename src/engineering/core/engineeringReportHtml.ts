@@ -74,39 +74,57 @@ export function renderPersianEngineeringReportHtml(
   <style>
     :root { font-family: Vazirmatn, Vazir, Tahoma, Arial, sans-serif; color: #1f2937; background: #ffffff; }
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 24px; line-height: 1.7; direction: rtl; }
+    body { margin: 0; padding: 18px; line-height: 1.45; direction: rtl; font-size: 11px; }
     main { max-width: 1120px; margin: 0 auto; }
     h1, h2, h3, p { margin-top: 0; }
-    h1 { font-size: 24px; margin-bottom: 6px; }
-    h2 { font-size: 17px; margin: 28px 0 12px; border-bottom: 1px solid #d1d5db; padding-bottom: 6px; }
-    h3 { font-size: 15px; margin: 0; }
+    h1 { font-size: 19px; margin-bottom: 4px; }
+    h2 { font-size: 13px; margin: 14px 0 7px; border-bottom: 1px solid #d1d5db; padding-bottom: 3px; }
+    h3 { font-size: 11px; margin: 0; }
+    p { margin-bottom: 5px; }
     .subtitle, .muted, .meta { color: #6b7280; }
-    .decision-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-    .decision-card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; break-inside: avoid; }
-    .decision-card strong { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #d1d5db; padding: 8px; vertical-align: top; }
+    .decision-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+    .decision-card { border: 1px solid #d1d5db; border-radius: 5px; padding: 6px; break-inside: avoid; }
+    .decision-card strong { display: block; font-size: 9px; color: #6b7280; margin-bottom: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; }
+    th, td { border: 1px solid #d1d5db; padding: 3px 4px; vertical-align: top; line-height: 1.25; overflow-wrap: anywhere; }
     th { background: #f3f4f6; font-weight: 700; }
     .ltr { direction: ltr; text-align: left; unicode-bidi: isolate; }
     .code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; }
-    .diagnostic { border-right: 4px solid #9ca3af; padding: 10px 12px; margin-bottom: 10px; background: #f9fafb; break-inside: avoid; }
+    .diagnostic { border-right: 3px solid #9ca3af; padding: 5px 7px; margin-bottom: 4px; background: #f9fafb; break-inside: avoid; }
     .diagnostic.warning { border-right-color: #d97706; }
     .diagnostic.critical { border-right-color: #b91c1c; }
-    .diag-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
-    .severity { display:inline-block; border:1px solid #d1d5db; border-radius:999px; padding:1px 7px; font-size:11px; }
-    .trace { font-size: 11px; word-break: break-word; }
-    ul { margin: 0; padding-right: 20px; }
-    footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #d1d5db; font-size: 11px; color: #6b7280; }
-    @page { size: A4; margin: 14mm; }
+    .diag-head { display:flex; align-items:center; gap:5px; margin-bottom:2px; }
+    .severity { display:inline-block; border:1px solid #d1d5db; border-radius:999px; padding:0 5px; font-size:8px; }
+    .trace { font-size: 8px; word-break: break-word; }
+    ul { margin: 0; padding-right: 15px; }
+    li { margin-bottom: 1px; }
+    footer { margin-top: 8px; padding-top: 5px; border-top: 1px solid #d1d5db; font-size: 8px; color: #6b7280; }
+    @page { size: A4 portrait; margin: 5mm; }
     @media print {
-      body { padding: 0; }
-      main { max-width: none; }
+      html, body { width: 200mm; min-height: 287mm; }
+      body { padding: 0; font-size: 8.2px; line-height: 1.18; }
+      main { width: 100%; max-width: none; }
+      h1 { font-size: 13px; margin-bottom: 2px; }
+      h2 { font-size: 9.5px; margin: 6px 0 3px; padding-bottom: 2px; }
+      h3 { font-size: 8.5px; }
+      p { margin-bottom: 2px; }
+      .decision-grid { gap: 3px; }
+      .decision-card { padding: 3px 4px; border-radius: 3px; }
+      .decision-card strong { font-size: 7px; margin-bottom: 1px; }
+      table { font-size: 7px; }
+      th, td { padding: 2px 2.5px; line-height: 1.12; }
+      .diagnostic { padding: 3px 4px; margin-bottom: 2px; border-right-width: 2px; }
+      .diag-head { gap: 3px; margin-bottom: 1px; }
+      .severity { font-size: 6.5px; padding: 0 3px; }
+      ul { padding-right: 11px; }
+      .trace { font-size: 6.7px; }
+      footer { margin-top: 4px; padding-top: 3px; font-size: 6.5px; }
       h2 { break-after: avoid; }
       table, .decision-grid, .diagnostic { break-inside: avoid; }
     }
     @media (max-width: 760px) {
       .decision-grid { grid-template-columns: 1fr 1fr; }
-      table { font-size: 11px; }
+      table { font-size: 8px; }
     }
   </style>
 </head>
