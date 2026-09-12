@@ -77,9 +77,13 @@ describe('TOLUE engineering report export', () => {
     expect(report.decision.overallStatus).toBe(output.decision.overallStatus);
     expect(report.decision.overallStatusFa).toContain('پروژه');
     expect(report.keyResults[0]?.rawValue).toBe(1_250_000);
+    expect(report.keyResults[0]?.displayValueFa).toContain('۱');
+    expect(report.keyResults[0]?.methodLabelFa).toBe('محاسبه فشار خط لوله');
     expect(report.keyResults[0]?.unit).toBe('Pa');
     expect(report.keyResults[0]?.validationStatus).toBe('candidate');
     expect(report.keyResults[0]?.evidenceStatus).toBe('DOCUMENTED');
+    expect(report.diagnostics[0]?.title).toBe('شواهد پمپ‌پذیری در دامنه پروژه قابل قبول است.');
+    expect(report.diagnostics[0]?.message).toBe('شواهد واجد شرایط پروژه در دامنه‌های ارائه‌شده قابل قبول است.');
     expect(report.scientificClaim).toBe('presentation_only_no_new_engineering_inference');
   });
 
@@ -95,9 +99,36 @@ describe('TOLUE engineering report export', () => {
     expect(a.content).toContain('<html lang="fa" dir="rtl">');
     expect(a.content).toContain('@page { size: A4 portrait;');
     expect(a.content).toContain('margin: 5mm;');
-    expect(a.content).toContain('1250000');
+    expect(a.content).toContain(report.keyResults[0]!.displayValueFa);
     expect(a.content).toContain('fnv1a32:12345678');
     expect(a.content).toContain('هیچ استنتاج، ضریب یا مدل مهندسی جدیدی اعمال نمی‌شود');
+  });
+
+  it('renders automatic stability/blockage analysis as Persian user-facing content', () => {
+    const output = fixture();
+    output.decision = { overallStatus: 'SCREENED_ACCEPTABLE', pressureFeasibility: 'PASS', stability: 'ACCEPTABLE', blockageRisk: 'ACCEPTABLE', qualificationScope: 'screened' };
+    output.keyResults = [
+      { id: 'pumpability.stabilityScreening', label: 'Automatic static stability screening', value: 'ACCEPTABLE', unit: null, validationStatus: 'preliminary', evidenceStatus: 'PRELIMINARY', resultClass: 'DERIVED_METRIC', methodId: 'tolue-static-segregation-screen-roussel-2006-v1', provenanceEntityIds: [], calibrationIds: [] },
+      { id: 'pumpability.blockageScreening', label: 'Automatic aggregate-to-pipe blockage screening', value: 'ACCEPTABLE', unit: null, validationStatus: 'preliminary', evidenceStatus: 'PRELIMINARY', resultClass: 'DERIVED_METRIC', methodId: 'tolue-blockage-geometric-screen-v1', provenanceEntityIds: [], calibrationIds: [] },
+    ];
+    output.diagnostics = [{
+      id: 'diagnostic.pumpability.screenedAcceptable', kind: 'PUMPABILITY_SCREENED_ACCEPTABLE', severity: 'info', title: 'Automatic stability and blockage engineering screens are acceptable', message: 'Pressure is feasible and the available automatic stability/blockage screening checks are acceptable. These screens are preliminary and do not replace project-qualified pumping trials or evidence.', sourceResultIds: ['pumpability.stabilityScreening','pumpability.blockageScreening'], sourceRunId: output.runId, inputSnapshotHash: output.traceability.inputSnapshotHash, ruleId: 'DX-PUMPABILITY-SCREEN-001', ruleVersion: '1.0.0', basis: 'engineering_screening', validationStatus: 'preliminary', recommendation: 'Use project-qualified trial, laboratory, or field evidence when a final project acceptance decision is required.',
+    }];
+    output.warnings = [];
+    output.limitations = ['Stability and blockage conclusions identify whether they arise from project-qualified evidence or preliminary engineering screening; neither is a universal physical prediction.'];
+
+    const bundle = buildEngineeringReportExportBundle(output);
+    expect(bundle.report.decision.overallStatusFa).toContain('غربالگری مهندسی');
+    expect(bundle.report.keyResults[0]?.labelFa).toContain('پایداری');
+    expect(bundle.report.keyResults[0]?.displayValueFa).toBe('قابل قبول');
+    expect(bundle.report.keyResults[0]?.resultClassFa).toBe('شاخص مشتق‌شده');
+    expect(bundle.report.keyResults[0]?.methodLabelFa).toContain('راسل');
+    expect(bundle.report.diagnostics[0]?.title).toContain('غربالگری خودکار');
+    expect(bundle.report.diagnostics[0]?.recommendation).toContain('شواهد میدانی');
+    expect(bundle.report.limitations).toContain('نتایج پایداری و انسداد مشخص می‌کنند که مبنا شواهد معتبر پروژه‌ای است یا غربالگری مهندسی مقدماتی؛ هیچ‌یک پیش‌بینی فیزیکی عمومی برای همه شرایط محسوب نمی‌شود.');
+    expect(bundle.html.content).not.toContain('SCREENED_ACCEPTABLE');
+    expect(bundle.html.content).not.toContain('DERIVED_METRIC');
+    expect(bundle.html.content).not.toContain('Automatic stability and blockage engineering screens are acceptable');
   });
 
   it('escapes dynamic HTML content instead of allowing markup injection', () => {
