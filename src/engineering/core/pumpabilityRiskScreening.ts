@@ -132,7 +132,7 @@ export function assessPumpabilityRiskScreening(
     criticalYieldStressPa = rhoDifference * STANDARD_GRAVITY_MS2 * nms / 18;
     yieldStressMarginPa = input.suspendingPhaseYieldStressPa - criticalYieldStressPa;
     stabilityRatio = criticalYieldStressPa === 0
-      ? Number.POSITIVE_INFINITY
+      ? null
       : input.suspendingPhaseYieldStressPa / criticalYieldStressPa;
     stabilityStatus = input.suspendingPhaseYieldStressPa >= criticalYieldStressPa ? 'ACCEPTABLE' : 'UNACCEPTABLE';
   }
