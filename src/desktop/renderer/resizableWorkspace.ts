@@ -11,7 +11,9 @@ type WorkspaceDensity='comfortable'|'compact'|'narrow';
 type WorkspaceFocus='none'|'viewport'|'inspector'|'bottom';
 
 const clamp=(value:number,min:number,max:number):number=>Math.min(max,Math.max(min,value));
-const STORAGE_KEY='tolue-workspace-layout-v3';
+export const DEFAULT_BOTTOM_PANE_HEIGHT=94;
+const STORAGE_KEY='tolue-workspace-layout-v4';
+const LEGACY_STORAGE_KEY='tolue-workspace-layout-v3';
 
 interface StoredWorkspaceLayout {
   readonly treeWidth?:number;
@@ -22,12 +24,23 @@ interface StoredWorkspaceLayout {
   readonly bottomCollapsed?:boolean;
 }
 
+const parseStoredLayout=(raw:string|null):StoredWorkspaceLayout|null=>{
+  if(!raw)return null;
+  try{
+    const value=JSON.parse(raw) as StoredWorkspaceLayout;
+    return value&&typeof value==='object'?value:null;
+  }catch{return null;}
+};
+
 const readStoredLayout=():StoredWorkspaceLayout=>{
   try{
-    const raw=window.localStorage?.getItem(STORAGE_KEY);
-    if(!raw)return {};
-    const value=JSON.parse(raw) as StoredWorkspaceLayout;
-    return value&&typeof value==='object'?value:{};
+    const current=parseStoredLayout(window.localStorage?.getItem(STORAGE_KEY)??null);
+    if(current)return current;
+    const legacy=parseStoredLayout(window.localStorage?.getItem(LEGACY_STORAGE_KEY)??null);
+    if(!legacy)return {};
+    const migrated:StoredWorkspaceLayout={...legacy,bottomHeight:DEFAULT_BOTTOM_PANE_HEIGHT};
+    window.localStorage?.setItem(STORAGE_KEY,JSON.stringify(migrated));
+    return migrated;
   }catch{return {};}
 };
 
@@ -36,11 +49,11 @@ const writeStoredLayout=(layout:StoredWorkspaceLayout):void=>{
 };
 
 function installResponsiveWorkspaceStyle(shell:HTMLElement):void{
-  if(document.querySelector('style[data-tolue-responsive-workspace="v5"]'))return;
+  if(document.querySelector('style[data-tolue-responsive-workspace="v6"]'))return;
   const style=document.createElement('style');
-  style.dataset.tolueResponsiveWorkspace='v5';
+  style.dataset.tolueResponsiveWorkspace='v6';
   style.textContent=`
-[data-resizable-workspace="true"]{min-width:640px!important;grid-template-rows:54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)!important}
+[data-resizable-workspace="true"]{min-width:640px!important;grid-template-rows:54px minmax(220px,1fr) 6px var(--tolue-bottom-height,${DEFAULT_BOTTOM_PANE_HEIGHT}px)!important}
 [data-resizable-workspace="true"]>header{grid-row:1!important;min-height:0!important}
 [data-resizable-workspace="true"]>[data-workspace-main="true"]{grid-row:2!important;min-height:0!important;grid-template-columns:var(--tolue-tree-column,230px) var(--tolue-tree-grip,6px) minmax(var(--tolue-center-min,320px),1fr) var(--tolue-inspector-grip,6px) var(--tolue-inspector-column,330px)!important}
 [data-resizable-workspace="true"]>[data-bottom-grip="true"]{grid-row:3!important;height:6px!important;min-height:6px!important;max-height:6px!important;align-self:stretch!important;overflow:hidden!important;background:transparent!important}
@@ -121,7 +134,7 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
   const stored=readStoredLayout();
   let treeWidth=Number.isFinite(stored.treeWidth)?Number(stored.treeWidth):230;
   let inspectorWidth=Number.isFinite(stored.inspectorWidth)?Number(stored.inspectorWidth):330;
-  let bottomHeight=Number.isFinite(stored.bottomHeight)?Number(stored.bottomHeight):Math.round(window.innerHeight*.26);
+  let bottomHeight=Number.isFinite(stored.bottomHeight)?Number(stored.bottomHeight):DEFAULT_BOTTOM_PANE_HEIGHT;
   let treeCollapsed=stored.treeCollapsed===true;
   let inspectorCollapsed=stored.inspectorCollapsed===true;
   let bottomCollapsed=stored.bottomCollapsed===true;
@@ -245,7 +258,7 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
     treeWidth=clamp(treeWidth,treeMin,treeMax);
     const inspectorMax=Math.min(density==='narrow'?260:520,Math.max(inspectorMin,sideBudget-treeWidth));
     inspectorWidth=clamp(inspectorWidth,inspectorMin,inspectorMax);
-    bottomHeight=clamp(bottomHeight,110,Math.max(110,Math.round(window.innerHeight*.55)));
+    bottomHeight=clamp(bottomHeight,DEFAULT_BOTTOM_PANE_HEIGHT,Math.max(DEFAULT_BOTTOM_PANE_HEIGHT,Math.round(window.innerHeight*.55)));
 
     const hideTree=focusMode!=='none'||treeCollapsed;
     const hideInspector=(focusMode==='viewport'||focusMode==='bottom')||inspectorCollapsed;
@@ -344,7 +357,7 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
 
   treeGrip.addEventListener('dblclick',()=>{treeWidth=230;treeCollapsed=false;focusMode='none';apply();persist();});
   inspectorGrip.addEventListener('dblclick',()=>{inspectorWidth=330;inspectorCollapsed=false;focusMode='none';apply();persist();});
-  bottomGrip.addEventListener('dblclick',()=>{bottomHeight=Math.round(window.innerHeight*.26);bottomCollapsed=false;focusMode='none';apply();persist();});
+  bottomGrip.addEventListener('dblclick',()=>{bottomHeight=DEFAULT_BOTTOM_PANE_HEIGHT;bottomCollapsed=false;focusMode='none';apply();persist();});
 
   shell.addEventListener('keydown',(event)=>{
     if(event.key==='Escape'&&focusMode!=='none'){
