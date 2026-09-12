@@ -1,4 +1,4 @@
-import { installResizableWorkspace } from './resizableWorkspace';
+import { DEFAULT_BOTTOM_PANE_HEIGHT, installResizableWorkspace } from './resizableWorkspace';
 
 export type CommercialRunState = 'ready' | 'running' | 'stale' | 'blocked';
 
@@ -14,7 +14,7 @@ export function deriveCommercialRunState(
 }
 
 export function commercialWorkspaceGridRows(): string {
-  return '54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)';
+  return `54px minmax(220px,1fr) 6px var(--tolue-bottom-height,${DEFAULT_BOTTOM_PANE_HEIGHT}px)`;
 }
 
 function decorateTreeSelection(tree: HTMLElement): void {
