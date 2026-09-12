@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveCommercialRunState } from './workspaceInteractionPolish';
+import { commercialWorkspaceGridRows, deriveCommercialRunState } from './workspaceInteractionPolish';
 
 describe('commercial workspace interaction state', () => {
   it('prioritizes running over all other presentation states', () => {
@@ -13,5 +13,9 @@ describe('commercial workspace interaction state', () => {
   it('marks disabled execution as blocked and available execution as ready', () => {
     expect(deriveCommercialRunState('false', true, 'آماده')).toBe('blocked');
     expect(deriveCommercialRunState('false', false, 'آماده')).toBe('ready');
+  });
+
+  it('uses four explicit shell rows so the bottom resize grip cannot create a blank implicit row', () => {
+    expect(commercialWorkspaceGridRows()).toBe('54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)');
   });
 });
