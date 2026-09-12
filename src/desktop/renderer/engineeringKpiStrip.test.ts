@@ -21,9 +21,9 @@ describe('engineering viewport KPIs', () => {
       pump: { availablePressurePa: 6_500_000, pressureMarginPa: 2_500_000, status: 'PASS' },
     } as unknown as EngineeringAnalysisPresentation;
     const live = createEngineeringViewportKpis(input, analysis, false);
-    expect(live.find(k => k.id === 'required-pressure')?.value).toBe('4.00 MPa');
-    expect(live.find(k => k.id === 'available-pressure')?.value).toBe('6.50 MPa');
-    expect(live.find(k => k.id === 'pressure-margin')?.value).toBe('2.50 MPa');
+    expect(live.find(k => k.id === 'required-pressure')?.value).toBe('4.00 مگاپاسکال');
+    expect(live.find(k => k.id === 'available-pressure')?.value).toBe('6.50 مگاپاسکال');
+    expect(live.find(k => k.id === 'pressure-margin')?.value).toBe('2.50 مگاپاسکال');
     expect(live.find(k => k.id === 'pressure-margin')?.source).toBe('engineering-core');
     const stale = createEngineeringViewportKpis(input, analysis, true);
     expect(stale.find(k => k.id === 'required-pressure')?.value).toBe('—');
