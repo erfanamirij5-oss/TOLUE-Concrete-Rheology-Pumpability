@@ -4,7 +4,7 @@ import type { TolueBridge } from '../preload/tolueBridge';
 import { createBlankEngineeringDraftState, createSampleEngineeringDraftState, type ApplicationDataFlowState } from './applicationDataFlow';
 import { renderApplicationShell } from './applicationShell';
 import { installBrandIcon } from './brandIconCanvas';
-import { installWorkspaceInteractionPolish } from './workspaceInteractionPolish';
+import { commercialWorkspaceGridRows, installWorkspaceInteractionPolish } from './workspaceInteractionPolish';
 
 export interface RendererPlatform {
   readonly executeEngineeringAnalysis: TolueBridge['executeEngineeringAnalysis'];
@@ -52,7 +52,7 @@ function installPersistentWorkspacePolish(root: HTMLElement): void {
   min-width:${COMMERCIAL_WORKSPACE_LAYOUT.minWidthPx}px !important;
   min-height:0 !important;
   overflow:hidden !important;
-  grid-template-rows:54px minmax(0,1fr) clamp(${COMMERCIAL_WORKSPACE_LAYOUT.bottomMinHeightPx}px,${COMMERCIAL_WORKSPACE_LAYOUT.bottomPreferredVh}vh,${COMMERCIAL_WORKSPACE_LAYOUT.bottomMaxHeightPx}px) !important;
+  grid-template-rows:${commercialWorkspaceGridRows()} !important;
 }
 [data-commercial-ui="v2"] > div > header { min-width:0; overflow:hidden; }
 [data-commercial-ui="v2"] > div > div { min-width:0; min-height:0; overflow:hidden; }
