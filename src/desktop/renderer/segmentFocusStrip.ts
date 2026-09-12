@@ -16,8 +16,8 @@ const numeric = (value: string | undefined): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const pressure = (value: number | null): string => value === null ? '—' : `${(value / 1_000_000).toFixed(3)} MPa`;
-const flow = (value: number | null): string => value === null ? '—' : `${(value * 3600).toFixed(1)} m³/h`;
+const pressure = (value: number | null): string => value === null ? '—' : `${(value / 1_000_000).toFixed(3)} مگاپاسکال`;
+const flow = (value: number | null): string => value === null ? '—' : `${(value * 3600).toFixed(1)} مترمکعب بر ساعت`;
 
 export function activeSegmentFocusSnapshot(doc: Document = document): Readonly<SegmentFocusSnapshot> | null {
   const card = doc.querySelector<HTMLElement>('[data-segment-inspector-card="true"]');
@@ -56,8 +56,8 @@ function renderStrip(strip: HTMLElement, focus: Readonly<SegmentFocusSnapshot> |
   const identity = document.createElement('div');
   Object.assign(identity.style, { display: 'grid', alignContent: 'center', gap: '2px', padding: '4px 6px' });
   const label = document.createElement('small');
-  label.textContent = 'SEGMENT FOCUS';
-  Object.assign(label.style, { direction: 'ltr', color: TOLUE_DESIGN_TOKENS.color.textMuted, fontWeight: '700', letterSpacing: '.05em' });
+  label.textContent = 'قطعه انتخاب‌شده';
+  Object.assign(label.style, { color: TOLUE_DESIGN_TOKENS.color.textMuted, fontWeight: '700' });
   const id = document.createElement('strong');
   id.textContent = focus.id;
   Object.assign(id.style, { direction: 'ltr', color: focus.stale ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.selection, fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily });
@@ -71,24 +71,24 @@ function renderStrip(strip: HTMLElement, focus: Readonly<SegmentFocusSnapshot> |
     l.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
     const v = document.createElement('strong');
     v.textContent = focus.stale ? '—' : valueText;
-    Object.assign(v.style, { display: 'block', marginTop: '2px', direction: 'ltr', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, fontSize: '11px' });
+    Object.assign(v.style, { display: 'block', marginTop: '2px', direction: 'rtl', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, fontSize: '11px' });
     item.append(l, v);
     return item;
   };
 
   strip.append(
     identity,
-    metric('ΔP', pressure(focus.totalPressurePa)),
-    metric('Friction', pressure(focus.frictionPressurePa)),
-    metric('Elevation', pressure(focus.elevationPressurePa)),
-    metric('Flow', flow(focus.flowRateM3s)),
-    metric('Linked findings', String(focus.diagnosticFindingIds.length)),
+    metric('افت فشار کل', pressure(focus.totalPressurePa)),
+    metric('افت اصطکاکی', pressure(focus.frictionPressurePa)),
+    metric('اثر ارتفاع', pressure(focus.elevationPressurePa)),
+    metric('دبی', flow(focus.flowRateM3s)),
+    metric('یافته‌های مرتبط', String(focus.diagnosticFindingIds.length)),
   );
 }
 
 export function appendLiveSegmentFocusStrip(parent: HTMLElement): HTMLElement {
   const strip = document.createElement('aside');
-  strip.setAttribute('aria-label', 'خلاصه Segment انتخاب‌شده');
+  strip.setAttribute('aria-label', 'خلاصه قطعه انتخاب‌شده');
   parent.appendChild(strip);
   renderStrip(strip, activeSegmentFocusSnapshot());
   return strip;
