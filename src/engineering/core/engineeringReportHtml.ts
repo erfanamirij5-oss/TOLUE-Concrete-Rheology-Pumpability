@@ -8,21 +8,7 @@ export interface EngineeringReportHtmlExport {
 }
 
 function escapeHtml(value: unknown): string {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function renderValue(value: unknown): string {
-  if (value === null) return '—';
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return '—';
-    return String(value);
-  }
-  return escapeHtml(value);
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
 function renderList(values: readonly string[], emptyText: string): string {
@@ -36,6 +22,8 @@ function unitFa(unit:string|null):string {
     case 'Pa': return 'پاسکال';
     case 'kPa': return 'کیلوپاسکال';
     case 'MPa': return 'مگاپاسکال';
+    case 'm': return 'متر';
+    case '1': return 'بدون بعد';
     case 'm3/s': case 'm³/s': return 'مترمکعب بر ثانیه';
     case 'm3/h': case 'm³/h': return 'مترمکعب بر ساعت';
     case 'Pa.s': case 'Pa·s': return 'پاسکال‌ثانیه';
@@ -43,17 +31,16 @@ function unitFa(unit:string|null):string {
   }
 }
 
-export function renderPersianEngineeringReportHtml(
-  report: PersianEngineeringReportDocument,
-): EngineeringReportHtmlExport {
+export function renderPersianEngineeringReportHtml(report: PersianEngineeringReportDocument): EngineeringReportHtmlExport {
   const resultRows = report.keyResults.map(result => `
       <tr>
         <td>${escapeHtml(result.labelFa)}</td>
-        <td class="ltr">${renderValue(result.rawValue)}</td>
+        <td>${escapeHtml(result.displayValueFa)}</td>
         <td>${escapeHtml(unitFa(result.unit))}</td>
         <td>${escapeHtml(result.validationStatusFa)}</td>
         <td>${escapeHtml(result.evidenceStatusFa)}</td>
-        <td class="ltr code">${escapeHtml(result.methodId)}</td>
+        <td>${escapeHtml(result.resultClassFa)}</td>
+        <td>${escapeHtml(result.methodLabelFa)}</td>
       </tr>`).join('');
 
   const diagnosticRows = report.diagnostics.length === 0
@@ -62,6 +49,7 @@ export function renderPersianEngineeringReportHtml(
       <article class="diagnostic ${escapeHtml(finding.severity)}">
         <div class="diag-head"><span class="severity">${escapeHtml(finding.severityFa)}</span><h3>${escapeHtml(finding.title)}</h3></div>
         <p>${escapeHtml(finding.message)}</p>
+        ${finding.recommendation ? `<p class="recommendation"><strong>اقدام پیشنهادی:</strong> ${escapeHtml(finding.recommendation)}</p>` : ''}
         <p class="meta">شناسه قاعده: <span class="ltr code">${escapeHtml(finding.ruleId)}</span></p>
       </article>`).join('');
 
@@ -85,7 +73,7 @@ export function renderPersianEngineeringReportHtml(
     .decision-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
     .decision-card { border: 1px solid #d1d5db; border-radius: 5px; padding: 6px; break-inside: avoid; }
     .decision-card strong { display: block; font-size: 9px; color: #6b7280; margin-bottom: 2px; }
-    table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.4px; table-layout: fixed; }
     th, td { border: 1px solid #d1d5db; padding: 3px 4px; vertical-align: top; line-height: 1.25; overflow-wrap: anywhere; }
     th { background: #f3f4f6; font-weight: 700; }
     .ltr { direction: ltr; text-align: left; unicode-bidi: isolate; }
@@ -95,6 +83,7 @@ export function renderPersianEngineeringReportHtml(
     .diagnostic.critical { border-right-color: #b91c1c; }
     .diag-head { display:flex; align-items:center; gap:5px; margin-bottom:2px; }
     .severity { display:inline-block; border:1px solid #d1d5db; border-radius:999px; padding:0 5px; font-size:8px; }
+    .recommendation { background:#f3f4f6; border-radius:4px; padding:4px 6px; }
     .trace { font-size: 8px; word-break: break-word; }
     ul { margin: 0; padding-right: 15px; }
     li { margin-bottom: 1px; }
@@ -102,30 +91,28 @@ export function renderPersianEngineeringReportHtml(
     @page { size: A4 portrait; margin: 5mm; }
     @media print {
       html, body { width: 200mm; min-height: 287mm; }
-      body { padding: 0; font-size: 8.2px; line-height: 1.18; }
+      body { padding: 0; font-size: 8px; line-height: 1.16; }
       main { width: 100%; max-width: none; }
       h1 { font-size: 13px; margin-bottom: 2px; }
-      h2 { font-size: 9.5px; margin: 6px 0 3px; padding-bottom: 2px; }
-      h3 { font-size: 8.5px; }
+      h2 { font-size: 9.5px; margin: 5px 0 3px; padding-bottom: 2px; }
+      h3 { font-size: 8.3px; }
       p { margin-bottom: 2px; }
       .decision-grid { gap: 3px; }
       .decision-card { padding: 3px 4px; border-radius: 3px; }
       .decision-card strong { font-size: 7px; margin-bottom: 1px; }
-      table { font-size: 7px; }
-      th, td { padding: 2px 2.5px; line-height: 1.12; }
+      table { font-size: 6.5px; }
+      th, td { padding: 1.6px 2px; line-height: 1.08; }
       .diagnostic { padding: 3px 4px; margin-bottom: 2px; border-right-width: 2px; }
       .diag-head { gap: 3px; margin-bottom: 1px; }
-      .severity { font-size: 6.5px; padding: 0 3px; }
+      .severity { font-size: 6.3px; padding: 0 3px; }
+      .recommendation { padding:2px 3px; }
       ul { padding-right: 11px; }
-      .trace { font-size: 6.7px; }
-      footer { margin-top: 4px; padding-top: 3px; font-size: 6.5px; }
+      .trace { font-size: 6.4px; }
+      footer { margin-top: 4px; padding-top: 3px; font-size: 6.3px; }
       h2 { break-after: avoid; }
       table, .decision-grid, .diagnostic { break-inside: avoid; }
     }
-    @media (max-width: 760px) {
-      .decision-grid { grid-template-columns: 1fr 1fr; }
-      table { font-size: 8px; }
-    }
+    @media (max-width: 760px) { .decision-grid { grid-template-columns: 1fr 1fr; } table { font-size: 8px; } }
   </style>
 </head>
 <body>
@@ -149,46 +136,28 @@ export function renderPersianEngineeringReportHtml(
   <section>
     <h2>نتایج کلیدی</h2>
     <table>
-      <thead><tr><th>پارامتر</th><th>مقدار</th><th>واحد</th><th>اعتبار مدل</th><th>وضعیت شواهد</th><th>شناسه روش</th></tr></thead>
+      <thead><tr><th>پارامتر</th><th>مقدار</th><th>واحد</th><th>اعتبار مدل</th><th>وضعیت شواهد</th><th>نوع نتیجه</th><th>روش تحلیل</th></tr></thead>
       <tbody>${resultRows}</tbody>
     </table>
   </section>
 
-  <section>
-    <h2>یافته‌های تشخیصی</h2>
-    ${diagnosticRows}
-  </section>
-
-  <section>
-    <h2>هشدارها</h2>
-    ${renderList(report.warnings, 'هشداری ثبت نشده است.')}
-  </section>
-
-  <section>
-    <h2>محدودیت‌ها</h2>
-    ${renderList(report.limitations, 'محدودیت اضافی ثبت نشده است.')}
-  </section>
+  <section><h2>یافته‌های تشخیصی و تحلیل مهندسی</h2>${diagnosticRows}</section>
+  <section><h2>هشدارها</h2>${renderList(report.warnings, 'هشداری ثبت نشده است.')}</section>
+  <section><h2>محدودیت‌ها</h2>${renderList(report.limitations, 'محدودیت اضافی ثبت نشده است.')}</section>
 
   <section class="trace">
     <h2>ردیابی و بازتولیدپذیری</h2>
     <p><strong>اثر انگشت ورودی:</strong> <span class="ltr code">${escapeHtml(report.traceability.inputSnapshotHash)}</span></p>
-    <p><strong>شناسه روش‌ها:</strong> <span class="ltr code">${escapeHtml(report.traceability.sourceMethodIds.join(', ')) || '—'}</span></p>
+    <p><strong>شناسه فنی روش‌ها:</strong> <span class="ltr code">${escapeHtml(report.traceability.sourceMethodIds.join(', ')) || '—'}</span></p>
     <p><strong>شناسه موجودیت‌های منشأ:</strong> <span class="ltr code">${escapeHtml(report.traceability.provenanceEntityIds.join(', ')) || '—'}</span></p>
     <p><strong>شناسه‌های کالیبراسیون:</strong> <span class="ltr code">${escapeHtml(report.traceability.calibrationIds.join(', ')) || '—'}</span></p>
     <p><strong>شناسه قواعد تشخیصی:</strong> <span class="ltr code">${escapeHtml(report.traceability.diagnosticRuleIds.join(', ')) || '—'}</span></p>
   </section>
 
-  <footer>
-    این سند فقط نمایش خروجی محاسبه‌شده هسته مهندسی TOLUE است و در لایه گزارش هیچ استنتاج، ضریب یا مدل مهندسی جدیدی اعمال نمی‌شود.
-  </footer>
+  <footer>این سند نمایش مستقیم خروجی محاسبه‌شده هسته مهندسی طلوع است؛ در لایه گزارش هیچ استنتاج، ضریب یا مدل مهندسی جدیدی اعمال نمی‌شود.</footer>
 </main>
 </body>
 </html>`;
 
-  return {
-    mediaType: 'text/html',
-    encoding: 'utf-8',
-    content,
-    method: 'tolue-persian-engineering-report-html-v1',
-  };
+  return { mediaType: 'text/html', encoding: 'utf-8', content, method: 'tolue-persian-engineering-report-html-v1' };
 }
