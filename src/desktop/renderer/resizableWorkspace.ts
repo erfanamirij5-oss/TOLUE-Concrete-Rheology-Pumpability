@@ -36,18 +36,28 @@ const writeStoredLayout=(layout:StoredWorkspaceLayout):void=>{
 };
 
 function installResponsiveWorkspaceStyle(shell:HTMLElement):void{
-  if(document.querySelector('style[data-tolue-responsive-workspace="v3"]'))return;
+  if(document.querySelector('style[data-tolue-responsive-workspace="v4"]'))return;
   const style=document.createElement('style');
-  style.dataset.tolueResponsiveWorkspace='v3';
+  style.dataset.tolueResponsiveWorkspace='v4';
   style.textContent=`
 [data-resizable-workspace="true"]{min-width:640px!important;grid-template-rows:54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)!important}
 [data-resizable-workspace="true"]>[data-workspace-main="true"]{grid-template-columns:var(--tolue-tree-column,230px) var(--tolue-tree-grip,6px) minmax(var(--tolue-center-min,320px),1fr) var(--tolue-inspector-grip,6px) var(--tolue-inspector-column,330px)!important}
 [data-resizable-workspace="true"] [data-workspace-grip="true"]{transition:background-color .12s ease}
 [data-resizable-workspace="true"] [data-workspace-grip="true"]:focus-visible{outline:2px solid rgba(89,184,223,.82);outline-offset:-2px}
-[data-resizable-workspace="true"]>[data-workspace-main="true"]>aside{min-width:0!important}
+[data-resizable-workspace="true"]>[data-workspace-main="true"]>aside{min-width:0!important;scrollbar-gutter:stable;overscroll-behavior:contain}
 [data-resizable-workspace="true"]>[data-workspace-main="true"]>main{min-width:0!important;position:relative}
-[data-resizable-workspace="true"]>section>div:first-child{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:thin}
+[data-resizable-workspace="true"] [data-pane-header="true"]{position:sticky!important;top:0!important;z-index:12!important;display:flex!important;align-items:center!important;gap:7px!important;min-height:36px;backdrop-filter:blur(10px);box-shadow:0 6px 18px rgba(0,0,0,.12)}
+[data-resizable-workspace="true"] [data-pane-header="true"] [data-pane-header-title="true"]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+[data-resizable-workspace="true"] [data-pane-header-controls="true"]{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-inline-start:auto}
+[data-resizable-workspace="true"] [data-pane-header-controls="true"] button{width:25px;height:24px;display:inline-grid;place-items:center;padding:0;font:inherit;font-size:12px;line-height:1;color:#b9c8cf;background:#17242d;border:1px solid #304653;border-radius:6px;cursor:pointer;transition:background-color .12s ease,border-color .12s ease,color .12s ease}
+[data-resizable-workspace="true"] [data-pane-header-controls="true"] button:hover{border-color:#f59b32;color:#ffe1b9;background:#1c2c36}
+[data-resizable-workspace="true"] [data-pane-header-controls="true"] button[data-active="true"]{border-color:rgba(245,155,50,.72);color:#ffc477;background:rgba(245,155,50,.11)}
+[data-resizable-workspace="true"] [data-pane-header-controls="true"] button:focus-visible{outline:2px solid rgba(89,184,223,.82);outline-offset:1px}
+[data-resizable-workspace="true"] [data-pane-scroll-body="true"]{scroll-margin-top:42px}
+[data-resizable-workspace="true"]>section>div:first-child{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:thin;position:relative}
 [data-resizable-workspace="true"]>section>div:first-child>button{flex:0 0 auto;white-space:nowrap}
+[data-resizable-workspace="true"] [data-bottom-pane-controls="true"]{position:sticky;inset-inline-start:0;z-index:8;display:flex;align-items:center;gap:4px;margin-inline-start:auto;padding-inline-start:6px;background:linear-gradient(90deg,transparent,#142029 18%)}
+[data-resizable-workspace="true"] [data-bottom-pane-controls="true"] button{width:27px!important;height:26px!important;display:inline-grid!important;place-items:center;padding:0!important;flex:0 0 auto}
 [data-resizable-workspace="true"] [data-engineering-kpi-strip="true"]{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important}
 [data-resizable-workspace="true"] [data-workspace-toolbar="true"]{position:absolute;z-index:30;top:8px;inset-inline-end:8px;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid rgba(60,83,98,.76);border-radius:10px;background:rgba(10,18,24,.9);backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.28)}
 [data-resizable-workspace="true"] [data-workspace-toolbar="true"] [data-toolbar-divider="true"]{width:1px;height:20px;background:rgba(80,105,120,.5);margin:0 2px}
@@ -80,6 +90,8 @@ function installResponsiveWorkspaceStyle(shell:HTMLElement):void{
 [data-resizable-workspace="true"][data-workspace-density="narrow"]>header>[data-product-stage="true"],
 [data-resizable-workspace="true"][data-workspace-density="narrow"]>header>[data-sample-project-badge="true"]{display:none!important}
 [data-resizable-workspace="true"][data-workspace-density="narrow"]>header button{padding-inline:7px!important;min-width:0!important}
+[data-resizable-workspace="true"][data-workspace-density="narrow"] [data-pane-header="true"]{min-height:32px;padding-block:6px!important}
+[data-resizable-workspace="true"][data-workspace-density="narrow"] [data-pane-header-controls="true"] button{width:23px;height:22px;font-size:11px}
 [data-resizable-workspace="true"][data-workspace-density="narrow"] [data-engineering-kpi-strip="true"]{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px!important;padding-bottom:5px!important}
 [data-resizable-workspace="true"][data-workspace-density="narrow"] [data-engineering-kpi-strip="true"] article{padding:7px 8px 6px!important}
 [data-resizable-workspace="true"][data-workspace-density="narrow"]>[data-workspace-main="true"]>main{padding:6px!important;gap:4px!important}
@@ -165,6 +177,58 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
   const bottomFocus=makeButton('↕','بیشینه‌سازی پنل پایین','پنل پایین را برای بررسی نتایج و جداول بزرگ کن',()=>{focusMode=focusMode==='bottom'?'none':'bottom';apply();},true);
   viewport.appendChild(toolbar);
 
+  const paneControl=(icon:string,label:string,onClick:()=>void)=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.textContent=icon;
+    button.title=label;
+    button.setAttribute('aria-label',label);
+    button.addEventListener('click',(event)=>{event.stopPropagation();onClick();});
+    return button;
+  };
+
+  const decoratePaneHeader=(pane:HTMLElement,kind:'tree'|'inspector')=>{
+    const header=pane.firstElementChild;
+    if(!(header instanceof HTMLElement))return null;
+    header.dataset.paneHeader='true';
+    const existingText=header.textContent??'';
+    header.replaceChildren();
+    const title=document.createElement('span');
+    title.dataset.paneHeaderTitle='true';
+    title.textContent=existingText;
+    const controls=document.createElement('span');
+    controls.dataset.paneHeaderControls='true';
+    const collapse=paneControl('—',kind==='tree'?'جمع‌کردن درخت پروژه':'جمع‌کردن بازرس مهندسی',()=>{
+      if(kind==='tree')treeCollapsed=true;else inspectorCollapsed=true;
+      focusMode='none';apply();persist();
+    });
+    controls.appendChild(collapse);
+    if(kind==='inspector'){
+      const maximize=paneControl('↗','بیشینه‌سازی بازرس مهندسی',()=>{focusMode=focusMode==='inspector'?'none':'inspector';apply();});
+      maximize.dataset.paneMaximize='inspector';
+      controls.appendChild(maximize);
+    }
+    header.append(title,controls);
+    const body=header.nextElementSibling;
+    if(body instanceof HTMLElement)body.dataset.paneScrollBody='true';
+    return {collapse,header};
+  };
+
+  const treeHeaderControls=decoratePaneHeader(tree,'tree');
+  const inspectorHeaderControls=decoratePaneHeader(inspector,'inspector');
+
+  const bottomTabs=bottom.firstElementChild;
+  let bottomCollapse:HTMLButtonElement|null=null;
+  let bottomMaximize:HTMLButtonElement|null=null;
+  if(bottomTabs instanceof HTMLElement){
+    const controls=document.createElement('span');
+    controls.dataset.bottomPaneControls='true';
+    bottomCollapse=paneControl('—','جمع‌کردن پنل پایین',()=>{bottomCollapsed=true;focusMode='none';apply();persist();});
+    bottomMaximize=paneControl('↕','بیشینه‌سازی پنل پایین',()=>{focusMode=focusMode==='bottom'?'none':'bottom';apply();});
+    controls.append(bottomCollapse,bottomMaximize);
+    bottomTabs.appendChild(controls);
+  }
+
   const apply=()=>{
     const width=Math.max(640,work.getBoundingClientRect().width||window.innerWidth);
     const density:WorkspaceDensity=width<760?'narrow':width<980?'compact':'comfortable';
@@ -207,6 +271,17 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
     viewportFocus.dataset.active=focusMode==='viewport'?'true':'false';
     inspectorFocus.dataset.active=focusMode==='inspector'?'true':'false';
     bottomFocus.dataset.active=focusMode==='bottom'?'true':'false';
+    if(inspectorHeaderControls){
+      const maximize=inspectorHeaderControls.header.querySelector('button[data-pane-maximize="inspector"]');
+      if(maximize instanceof HTMLButtonElement){
+        maximize.dataset.active=focusMode==='inspector'?'true':'false';
+        maximize.title=focusMode==='inspector'?'بازگشت به چیدمان عادی':'بیشینه‌سازی بازرس مهندسی';
+      }
+    }
+    if(bottomMaximize){
+      bottomMaximize.dataset.active=focusMode==='bottom'?'true':'false';
+      bottomMaximize.title=focusMode==='bottom'?'بازگشت به چیدمان عادی':'بیشینه‌سازی پنل پایین';
+    }
 
     treeToggle.title=treeCollapsed?'نمایش درخت پروژه':'جمع‌کردن درخت پروژه';
     inspectorToggle.title=inspectorCollapsed?'نمایش بازرس مهندسی':'جمع‌کردن بازرس مهندسی';
@@ -267,6 +342,12 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
   inspectorGrip.addEventListener('dblclick',()=>{inspectorWidth=330;inspectorCollapsed=false;focusMode='none';apply();persist();});
   bottomGrip.addEventListener('dblclick',()=>{bottomHeight=Math.round(window.innerHeight*.26);bottomCollapsed=false;focusMode='none';apply();persist();});
 
+  shell.addEventListener('keydown',(event)=>{
+    if(event.key==='Escape'&&focusMode!=='none'){
+      focusMode='none';
+      apply();
+    }
+  });
   window.addEventListener('resize',apply,{passive:true});
   apply();
 }
