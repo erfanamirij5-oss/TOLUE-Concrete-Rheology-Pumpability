@@ -1,5 +1,5 @@
 export const PUMPABILITY_SCIENTIFIC_CLAIM_BOUNDARIES = Object.freeze([
-  'Stability and blockage conclusions are project-qualified evidence decisions, not universal physical predictions.',
+  'Stability and blockage conclusions identify whether they arise from project-qualified evidence or preliminary engineering screening; neither is a universal physical prediction.',
   'The current engineering core does not compute an exact physical blockage location; any spatial blockage marker is illustrative/diagnostic only.',
   'The current visualization is not CFD or DEM and must not be represented as a CFD/DEM simulation.',
   'A non-negative pump pressure margin is a modeled pressure-feasibility result, not a reliability, safety-factor, or operational certification.',
