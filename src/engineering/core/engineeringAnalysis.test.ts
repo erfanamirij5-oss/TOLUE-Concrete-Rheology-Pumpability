@@ -141,7 +141,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.stabilityEvidence')).toBe(true);
     expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.blockageEvidence')).toBe(true);
     expect(result.finalOutput.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
-    expect(result.finalOutput.traceability.sourceMethodIds).toContain('tolue-pumpability-decision-v2');
+    expect(result.finalOutput.traceability.sourceMethodIds).toContain('tolue-pumpability-decision-v3');
     expect(result.reportExport.report.decision.overallStatus).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
     expect(result.reportExport.report.decision.overallStatusFa).toContain('پروژه');
     expect(result.reportExport.report.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
