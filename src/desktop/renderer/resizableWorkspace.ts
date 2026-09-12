@@ -16,22 +16,28 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
   let bottomHeight=Math.round(window.innerHeight*.26);
 
   const apply=()=>{
-    const width=Math.max(640,work.clientWidth||window.innerWidth);
+    const width=Math.max(640,rootWidth(work));
     const compact=width<900;
-    const minCenter=compact?280:360;
+    const minCenter=compact?260:360;
     const sideBudget=Math.max(300,width-minCenter-12);
-    treeWidth=clamp(treeWidth,compact?150:180,Math.min(360,sideBudget*.48));
-    inspectorWidth=clamp(inspectorWidth,compact?220:260,Math.min(520,sideBudget-treeWidth));
-    work.style.gridTemplateColumns=`${treeWidth}px 6px minmax(${minCenter}px,1fr) 6px ${inspectorWidth}px`;
+    treeWidth=clamp(treeWidth,compact?140:180,Math.min(360,sideBudget*.48));
+    inspectorWidth=clamp(inspectorWidth,compact?200:260,Math.min(520,Math.max(200,sideBudget-treeWidth)));
+    work.style.setProperty('grid-template-columns',`${treeWidth}px 6px minmax(${minCenter}px,1fr) 6px ${inspectorWidth}px`,'important');
     bottomHeight=clamp(bottomHeight,110,Math.max(110,Math.round(window.innerHeight*.55)));
-    shell.style.gridTemplateRows=`44px minmax(220px,1fr) 6px ${bottomHeight}px`;
+    shell.style.setProperty('grid-template-rows',`44px minmax(220px,1fr) 6px ${bottomHeight}px`,'important');
+    shell.style.setProperty('min-width','640px','important');
     shell.dataset.workspaceDensity=compact?'compact':'comfortable';
+    tree.dataset.paneWidth=String(Math.round(treeWidth));
+    inspector.dataset.paneWidth=String(Math.round(inspectorWidth));
+    bottom.dataset.paneHeight=String(Math.round(bottomHeight));
   };
 
   const grip=(axis:'x'|'y',label:string)=>{
     const el=document.createElement('div');
+    el.dataset.workspaceGrip=axis;
     el.setAttribute('role','separator');
     el.setAttribute('aria-label',label);
+    el.setAttribute('aria-orientation',axis==='x'?'vertical':'horizontal');
     el.tabIndex=0;
     Object.assign(el.style,{position:'relative',zIndex:'8',background:'transparent',cursor:axis==='x'?'col-resize':'row-resize',touchAction:'none',userSelect:'none'});
     const line=document.createElement('span');
@@ -52,19 +58,28 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
     el.addEventListener('pointerdown',(event)=>{
       event.preventDefault();
       const startX=event.clientX,startY=event.clientY;
+      const initialTree=treeWidth,initialInspector=inspectorWidth,initialBottom=bottomHeight;
       el.setPointerCapture(event.pointerId);
-      const move=(e:PointerEvent)=>onMove(e.clientX-startX,e.clientY-startY);
+      const move=(e:PointerEvent)=>onMoveFromInitial(e.clientX-startX,e.clientY-startY,initialTree,initialInspector,initialBottom,onMove);
       const up=()=>{el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);document.body.style.cursor='';};
       document.body.style.cursor=el.style.cursor;
       el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);
     });
   };
 
+  const onMoveFromInitial=(dx:number,dy:number,initialTree:number,initialInspector:number,initialBottom:number,handler:(dx:number,dy:number)=>void)=>{
+    treeWidth=initialTree;inspectorWidth=initialInspector;bottomHeight=initialBottom;handler(dx,dy);
+  };
   drag(treeGrip,(dx)=>{treeWidth=treeWidth-dx;apply();});
   drag(inspectorGrip,(dx)=>{inspectorWidth=inspectorWidth+dx;apply();});
   drag(bottomGrip,(_dx,dy)=>{bottomHeight=bottomHeight-dy;apply();});
 
-  const resize=()=>apply();
-  window.addEventListener('resize',resize,{passive:true});
+  treeGrip.addEventListener('keydown',(event)=>{if(event.key==='ArrowLeft'){treeWidth+=12;apply();}else if(event.key==='ArrowRight'){treeWidth-=12;apply();}});
+  inspectorGrip.addEventListener('keydown',(event)=>{if(event.key==='ArrowLeft'){inspectorWidth-=12;apply();}else if(event.key==='ArrowRight'){inspectorWidth+=12;apply();}});
+  bottomGrip.addEventListener('keydown',(event)=>{if(event.key==='ArrowUp'){bottomHeight+=12;apply();}else if(event.key==='ArrowDown'){bottomHeight-=12;apply();}});
+
+  window.addEventListener('resize',apply,{passive:true});
   apply();
 }
+
+function rootWidth(work:HTMLElement):number{return work.getBoundingClientRect().width||window.innerWidth;}
