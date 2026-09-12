@@ -58,7 +58,6 @@ export function validateEngineeringPdfIpcRequest(request: unknown): asserts requ
   const allowed = ['runId', 'engineVersion', 'inputSnapshotHash', 'fileName', 'html', 'mediaType', 'sourceMediaType', 'page', 'rendererBoundary', 'scientificClaim', 'method'];
   if (Object.keys(request).some(key => !['channel', 'payload'].includes(key)) || Object.keys(request.payload).some(key => !allowed.includes(key))) throw new Error('PDF-IPC-SHAPE-001');
   if (!record(request.payload.page) || !record(request.payload.page.marginsMm)) throw new Error('PDF-IPC-SHAPE-001');
-  if (typeof request.payload.fileName !== 'string') throw new Error('PDF-IPC-FILENAME-001');
   if (request.channel !== ENGINEERING_PDF_EXPORT_CHANNEL) throw new Error('PDF-IPC-CHANNEL-001');
   const payload = request.payload;
   if (!nonEmpty(payload.runId)) throw new Error('PDF-IPC-ID-001');
@@ -69,7 +68,7 @@ export function validateEngineeringPdfIpcRequest(request: unknown): asserts requ
   if (payload.rendererBoundary !== 'privileged_desktop_main_process') throw new Error('PDF-IPC-BOUNDARY-001');
   if (payload.method !== 'tolue-engineering-pdf-export-request-v1') throw new Error('PDF-IPC-METHOD-001');
   if (payload.scientificClaim !== 'presentation_only_no_new_engineering_inference') throw new Error('PDF-IPC-CLAIM-001');
-  if (!validFileName(payload.fileName, 'pdf')) throw new Error('PDF-IPC-FILENAME-002');
+  if (typeof payload.fileName !== 'string' || !validFileName(payload.fileName, 'pdf')) throw new Error('PDF-IPC-FILENAME-002');
   if (!record(payload.page) || !record(payload.page.marginsMm)) throw new Error('PDF-IPC-SHAPE-001');
   if (payload.page.format !== 'A4' || payload.page.landscape !== false) throw new Error('PDF-IPC-PAGE-001');
   if (payload.page.printBackground !== true || payload.page.preferCssPageSize !== true || payload.page.displayHeaderFooter !== false) throw new Error('PDF-IPC-PAGE-002');
