@@ -41,37 +41,40 @@ function renderStrip(strip: HTMLElement, focus: Readonly<SegmentFocusSnapshot> |
   }
   strip.hidden = false;
   strip.dataset.focusedSegmentId = focus.id;
+  const tone=focus.stale?TOLUE_DESIGN_TOKENS.color.statusWarning:TOLUE_DESIGN_TOKENS.color.selection;
   Object.assign(strip.style, {
     display: 'grid',
-    gridTemplateColumns: 'minmax(120px,1.15fr) repeat(4,minmax(95px,1fr)) minmax(105px,.9fr)',
+    gridTemplateColumns: 'minmax(138px,1.22fr) repeat(4,minmax(96px,1fr)) minmax(110px,.88fr)',
     gap: '7px',
     alignItems: 'stretch',
     marginBottom: '12px',
     padding: '8px',
-    border: `1px solid ${focus.stale ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.selection}`,
-    borderRadius: TOLUE_DESIGN_TOKENS.radius.sm,
-    background: focus.stale ? 'rgba(240,180,79,.055)' : 'rgba(245,155,50,.055)',
+    border: `1px solid ${tone}88`,
+    borderRadius: TOLUE_DESIGN_TOKENS.radius.md,
+    background: focus.stale ? 'linear-gradient(180deg,rgba(240,180,79,.075),rgba(15,24,31,.9))' : 'linear-gradient(180deg,rgba(245,155,50,.07),rgba(15,24,31,.92))',
+    boxShadow:'0 8px 20px rgba(0,0,0,.12), inset 0 1px rgba(255,255,255,.02)',
   });
 
   const identity = document.createElement('div');
-  Object.assign(identity.style, { display: 'grid', alignContent: 'center', gap: '2px', padding: '4px 6px' });
+  Object.assign(identity.style, { position:'relative',display: 'grid', alignContent: 'center', gap: '3px', padding: '6px 9px 6px 12px',borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,background:'rgba(8,15,20,.34)' });
+  const marker=document.createElement('i');marker.setAttribute('aria-hidden','true');Object.assign(marker.style,{position:'absolute',insetInlineStart:'0',top:'7px',bottom:'7px',width:'3px',borderRadius:'4px',background:tone});
   const label = document.createElement('small');
-  label.textContent = 'قطعه انتخاب‌شده';
-  Object.assign(label.style, { color: TOLUE_DESIGN_TOKENS.color.textMuted, fontWeight: '700' });
+  label.textContent = focus.stale?'قطعه انتخاب‌شده · نتیجه نیازمند اجرای مجدد':'قطعه انتخاب‌شده';
+  Object.assign(label.style, { color: TOLUE_DESIGN_TOKENS.color.textMuted, fontWeight: '700', lineHeight:'1.45' });
   const id = document.createElement('strong');
   id.textContent = focus.id;
-  Object.assign(id.style, { direction: 'ltr', color: focus.stale ? TOLUE_DESIGN_TOKENS.color.statusWarning : TOLUE_DESIGN_TOKENS.color.selection, fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily });
-  identity.append(label, id);
+  Object.assign(id.style, { direction: 'ltr', textAlign:'right', color: tone, fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily,fontSize:'13px' });
+  identity.append(marker,label, id);
 
   const metric = (labelText: string, valueText: string): HTMLElement => {
     const item = document.createElement('div');
-    Object.assign(item.style, { padding: '5px 7px', borderRadius: TOLUE_DESIGN_TOKENS.radius.sm, background: 'rgba(10,18,24,.62)', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}` });
+    Object.assign(item.style, { padding: '6px 8px', borderRadius: TOLUE_DESIGN_TOKENS.radius.sm, background: 'rgba(8,15,20,.48)', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}` });
     const l = document.createElement('small');
     l.textContent = labelText;
-    l.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+    Object.assign(l.style,{color:TOLUE_DESIGN_TOKENS.color.textMuted,fontSize:'10px',fontWeight:'650'});
     const v = document.createElement('strong');
     v.textContent = focus.stale ? '—' : valueText;
-    Object.assign(v.style, { display: 'block', marginTop: '2px', direction: 'rtl', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, fontSize: '11px' });
+    Object.assign(v.style, { display: 'block', marginTop: '3px', direction: 'rtl', fontSize: '11px',fontWeight:'750',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',color:focus.stale?TOLUE_DESIGN_TOKENS.color.textMuted:TOLUE_DESIGN_TOKENS.color.text });
     item.append(l, v);
     return item;
   };
