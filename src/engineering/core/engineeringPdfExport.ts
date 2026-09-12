@@ -60,7 +60,7 @@ export function buildEngineeringPdfExportRequest(
       printBackground: true,
       preferCssPageSize: true,
       displayHeaderFooter: false,
-      marginsMm: { top: 14, right: 14, bottom: 14, left: 14 },
+      marginsMm: { top: 5, right: 5, bottom: 5, left: 5 },
     },
     rendererBoundary: 'privileged_desktop_main_process',
     scientificClaim: 'presentation_only_no_new_engineering_inference',
