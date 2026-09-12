@@ -3,6 +3,7 @@ import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { getPumpabilityEvidenceDraft, removePumpabilityEvidenceDraft, setPumpabilityEvidenceDraft } from './evidenceInputDraft';
 import type { PumpabilityEvidencePresentation } from './evidencePresentation';
+import { assessmentStatusFa } from './persianPresentation';
 
 export interface EvidenceViewActions {
   readonly updateInput: (input: Readonly<SimulationRunInput>) => void;
@@ -61,9 +62,9 @@ function splitLines(value: string): string[] {
 }
 
 function requiredNumber(control: HTMLInputElement, label: string): number {
-  if (!control.value.trim()) throw new Error(`${label} is required`);
+  if (!control.value.trim()) throw new Error(`${label} الزامی است.`);
   const value = Number(control.value);
-  if (!Number.isFinite(value)) throw new Error(`${label} must be finite`);
+  if (!Number.isFinite(value)) throw new Error(`${label} باید عدد معتبر باشد.`);
   return value;
 }
 
@@ -86,7 +87,7 @@ function renderAuthoringCard(
   heading.style.marginTop = '0';
 
   const context = document.createElement('p');
-  context.textContent = `دبی هدف فعلی: ${engineeringInput.pipeline.targetFlowRateM3s} m³/s. دامنه شواهد باید صریحاً توسط کاربر وارد شود؛ نرم‌افزار هیچ بازه‌ای را استنتاج نمی‌کند.`;
+  context.textContent = `دبی هدف فعلی: ${engineeringInput.pipeline.targetFlowRateM3s} مترمکعب بر ثانیه. دامنه شواهد باید صریحاً توسط کاربر وارد شود؛ نرم‌افزار هیچ بازه‌ای را استنتاج نمی‌کند.`;
   context.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
   context.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
 
@@ -97,7 +98,7 @@ function renderAuthoringCard(
   const references = textInput(current?.referenceIds.join(', ') ?? '');
   const outcome = document.createElement('select');
   for (const value of ['ACCEPTABLE', 'UNACCEPTABLE'] as const) {
-    const option = document.createElement('option'); option.value = value; option.textContent = value; outcome.appendChild(option);
+    const option = document.createElement('option'); option.value = value; option.textContent = assessmentStatusFa(value); outcome.appendChild(option);
   }
   outcome.value = current?.outcome ?? 'ACCEPTABLE';
   const minFlow = numberInput(current?.qualifiedFlowRangeM3s.min);
@@ -114,18 +115,18 @@ function renderAuthoringCard(
   grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
   grid.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
   grid.append(
-    field('Project ID', projectId),
-    field('Evidence ID', evidenceId),
-    field('Provenance Entity ID', provenanceEntityId),
-    field('Method / Procedure ID', methodId),
-    field('Reference IDs (comma separated)', references),
-    field('Outcome', outcome),
-    field('حداقل دبی معتبر (m³/s)', minFlow),
-    field('حداکثر دبی معتبر (m³/s)', maxFlow),
+    field('شناسه پروژه', projectId),
+    field('شناسه شواهد', evidenceId),
+    field('شناسه منشأ داده', provenanceEntityId),
+    field('شناسه روش / دستورالعمل', methodId),
+    field('شناسه منابع (با ویرگول جدا شود)', references),
+    field('نتیجه شواهد', outcome),
+    field('حداقل دبی معتبر (مترمکعب بر ثانیه)', minFlow),
+    field('حداکثر دبی معتبر (مترمکعب بر ثانیه)', maxFlow),
   );
-  const applicabilityField = field('Applicability Statement', applicability);
+  const applicabilityField = field('بیانیه دامنه کاربرد', applicability);
   applicabilityField.style.gridColumn = '1 / -1';
-  const limitationsField = field('Limitations (one per line)', limitations);
+  const limitationsField = field('محدودیت‌ها (هر مورد در یک خط)', limitations);
   limitationsField.style.gridColumn = '1 / -1';
   grid.append(applicabilityField, limitationsField);
 
@@ -163,15 +164,15 @@ function renderAuthoringCard(
         methodId: methodId.value,
         referenceIds: splitComma(references.value),
         outcome: outcome.value as QualifiedEvidenceOutcome,
-        qualifiedFlowRangeM3s: { min: requiredNumber(minFlow, 'min flow'), max: requiredNumber(maxFlow, 'max flow') },
+        qualifiedFlowRangeM3s: { min: requiredNumber(minFlow, 'حداقل دبی'), max: requiredNumber(maxFlow, 'حداکثر دبی') },
         applicabilityStatement: applicability.value,
         limitations: splitLines(limitations.value),
       });
-      feedback.textContent = 'شواهد در Draft مهندسی ثبت شد. اجرای تحلیل، applicability را در دبی هدف بررسی می‌کند.';
+      feedback.textContent = 'شواهد در پیش‌نویس مهندسی ثبت شد. هنگام اجرای تحلیل، دامنه کاربرد در دبی هدف بررسی می‌شود.';
       feedback.style.color = TOLUE_DESIGN_TOKENS.color.statusNominal;
       actions.updateInput(next);
     } catch (error) {
-      feedback.textContent = error instanceof Error ? error.message : 'Evidence record is invalid.';
+      feedback.textContent = error instanceof Error ? error.message : 'رکورد شواهد معتبر نیست.';
       feedback.style.color = TOLUE_DESIGN_TOKENS.color.statusCritical;
     }
   });
@@ -200,7 +201,7 @@ export function renderEvidenceView(
   title.style.marginTop = '0';
 
   const note = document.createElement('p');
-  note.textContent = 'Stability و Blockage در TOLUE مدل عمومی نیستند. فقط شواهد پروژه‌ای صریح، با دامنه کاربرد مشخص، وارد تصمیم Pumpability می‌شوند. OUT_OF_DOMAIN هرگز extrapolate نمی‌شود.';
+  note.textContent = 'پایداری و ریسک انسداد در طلوع مدل عمومی نیستند. فقط شواهد پروژه‌ای صریح با دامنه کاربرد مشخص وارد تصمیم پمپ‌پذیری می‌شوند. شواهد خارج از دامنه هرگز تعمیم داده نمی‌شوند.';
   note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
   panel.append(title, note);
 
@@ -211,7 +212,7 @@ export function renderEvidenceView(
 
   if (evidence.length > 0) {
     const resultTitle = document.createElement('h3');
-    resultTitle.textContent = 'نتیجه ارزیابی Core';
+    resultTitle.textContent = 'نتیجه ارزیابی هسته مهندسی';
     resultTitle.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
     panel.appendChild(resultTitle);
     const grid = document.createElement('div');
@@ -224,19 +225,19 @@ export function renderEvidenceView(
       card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
       card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
       const heading = document.createElement('strong');
-      heading.textContent = `${domainLabel(item.domain)} — ${item.status}`;
+      heading.textContent = `${domainLabel(item.domain)} — ${assessmentStatusFa(item.status)}`;
       const outcome = document.createElement('div');
-      outcome.textContent = `نتیجه: ${item.outcome ?? '—'}`;
+      outcome.textContent = `نتیجه: ${item.outcome ? assessmentStatusFa(item.outcome) : '—'}`;
       outcome.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
       const flow = document.createElement('div');
-      flow.textContent = `دبی هدف: ${item.targetFlowRateM3s} m³/s | دامنه معتبر: ${item.qualifiedFlowRangeM3s.min} تا ${item.qualifiedFlowRangeM3s.max} m³/s`;
+      flow.textContent = `دبی هدف: ${item.targetFlowRateM3s} مترمکعب بر ثانیه | دامنه معتبر: ${item.qualifiedFlowRangeM3s.min} تا ${item.qualifiedFlowRangeM3s.max} مترمکعب بر ثانیه`;
       flow.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.xs;
       flow.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
       const applicability = document.createElement('p');
       applicability.textContent = item.applicabilityStatement;
       applicability.style.marginBottom = '0';
       const trace = document.createElement('small');
-      trace.textContent = `Evidence: ${item.evidenceId} | Provenance: ${item.provenanceEntityId} | Method: ${item.methodId}`;
+      trace.textContent = `شناسه شواهد: ${item.evidenceId} | منشأ داده: ${item.provenanceEntityId} | روش: ${item.methodId}`;
       trace.style.display = 'block';
       trace.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
       trace.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
