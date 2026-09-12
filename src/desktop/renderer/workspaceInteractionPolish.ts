@@ -1,3 +1,5 @@
+import { installResizableWorkspace } from './resizableWorkspace';
+
 export type CommercialRunState = 'ready' | 'running' | 'stale' | 'blocked';
 
 export function deriveCommercialRunState(
@@ -29,7 +31,7 @@ export function installWorkspaceInteractionPolish(root: HTMLElement, sampleLoade
   const shell = root.firstElementChild instanceof HTMLStyleElement ? root.children.item(1) : root.firstElementChild;
   const header = shell?.querySelector(':scope > header');
   const work = shell?.querySelector(':scope > header + div');
-  if (!(header instanceof HTMLElement) || !(work instanceof HTMLElement)) return;
+  if (!(shell instanceof HTMLElement) || !(header instanceof HTMLElement) || !(work instanceof HTMLElement)) return;
 
   const runButton = header.querySelector('button[aria-busy]');
   const statusNode = runButton?.previousElementSibling;
@@ -70,6 +72,16 @@ export function installWorkspaceInteractionPolish(root: HTMLElement, sampleLoade
       const title = tree.firstElementChild;
       if (title?.nextSibling) tree.insertBefore(guidance, title.nextSibling);
       else tree.appendChild(guidance);
+    }
+  }
+
+  if (root.dataset.resizableWorkspace !== 'true') {
+    const viewport=work.querySelector(':scope > main');
+    const inspector=work.querySelector(':scope > aside:last-child');
+    const bottom=shell.querySelector(':scope > section');
+    if (tree instanceof HTMLElement && viewport instanceof HTMLElement && inspector instanceof HTMLElement && bottom instanceof HTMLElement) {
+      installResizableWorkspace({shell,work,tree,viewport,inspector,bottom});
+      root.dataset.resizableWorkspace='true';
     }
   }
 }
