@@ -36,12 +36,15 @@ const writeStoredLayout=(layout:StoredWorkspaceLayout):void=>{
 };
 
 function installResponsiveWorkspaceStyle(shell:HTMLElement):void{
-  if(document.querySelector('style[data-tolue-responsive-workspace="v4"]'))return;
+  if(document.querySelector('style[data-tolue-responsive-workspace="v5"]'))return;
   const style=document.createElement('style');
-  style.dataset.tolueResponsiveWorkspace='v4';
+  style.dataset.tolueResponsiveWorkspace='v5';
   style.textContent=`
 [data-resizable-workspace="true"]{min-width:640px!important;grid-template-rows:54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)!important}
-[data-resizable-workspace="true"]>[data-workspace-main="true"]{grid-template-columns:var(--tolue-tree-column,230px) var(--tolue-tree-grip,6px) minmax(var(--tolue-center-min,320px),1fr) var(--tolue-inspector-grip,6px) var(--tolue-inspector-column,330px)!important}
+[data-resizable-workspace="true"]>header{grid-row:1!important;min-height:0!important}
+[data-resizable-workspace="true"]>[data-workspace-main="true"]{grid-row:2!important;min-height:0!important;grid-template-columns:var(--tolue-tree-column,230px) var(--tolue-tree-grip,6px) minmax(var(--tolue-center-min,320px),1fr) var(--tolue-inspector-grip,6px) var(--tolue-inspector-column,330px)!important}
+[data-resizable-workspace="true"]>[data-bottom-grip="true"]{grid-row:3!important;height:6px!important;min-height:6px!important;max-height:6px!important;align-self:stretch!important;overflow:hidden!important;background:transparent!important}
+[data-resizable-workspace="true"]>[data-workspace-pane="bottom"]{grid-row:4!important;min-height:0!important}
 [data-resizable-workspace="true"] [data-workspace-grip="true"]{transition:background-color .12s ease}
 [data-resizable-workspace="true"] [data-workspace-grip="true"]:focus-visible{outline:2px solid rgba(89,184,223,.82);outline-offset:-2px}
 [data-resizable-workspace="true"]>[data-workspace-main="true"]>aside{min-width:0!important;scrollbar-gutter:stable;overscroll-behavior:contain}
@@ -147,6 +150,7 @@ export function installResizableWorkspace(options:Readonly<ResizableWorkspaceOpt
   const inspectorGrip=grip('x','تغییر عرض بازرس مهندسی');
   const bottomGrip=grip('y','تغییر ارتفاع پنل پایین');
   bottomGrip.dataset.bottomGrip='true';
+  Object.assign(bottomGrip.style,{height:'6px',minHeight:'6px',maxHeight:'6px',overflow:'hidden',background:'transparent'});
   work.replaceChildren(tree,treeGrip,viewport,inspectorGrip,inspector);
   shell.insertBefore(bottomGrip,bottom);
 
