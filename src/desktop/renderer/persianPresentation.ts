@@ -8,6 +8,8 @@ export function assessmentStatusFa(value:string):string{
     case 'FAIL': return 'رد شده';
     case 'complete': return 'کامل';
     case 'incomplete': return 'ناقص';
+    case 'computed': return 'محاسبه شده';
+    case 'not_computed': return 'محاسبه نشده';
     default:return value;
   }
 }
@@ -29,9 +31,30 @@ export function unitFa(value:string|null):string|null{
     case 'Pa': return 'پاسکال';
     case 'kPa': return 'کیلوپاسکال';
     case 'MPa': return 'مگاپاسکال';
+    case 'm': return 'متر';
+    case 'kg/m³': return 'کیلوگرم بر مترمکعب';
     case 'm3/s': case 'm³/s': return 'مترمکعب بر ثانیه';
     case 'm3/h': case 'm³/h': return 'مترمکعب بر ساعت';
     case 'Pa.s': case 'Pa·s': return 'پاسکال‌ثانیه';
+    default:return value;
+  }
+}
+
+export function pumpProvenanceFa(value:string):string{
+  switch(value){
+    case 'manufacturer_curve': return 'منحنی سازنده';
+    case 'manufacturer_rated_point': return 'نقطه نامی سازنده';
+    case 'calibrated_project_data': return 'داده کالیبره‌شده پروژه';
+    default:return value;
+  }
+}
+
+export function interpolationFa(value:string):string{
+  switch(value){
+    case 'linear': return 'خطی';
+    case 'exact': return 'نقطه دقیق';
+    case 'not_required': return 'نیاز ندارد';
+    case 'unavailable': return 'ناموجود';
     default:return value;
   }
 }
