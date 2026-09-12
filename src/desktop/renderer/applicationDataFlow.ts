@@ -29,48 +29,29 @@ export function createApplicationDataFlowState(analysis?: EngineeringAnalysisRes
   return Object.freeze({ status: analysis ? 'SUCCEEDED' : 'IDLE', input: null, analysis: presentation, activeRunId: presentation?.runId ?? null, activeInputSnapshotHash: presentation?.inputSnapshotHash ?? null, errorCode: null, isStale: false });
 }
 
-/**
- * Legacy connected starter draft kept for compatibility with existing tests/workflows.
- * These values are placeholders and intentionally hard-blocked by the readiness gate.
- */
+/** Legacy connected starter draft kept for compatibility with existing tests/workflows. */
 export function createNewEngineeringDraftState(runId: string, createdAtIso: string): Readonly<ApplicationDataFlowState> {
   validateDraftIdentity(runId, createdAtIso);
   const draft: SimulationRunInput = {
-    runId,
-    engineVersion: 'v1.1.0-rc.3',
-    createdAtIso,
-    pipeline: {
-      targetFlowRateM3s: 0.01,
-      densityKgM3: 2400,
-      lubricationLayerThicknessM: 0.001,
-      bulk: { yieldStressPa: 50, plasticViscosityPaS: 10 },
-      lubricationLayer: { yieldStressPa: 5, plasticViscosityPaS: 1 },
-      segments: [],
-    },
+    runId, engineVersion: 'v1.1.0-rc.3', createdAtIso,
+    pipeline: { targetFlowRateM3s: 0.01, densityKgM3: 2400, lubricationLayerThicknessM: 0.001, bulk: { yieldStressPa: 50, plasticViscosityPaS: 10 }, lubricationLayer: { yieldStressPa: 5, plasticViscosityPaS: 1 }, segments: [] },
     assumptions: ['DRAFT_PLACEHOLDER_VALUES_REPLACE_BEFORE_ENGINEERING_USE'],
   };
   return setAnalysisInput(createApplicationDataFlowState(), draft);
 }
 
-/**
- * Default first-launch workspace. All values are clearly identified as demonstration data,
- * remain fully editable, and are not represented as measured/project-qualified evidence.
- */
+/** Default first-launch demonstration workspace. */
 export function createSampleEngineeringDraftState(runId: string, createdAtIso: string): Readonly<ApplicationDataFlowState> {
   validateDraftIdentity(runId, createdAtIso);
   const sample: SimulationRunInput = {
     runId,
     engineVersion: 'v1.1.0-rc.3',
     createdAtIso,
-    projectMetadata: {
-      name: 'پروژه نمونه TOLUE - پمپاژ بتن',
-      code: 'TOLUE-DEMO-001',
-      location: 'نمونه آموزشی',
-      client: 'کاربر آزمایشی',
-    },
+    projectMetadata: { name: 'پروژه نمونه TOLUE - پمپاژ بتن', code: 'TOLUE-DEMO-001', location: 'نمونه آموزشی', client: 'کاربر آزمایشی' },
     materials: [
       { id: 'MAT-CEM-01', kind: 'cement', name: 'سیمان نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
       { id: 'MAT-FA-01', kind: 'fine_aggregate', name: 'سنگدانه ریز نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
+      { id: 'MAT-CA-01', kind: 'coarse_aggregate', name: 'سنگدانه درشت نمونه ۱۹ میلی‌متر', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
       { id: 'MAT-ADM-01', kind: 'chemical_admixture', name: 'افزودنی نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
     ],
     pipeline: {
@@ -80,18 +61,9 @@ export function createSampleEngineeringDraftState(runId: string, createdAtIso: s
       bulk: { yieldStressPa: 70, plasticViscosityPaS: 35 },
       lubricationLayer: { yieldStressPa: 5, plasticViscosityPaS: 2 },
       segments: [
-        {
-          id: 'S-01', kind: 'straight', lengthM: 25, pipeRadiusM: 0.05, elevationChangeM: 0,
-          spatial: { startPoint: { xM: 0, yM: 0, zM: 0 }, endPoint: { xM: 25, yM: 0, zM: 0 } },
-        },
-        {
-          id: 'S-02', kind: 'straight', lengthM: 10, pipeRadiusM: 0.05, elevationChangeM: 10,
-          spatial: { startPoint: { xM: 25, yM: 0, zM: 0 }, endPoint: { xM: 25, yM: 0, zM: 10 }, connectedFromSegmentId: 'S-01' },
-        },
-        {
-          id: 'S-03', kind: 'straight', lengthM: 15, pipeRadiusM: 0.05, elevationChangeM: 0,
-          spatial: { startPoint: { xM: 25, yM: 0, zM: 10 }, endPoint: { xM: 40, yM: 0, zM: 10 }, connectedFromSegmentId: 'S-02' },
-        },
+        { id: 'S-01', kind: 'straight', lengthM: 25, pipeRadiusM: 0.05, elevationChangeM: 0, spatial: { startPoint: { xM: 0, yM: 0, zM: 0 }, endPoint: { xM: 25, yM: 0, zM: 0 } } },
+        { id: 'S-02', kind: 'straight', lengthM: 10, pipeRadiusM: 0.05, elevationChangeM: 10, spatial: { startPoint: { xM: 25, yM: 0, zM: 0 }, endPoint: { xM: 25, yM: 0, zM: 10 }, connectedFromSegmentId: 'S-01' } },
+        { id: 'S-03', kind: 'straight', lengthM: 15, pipeRadiusM: 0.05, elevationChangeM: 0, spatial: { startPoint: { xM: 25, yM: 0, zM: 10 }, endPoint: { xM: 40, yM: 0, zM: 10 }, connectedFromSegmentId: 'S-02' } },
       ],
     },
     pumpCapability: {
@@ -101,13 +73,13 @@ export function createSampleEngineeringDraftState(runId: string, createdAtIso: s
         { flowRateM3s: 0.010, availableConcretePressurePa: 7_000_000 },
         { flowRateM3s: 0.015, availableConcretePressurePa: 6_000_000 },
       ],
-      operatingEnvelope: {
-        manufacturer: 'TOLUE SAMPLE — NOT REAL EQUIPMENT',
-        model: 'DEMO-PUMP',
-        configurationRevision: 'DEMO-R1',
-        sourceDocumentId: 'TOLUE-DEMO-DATA',
-        sourceDocumentRevision: '1',
-      },
+      operatingEnvelope: { manufacturer: 'TOLUE SAMPLE — NOT REAL EQUIPMENT', model: 'DEMO-PUMP', configurationRevision: 'DEMO-R1', sourceDocumentId: 'TOLUE-DEMO-DATA', sourceDocumentRevision: '1' },
+    },
+    pumpabilityRiskScreening: {
+      nominalMaximumAggregateSizeM: 0.019,
+      suspendingPhaseYieldStressPa: 18,
+      suspendingPhaseDensityKgM3: 2200,
+      coarseAggregateDensityKgM3: 2650,
     },
     assumptions: ['EXAMPLE_DATA_ONLY_NOT_FOR_ENGINEERING_DECISIONS'],
   };
@@ -118,19 +90,9 @@ export function createSampleEngineeringDraftState(runId: string, createdAtIso: s
 export function createBlankEngineeringDraftState(runId: string, createdAtIso: string): Readonly<ApplicationDataFlowState> {
   validateDraftIdentity(runId, createdAtIso);
   const blank: SimulationRunInput = {
-    runId,
-    engineVersion: 'v1.1.0-rc.3',
-    createdAtIso,
-    projectMetadata: { name: '' },
-    materials: [],
-    pipeline: {
-      targetFlowRateM3s: 0,
-      densityKgM3: 0,
-      lubricationLayerThicknessM: 0,
-      bulk: { yieldStressPa: 0, plasticViscosityPaS: 0 },
-      lubricationLayer: { yieldStressPa: 0, plasticViscosityPaS: 0 },
-      segments: [],
-    },
+    runId, engineVersion: 'v1.1.0-rc.3', createdAtIso,
+    projectMetadata: { name: '' }, materials: [],
+    pipeline: { targetFlowRateM3s: 0, densityKgM3: 0, lubricationLayerThicknessM: 0, bulk: { yieldStressPa: 0, plasticViscosityPaS: 0 }, lubricationLayer: { yieldStressPa: 0, plasticViscosityPaS: 0 }, segments: [] },
     assumptions: ['DRAFT_PLACEHOLDER_VALUES_REPLACE_BEFORE_ENGINEERING_USE'],
   };
   return setAnalysisInput(createApplicationDataFlowState(), blank);
