@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_BOTTOM_PANE_HEIGHT } from './resizableWorkspace';
 import { commercialWorkspaceGridRows, deriveCommercialRunState } from './workspaceInteractionPolish';
 
 describe('commercial workspace interaction state', () => {
@@ -15,7 +16,8 @@ describe('commercial workspace interaction state', () => {
     expect(deriveCommercialRunState('false', false, 'آماده')).toBe('ready');
   });
 
-  it('uses four explicit shell rows so the bottom resize grip cannot create a blank implicit row', () => {
-    expect(commercialWorkspaceGridRows()).toBe('54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)');
+  it('keeps the default bottom pane at the compact menu height while preserving four explicit shell rows', () => {
+    expect(DEFAULT_BOTTOM_PANE_HEIGHT).toBe(94);
+    expect(commercialWorkspaceGridRows()).toBe('54px minmax(220px,1fr) 6px var(--tolue-bottom-height,94px)');
   });
 });
