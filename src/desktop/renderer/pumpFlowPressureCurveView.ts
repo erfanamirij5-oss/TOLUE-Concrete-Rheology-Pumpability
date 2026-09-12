@@ -1,15 +1,16 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { PumpCapabilityPresentation } from './pumpPresentation';
+import { interpolationFa, pumpProvenanceFa } from './persianPresentation';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function formatFlow(value: number): string {
-  return `${(value * 3600).toFixed(2)} m³/h`;
+  return `${(value * 3600).toFixed(2)} مترمکعب بر ساعت`;
 }
 
 function formatPressure(value: number): string {
-  return `${(value / 1_000_000).toFixed(3)} MPa`;
+  return `${(value / 1_000_000).toFixed(3)} مگاپاسکال`;
 }
 
 export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Readonly<PumpCapabilityPresentation>): void {
@@ -17,14 +18,14 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
   panel.setAttribute('aria-label', 'منحنی دبی و فشار پمپ');
   styleEngineeringSection(panel, true);
   panel.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  appendEngineeringSectionHeader(panel, 'منحنی دبی–فشار پمپ', 'فقط نقاط verified و target result تولیدشده توسط Engineering Core نمایش داده می‌شوند؛ خارج از دامنه verified هیچ extrapolation ترسیم نمی‌شود.', 'VERIFIED Q–P CURVE');
+  appendEngineeringSectionHeader(panel, 'منحنی دبی–فشار پمپ', 'فقط نقاط تأییدشده و نتیجه دبی هدفِ هسته مهندسی نمایش داده می‌شوند و خارج از دامنه تأییدشده هیچ برون‌یابی ترسیم نمی‌شود.', 'منحنی تأییدشده دبی–فشار');
   const body = document.createElement('div');
   Object.assign(body.style, { padding: '14px' });
   panel.appendChild(body);
 
   if (!result || result.verifiedCapabilityCurve.length === 0) {
     const empty = document.createElement('p');
-    empty.textContent = 'هیچ نقطه verified برای منحنی قابلیت پمپ در دسترس نیست.';
+    empty.textContent = 'هیچ نقطه تأییدشده‌ای برای منحنی قابلیت پمپ در دسترس نیست.';
     empty.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
     body.appendChild(empty);
     root.appendChild(panel);
@@ -48,7 +49,7 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'نمودار نقاط verified دبی و فشار پمپ');
+  svg.setAttribute('aria-label', 'نمودار نقاط تأییدشده دبی و فشار پمپ');
   Object.assign(svg.style, { width: '100%', maxWidth: `${width}px`, display: 'block', margin: '0 auto', background: 'linear-gradient(180deg,rgba(10,24,32,.95),rgba(6,16,22,.98))', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`, borderRadius: TOLUE_DESIGN_TOKENS.radius.md });
 
   for (let i = 0; i <= 4; i += 1) {
@@ -114,7 +115,7 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
     marker.setAttribute('stroke-width', '3');
     marker.dataset.curveRole = 'core-target-result';
     const title = document.createElementNS(SVG_NS, 'title');
-    title.textContent = `TARGET · ${formatFlow(result.targetFlowRateM3s)} · ${formatPressure(result.availablePressurePa!)}`;
+    title.textContent = `دبی هدف · ${formatFlow(result.targetFlowRateM3s)} · ${formatPressure(result.availablePressurePa!)}`;
     marker.appendChild(title);
     svg.appendChild(marker);
   }
@@ -123,21 +124,21 @@ export function renderPumpFlowPressureCurveView(root: HTMLElement, result?: Read
   const cards = document.createElement('div');
   Object.assign(cards.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '8px', marginTop: '12px' });
   for (const [label, value] of [
-    ['Verified min flow', formatFlow(minFlow)],
-    ['Verified max flow', formatFlow(maxFlow)],
-    ['Target flow', formatFlow(result.targetFlowRateM3s)],
-    ['Core available pressure', result.availablePressurePa === null ? '—' : formatPressure(result.availablePressurePa)],
+    ['کمینه دبی تأییدشده', formatFlow(minFlow)],
+    ['بیشینه دبی تأییدشده', formatFlow(maxFlow)],
+    ['دبی هدف', formatFlow(result.targetFlowRateM3s)],
+    ['فشار قابل تأمین محاسبه‌شده', result.availablePressurePa === null ? '—' : formatPressure(result.availablePressurePa)],
   ] as const) {
     const card = document.createElement('article');
     Object.assign(card.style, { padding: '9px 10px', border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`, borderRadius: TOLUE_DESIGN_TOKENS.radius.sm, background: TOLUE_DESIGN_TOKENS.color.surfaceMuted });
     const key = document.createElement('small'); key.textContent = label; key.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    const val = document.createElement('strong'); val.textContent = value; Object.assign(val.style, { display: 'block', marginTop: '3px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, direction: 'ltr' });
+    const val = document.createElement('strong'); val.textContent = value; Object.assign(val.style, { display: 'block', marginTop: '3px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, direction: 'rtl' });
     card.append(key, val); cards.appendChild(card);
   }
   body.appendChild(cards);
   const meta = document.createElement('small');
-  Object.assign(meta.style, { display: 'block', marginTop: '10px', color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'ltr' });
-  meta.textContent = `Interpolation: ${result.interpolation} · Provenance: ${result.provenance} · No extrapolation`;
+  Object.assign(meta.style, { display: 'block', marginTop: '10px', color: TOLUE_DESIGN_TOKENS.color.textMuted });
+  meta.textContent = `روش درون‌یابی: ${interpolationFa(result.interpolation)} · منشأ داده: ${pumpProvenanceFa(result.provenance)} · برون‌یابی خارج از دامنه انجام نمی‌شود`;
   body.appendChild(meta);
   root.appendChild(panel);
 }
