@@ -2,6 +2,8 @@ import { DiagnosticsResult } from './diagnostics';
 import { PumpabilityDecisionResult } from './pumpabilityDecision';
 import { EngineeringResultCenter } from './resultCenter';
 import { SimulationRunResult } from './simulationRun';
+import { validateSpatialPipeline, type SpatialPipelineValidationResult } from './spatialPipeline';
+import type { EngineeringPoint3D } from './pipeline';
 
 export type VisualizationDataStatus = 'computed' | 'not_computed';
 
@@ -20,6 +22,9 @@ export interface VisualizationSegment3D {
   startElevationM: number;
   endElevationM: number;
   pipeRadiusM: number | null;
+  spatialStartPoint: Readonly<EngineeringPoint3D> | null;
+  spatialEndPoint: Readonly<EngineeringPoint3D> | null;
+  connectedFromSegmentId: string | null;
   flowRateM3s: VisualizationScalar;
   frictionPressureLossPa: VisualizationScalar;
   elevationPressurePa: VisualizationScalar;
@@ -45,12 +50,13 @@ export interface EngineeringVisualization3DData {
   engineVersion: string;
   inputSnapshotHash: string;
   segments: VisualizationSegment3D[];
+  spatialValidation: Readonly<SpatialPipelineValidationResult>;
   pumpabilityDecision: VisualizationPumpabilityDecision | null;
   completeness: 'complete' | 'incomplete';
   representation: 'engineering_visualization';
   physicalSimulationClaim: false;
   pressureProfileAssumption: 'stationary-segment-properties';
-  method: 'tolue-3d-visualization-contract-v2';
+  method: 'tolue-3d-visualization-contract-v3';
   warnings: string[];
 }
 
@@ -104,6 +110,9 @@ export function buildEngineeringVisualization3DData(
       startElevationM,
       endElevationM: elevationM,
       pipeRadiusM,
+      spatialStartPoint: source.spatial ? Object.freeze({ ...source.spatial.startPoint }) : null,
+      spatialEndPoint: source.spatial ? Object.freeze({ ...source.spatial.endPoint }) : null,
+      connectedFromSegmentId: source.spatial?.connectedFromSegmentId ?? null,
       flowRateM3s: scalar(run.inputSnapshot.pipeline.targetFlowRateM3s, 'm3/s'),
       frictionPressureLossPa: scalar(hydraulic.frictionPressurePa, 'Pa'),
       elevationPressurePa: scalar(hydraulic.elevationPressurePa, 'Pa'),
@@ -116,11 +125,13 @@ export function buildEngineeringVisualization3DData(
     });
   }
 
+  const spatialValidation = validateSpatialPipeline(run.inputSnapshot.pipeline.segments);
   return {
     runId: run.runId,
     engineVersion: run.engineVersion,
     inputSnapshotHash: center.inputSnapshotHash,
     segments,
+    spatialValidation,
     pumpabilityDecision: pumpabilityDecision ? {
       pressureFeasibility: pumpabilityDecision.pressureFeasibility,
       stability: pumpabilityDecision.stability,
@@ -133,7 +144,7 @@ export function buildEngineeringVisualization3DData(
     representation: 'engineering_visualization',
     physicalSimulationClaim: false,
     pressureProfileAssumption: run.pressureProfile.assumption,
-    method: 'tolue-3d-visualization-contract-v2',
-    warnings: [...run.warnings],
+    method: 'tolue-3d-visualization-contract-v3',
+    warnings: [...run.warnings, ...spatialValidation.issues.map(issue => issue.message)],
   };
 }

@@ -1,5 +1,7 @@
 import { EngineeringReportExportBundle } from './engineeringReportExport';
 
+export type EngineeringReportTextFormat = 'html' | 'json';
+
 export interface EngineeringPdfPageSpec {
   format: 'A4';
   landscape: false;
@@ -27,6 +29,22 @@ export interface EngineeringPdfExportRequest {
   scientificClaim: 'presentation_only_no_new_engineering_inference';
   method: 'tolue-engineering-pdf-export-request-v1';
 }
+
+export interface EngineeringReportTextExportRequest {
+  runId: string;
+  engineVersion: string;
+  inputSnapshotHash: string;
+  fileName: string;
+  content: string;
+  format: EngineeringReportTextFormat;
+  mediaType: 'text/html' | 'application/json';
+  encoding: 'utf-8';
+  rendererBoundary: 'privileged_desktop_main_process';
+  scientificClaim: 'presentation_only_no_new_engineering_inference';
+  method: 'tolue-engineering-report-text-export-request-v1';
+}
+
+export type EngineeringReportExportRequest = EngineeringPdfExportRequest | EngineeringReportTextExportRequest;
 
 function safeFileToken(value: string): string {
   const normalized = value.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -60,10 +78,34 @@ export function buildEngineeringPdfExportRequest(
       printBackground: true,
       preferCssPageSize: true,
       displayHeaderFooter: false,
-      marginsMm: { top: 14, right: 14, bottom: 14, left: 14 },
+      marginsMm: { top: 5, right: 5, bottom: 5, left: 5 },
     },
     rendererBoundary: 'privileged_desktop_main_process',
     scientificClaim: 'presentation_only_no_new_engineering_inference',
     method: 'tolue-engineering-pdf-export-request-v1',
+  };
+}
+
+/** Builds a privileged save request for the already-generated report HTML/JSON payload. */
+export function buildEngineeringReportTextExportRequest(
+  bundle: EngineeringReportExportBundle,
+  format: EngineeringReportTextFormat,
+): EngineeringReportTextExportRequest {
+  if (!bundle.inputSnapshotHash.trim()) throw new Error('Report export inputSnapshotHash must not be empty');
+  const token = safeFileToken(bundle.runId);
+  const source = format === 'html' ? bundle.html : bundle.json;
+  if (!source.content.trim()) throw new Error('Report export content must not be empty');
+  return {
+    runId: bundle.runId,
+    engineVersion: bundle.engineVersion,
+    inputSnapshotHash: bundle.inputSnapshotHash,
+    fileName: `TOLUE-Engineering-Report-${token}.${format}`,
+    content: source.content,
+    format,
+    mediaType: source.mediaType,
+    encoding: 'utf-8',
+    rendererBoundary: 'privileged_desktop_main_process',
+    scientificClaim: 'presentation_only_no_new_engineering_inference',
+    method: 'tolue-engineering-report-text-export-request-v1',
   };
 }

@@ -17,6 +17,7 @@ describe('pump capability presentation boundary', () => {
       status: 'PASS',
       interpolation: 'linear_between_verified_points',
       provenance: 'manufacturer_curve',
+      operatingEnvelope: null,
       verifiedCapabilityCurve,
       method: 'tolue-pump-capability-v1',
     });
@@ -39,6 +40,7 @@ describe('pump capability presentation boundary', () => {
       status: 'INSUFFICIENT_DATA',
       interpolation: 'not_available',
       provenance: 'calibrated_project_data',
+      operatingEnvelope: null,
       verifiedCapabilityCurve,
       method: 'tolue-pump-capability-v1',
     });

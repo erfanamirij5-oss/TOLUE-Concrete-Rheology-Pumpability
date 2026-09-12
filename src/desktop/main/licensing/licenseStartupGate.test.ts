@@ -44,9 +44,12 @@ describe('license startup gate', () => {
     expect(evaluateLicenseStartupGate({ signedEnvelope: envelope, publicKeyPem, machineId: 'machine-a', nowIso: '2027-01-01T00:00:00.001Z' }).evaluation.status).toBe('EXPIRED');
   });
 
-  it('requires explicit machine, public key, and time inputs rather than inventing runtime identity', () => {
-    const { publicKeyPem, envelope } = fixture();
-    expect(() => evaluateLicenseStartupGate({ signedEnvelope: envelope, publicKeyPem, machineId: '', nowIso: '2026-09-09T00:00:00.000Z' })).toThrow('LICENSE-STARTUP-MACHINE-001');
-    expect(() => evaluateLicenseStartupGate({ signedEnvelope: envelope, publicKeyPem: '', machineId: 'machine-a', nowIso: '2026-09-09T00:00:00.000Z' })).toThrow('LICENSE-STARTUP-PUBLIC-KEY-001');
+  it('requires explicit machine and time while legacy v1 still needs its external public key', () => {
+    const { envelope } = fixture();
+    expect(() => evaluateLicenseStartupGate({ signedEnvelope: envelope, publicKeyPem: '', machineId: '', nowIso: '2026-09-09T00:00:00.000Z' })).toThrow('LICENSE-STARTUP-MACHINE-001');
+    expect(() => evaluateLicenseStartupGate({ signedEnvelope: envelope, publicKeyPem: '', machineId: 'machine-a', nowIso: '' })).toThrow('LICENSE-STARTUP-TIME-001');
+    const legacyWithoutKey = evaluateLicenseStartupGate({ signedEnvelope: envelope, publicKeyPem: '', machineId: 'machine-a', nowIso: '2026-09-09T00:00:00.000Z' });
+    expect(legacyWithoutKey.canStartApplication).toBe(false);
+    expect(legacyWithoutKey.verificationStatus).toBe('INVALID_SIGNATURE_OR_ENVELOPE');
   });
 });

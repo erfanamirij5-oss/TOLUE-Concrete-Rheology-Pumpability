@@ -5,12 +5,22 @@ export interface PumpCapabilityPoint {
   availableConcretePressurePa: number;
 }
 
+export interface PumpOperatingEnvelopeMetadata {
+  manufacturer: string;
+  model: string;
+  configurationRevision: string;
+  sourceDocumentId: string;
+  sourceDocumentRevision: string;
+  sourceHash?: string;
+}
+
 export interface PumpCapabilityInput {
   targetFlowRateM3s: number;
   requiredPressurePa: number | null;
   pipelineCompleteness: 'complete' | 'incomplete';
   capabilityCurve: PumpCapabilityPoint[];
   provenance: PumpCapabilityProvenance;
+  operatingEnvelope?: PumpOperatingEnvelopeMetadata;
 }
 
 export interface PumpCapabilityResult {
@@ -22,6 +32,7 @@ export interface PumpCapabilityResult {
   status: 'PASS' | 'FAIL' | 'INSUFFICIENT_DATA';
   interpolation: 'exact_point' | 'linear_between_verified_points' | 'not_available';
   provenance: PumpCapabilityProvenance;
+  operatingEnvelope: Readonly<PumpOperatingEnvelopeMetadata> | null;
   verifiedCapabilityCurve: readonly Readonly<PumpCapabilityPoint>[];
   method: 'tolue-pump-capability-v1';
 }
@@ -39,6 +50,10 @@ function validateCurve(points: PumpCapabilityPoint[]): void {
 
 function freezeVerifiedCurve(points: PumpCapabilityPoint[]): readonly Readonly<PumpCapabilityPoint>[] {
   return Object.freeze(points.map(point => Object.freeze({ ...point })));
+}
+
+function freezeEnvelope(metadata: PumpOperatingEnvelopeMetadata | undefined): Readonly<PumpOperatingEnvelopeMetadata> | null {
+  return metadata ? Object.freeze({ ...metadata }) : null;
 }
 
 export function availablePressureAtFlow(points: PumpCapabilityPoint[], targetFlowRateM3s: number): { pressurePa: number | null; interpolation: PumpCapabilityResult['interpolation'] } {
@@ -65,6 +80,7 @@ export function availablePressureAtFlow(points: PumpCapabilityPoint[], targetFlo
 export function assessPumpCapability(input: PumpCapabilityInput): PumpCapabilityResult {
   const available = availablePressureAtFlow(input.capabilityCurve, input.targetFlowRateM3s);
   const verifiedCapabilityCurve = freezeVerifiedCurve(input.capabilityCurve);
+  const operatingEnvelope = freezeEnvelope(input.operatingEnvelope);
 
   if (input.pipelineCompleteness !== 'complete' || input.requiredPressurePa === null || available.pressurePa === null) {
     return {
@@ -76,6 +92,7 @@ export function assessPumpCapability(input: PumpCapabilityInput): PumpCapability
       status: 'INSUFFICIENT_DATA',
       interpolation: available.interpolation,
       provenance: input.provenance,
+      operatingEnvelope,
       verifiedCapabilityCurve,
       method: 'tolue-pump-capability-v1',
     };
@@ -94,6 +111,7 @@ export function assessPumpCapability(input: PumpCapabilityInput): PumpCapability
     status: margin >= 0 ? 'PASS' : 'FAIL',
     interpolation: available.interpolation,
     provenance: input.provenance,
+    operatingEnvelope,
     verifiedCapabilityCurve,
     method: 'tolue-pump-capability-v1',
   };

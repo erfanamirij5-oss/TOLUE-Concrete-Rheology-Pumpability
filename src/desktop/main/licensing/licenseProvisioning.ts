@@ -58,17 +58,21 @@ export function provisionSignedLicense(input: Readonly<LicenseProvisioningInput>
   try { recoverProvisionedLicenseState(input.userDataPath); } catch { return rejected('LICENSE-PROVISION-RECOVERY-001'); }
 
   let raw = '';
-  let publicKeyPem = '';
+  let legacyPublicKeyPem = '';
   let envelope: unknown;
   try {
     raw = readFileSync(input.sourceLicensePath, 'utf8');
     envelope = JSON.parse(raw) as unknown;
-    publicKeyPem = readFileSync(input.publicKeyPath, 'utf8');
   } catch {
     return rejected('LICENSE-PROVISION-READ-001');
   }
+  try {
+    legacyPublicKeyPem = readFileSync(input.publicKeyPath, 'utf8');
+  } catch {
+    legacyPublicKeyPem = '';
+  }
 
-  const verified = verifySignedLicenseEnvelope(envelope, publicKeyPem);
+  const verified = verifySignedLicenseEnvelope(envelope, legacyPublicKeyPem);
   if (!verified) return rejected('LICENSE-PROVISION-SIGNATURE-001');
   const evaluation = evaluateLicense({ entitlement: verified, machineId: input.machineId, nowIso: input.nowIso });
   if (!evaluation.canUseApplication || evaluation.status !== 'ACTIVE') {

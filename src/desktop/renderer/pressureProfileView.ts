@@ -1,8 +1,17 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
+import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { PressureProfilePresentation } from './pressureProfilePresentation';
+import { assessmentStatusFa } from './persianPresentation';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+export interface PressureProfileViewOptions {
+  readonly selectedSegmentId?: string | null | undefined;
+  readonly onSelectSegment?: ((segmentId: string) => void) | undefined;
+}
 
 function pressure(value: number | null): string {
-  return value === null ? '—' : `${value} Pa`;
+  return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} مگاپاسکال`;
 }
 
 function coordinate(value: number | null, unit: string): string {
@@ -12,6 +21,7 @@ function coordinate(value: number | null, unit: string): string {
 function renderPressureChart(
   panel: HTMLElement,
   presentation: Readonly<PressureProfilePresentation>,
+  options: Readonly<PressureProfileViewOptions>,
 ): void {
   const drawable = presentation.points.filter(point =>
     point.status === 'computed'
@@ -21,8 +31,8 @@ function renderPressureChart(
   if (drawable.length === 0) return;
 
   const width = 760;
-  const height = 280;
-  const padding = 36;
+  const height = 290;
+  const padding = 42;
   const maxX = Math.max(...drawable.map(point => point.positionM ?? 0), 1);
   const pressures = drawable.map(point => point.remainingRequiredPressurePa ?? 0);
   const minP = Math.min(...pressures, 0);
@@ -32,26 +42,35 @@ function renderPressureChart(
   const y = (pressurePa: number) => height - padding - ((pressurePa - minP) / spanP) * (height - 2 * padding);
 
   const wrapper = document.createElement('div');
-  wrapper.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  wrapper.style.overflowX = 'auto';
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  Object.assign(wrapper.style, { marginTop: TOLUE_DESIGN_TOKENS.spacing.lg, overflowX: 'auto' });
+  const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'نمودار فشار باقی‌مانده در طول مسیر');
-  svg.style.width = '100%';
-  svg.style.minWidth = '620px';
-  svg.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-  svg.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  svg.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
+  Object.assign(svg.style, {
+    width: '100%', minWidth: '620px', display: 'block',
+    background: 'linear-gradient(180deg,rgba(10,24,32,.95),rgba(6,16,22,.98))',
+    border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,
+    borderRadius: TOLUE_DESIGN_TOKENS.radius.md,
+  });
 
-  const axisX = document.createElementNS(svg.namespaceURI, 'line');
+  for (let i = 0; i <= 4; i += 1) {
+    const gy = padding + ((height - 2 * padding) * i) / 4;
+    const grid = document.createElementNS(SVG_NS, 'line');
+    grid.setAttribute('x1', String(padding)); grid.setAttribute('x2', String(width - padding));
+    grid.setAttribute('y1', String(gy)); grid.setAttribute('y2', String(gy));
+    grid.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border); grid.setAttribute('opacity', '.35');
+    svg.appendChild(grid);
+  }
+
+  const axisX = document.createElementNS(SVG_NS, 'line');
   axisX.setAttribute('x1', String(padding)); axisX.setAttribute('y1', String(height - padding));
   axisX.setAttribute('x2', String(width - padding)); axisX.setAttribute('y2', String(height - padding));
-  axisX.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border);
-  const axisY = document.createElementNS(svg.namespaceURI, 'line');
+  axisX.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.borderStrong);
+  const axisY = document.createElementNS(SVG_NS, 'line');
   axisY.setAttribute('x1', String(padding)); axisY.setAttribute('y1', String(padding));
   axisY.setAttribute('x2', String(padding)); axisY.setAttribute('y2', String(height - padding));
-  axisY.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.border);
+  axisY.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.borderStrong);
   svg.append(axisX, axisY);
 
   for (let i = 1; i < presentation.points.length; i += 1) {
@@ -62,33 +81,48 @@ function renderPressureChart(
       || previous.positionM === null || current.positionM === null
       || previous.remainingRequiredPressurePa === null || current.remainingRequiredPressurePa === null
     ) continue;
-    const line = document.createElementNS(svg.namespaceURI, 'line');
-    line.setAttribute('x1', String(x(previous.positionM)));
-    line.setAttribute('y1', String(y(previous.remainingRequiredPressurePa)));
-    line.setAttribute('x2', String(x(current.positionM)));
-    line.setAttribute('y2', String(y(current.remainingRequiredPressurePa)));
-    line.setAttribute('stroke', TOLUE_DESIGN_TOKENS.color.focus);
-    line.setAttribute('stroke-width', '2');
-    svg.appendChild(line);
+    const selected = Boolean(options.selectedSegmentId && current.segmentId === options.selectedSegmentId);
+    const segmentLine = document.createElementNS(SVG_NS, 'line');
+    segmentLine.setAttribute('x1', String(x(previous.positionM)));
+    segmentLine.setAttribute('y1', String(y(previous.remainingRequiredPressurePa)));
+    segmentLine.setAttribute('x2', String(x(current.positionM)));
+    segmentLine.setAttribute('y2', String(y(current.remainingRequiredPressurePa)));
+    segmentLine.setAttribute('stroke', selected ? TOLUE_DESIGN_TOKENS.color.selection : TOLUE_DESIGN_TOKENS.color.focus);
+    segmentLine.setAttribute('stroke-width', selected ? '5' : '2.5');
+    segmentLine.setAttribute('stroke-linecap', 'round');
+    segmentLine.dataset.segmentId = current.segmentId ?? '';
+    if (current.segmentId && options.onSelectSegment) {
+      segmentLine.style.cursor = 'pointer';
+      segmentLine.addEventListener('click', () => options.onSelectSegment?.(current.segmentId!));
+    }
+    svg.appendChild(segmentLine);
   }
 
   for (const point of drawable) {
-    const circle = document.createElementNS(svg.namespaceURI, 'circle');
+    const selected = Boolean(options.selectedSegmentId && point.segmentId === options.selectedSegmentId);
+    const circle = document.createElementNS(SVG_NS, 'circle');
     circle.setAttribute('cx', String(x(point.positionM!)));
     circle.setAttribute('cy', String(y(point.remainingRequiredPressurePa!)));
-    circle.setAttribute('r', '4');
-    circle.setAttribute('fill', TOLUE_DESIGN_TOKENS.color.focus);
-    const title = document.createElementNS(svg.namespaceURI, 'title');
-    title.textContent = `#${point.index} · ${point.segmentId ?? 'INLET'} · ${point.positionM} m · ${point.remainingRequiredPressurePa} Pa`;
+    circle.setAttribute('r', selected ? '6' : '4');
+    circle.setAttribute('fill', selected ? TOLUE_DESIGN_TOKENS.color.selection : TOLUE_DESIGN_TOKENS.color.focus);
+    circle.setAttribute('stroke', selected ? '#fff' : 'none');
+    circle.setAttribute('stroke-width', selected ? '1.5' : '0');
+    if (point.segmentId) circle.dataset.segmentId = point.segmentId;
+    if (point.segmentId && options.onSelectSegment) {
+      circle.style.cursor = 'pointer';
+      circle.addEventListener('click', () => options.onSelectSegment?.(point.segmentId!));
+    }
+    const title = document.createElementNS(SVG_NS, 'title');
+    title.textContent = `نقطه ${point.index} · ${point.segmentId ?? 'ورودی'} · ${point.positionM} متر · ${pressure(point.remainingRequiredPressurePa)}`;
     circle.appendChild(title);
     svg.appendChild(circle);
   }
 
   const caption = document.createElement('small');
-  caption.textContent = 'محور افقی: موقعیت هندسی معلوم (m) · محور عمودی: فشار باقی‌مانده موردنیاز (Pa). اتصال فقط بین نقاط مجاور computed رسم می‌شود.';
-  caption.style.display = 'block';
-  caption.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-  caption.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+  caption.textContent = options.selectedSegmentId
+    ? `تمرکز روی قطعه ${options.selectedSegmentId}؛ خط نارنجی فقط همان بازه محاسبه‌شده توسط هسته مهندسی را برجسته می‌کند.`
+    : 'محور افقی: موقعیت مسیر بر حسب متر · محور عمودی: فشار باقی‌مانده موردنیاز. فقط نقاط محاسبه‌شده به هم متصل می‌شوند.';
+  Object.assign(caption.style, { display: 'block', marginTop: TOLUE_DESIGN_TOKENS.spacing.sm, color: options.selectedSegmentId ? TOLUE_DESIGN_TOKENS.color.selection : TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'rtl' });
   wrapper.append(svg, caption);
   panel.appendChild(wrapper);
 }
@@ -96,79 +130,72 @@ function renderPressureChart(
 export function renderPressureProfileView(
   root: HTMLElement,
   presentation?: Readonly<PressureProfilePresentation>,
+  options: Readonly<PressureProfileViewOptions> = {},
 ): void {
   const panel = document.createElement('section');
   panel.setAttribute('aria-label', 'پروفایل فشار خط لوله');
-  panel.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  panel.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  panel.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  panel.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const title = document.createElement('h2');
-  title.textContent = 'پروفایل فشار مسیر';
-  title.style.marginTop = '0';
-
-  const note = document.createElement('p');
-  note.textContent = 'این نما فقط نقاط تولیدشده توسط Engineering Core را نمایش می‌دهد. برای نقاط not_computed هیچ interpolation، صفر جایگزین یا تخمین گرافیکی ایجاد نمی‌شود.';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  panel.append(title, note);
+  styleEngineeringSection(panel, true);
+  Object.assign(panel.style, { marginTop: TOLUE_DESIGN_TOKENS.spacing.lg });
+  appendEngineeringSectionHeader(panel, 'پروفایل فشار مسیر', 'فقط نقاط محاسبه‌شده هسته مهندسی نمایش داده می‌شوند؛ برای نقاط محاسبه‌نشده درون‌یابی یا مقدار صفر جایگزین ساخته نمی‌شود.', 'پروفایل فشار');
+  const body = document.createElement('div');
+  Object.assign(body.style, { padding: '14px' });
+  panel.appendChild(body);
 
   if (!presentation) {
     const empty = document.createElement('p');
     empty.textContent = 'هنوز پروفایل فشار معتبر از تحلیل فعال دریافت نشده است.';
-    panel.appendChild(empty);
+    empty.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+    body.appendChild(empty);
     root.appendChild(panel);
     return;
   }
 
   const summary = document.createElement('div');
-  summary.style.display = 'grid';
-  summary.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
-  summary.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
+  Object.assign(summary.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(145px,1fr))', gap: '8px' });
   for (const [label, value] of [
-    ['Peak pressure', pressure(presentation.peakRequiredPressurePa)],
-    ['Peak point', presentation.peakPointIndex === null ? '—' : String(presentation.peakPointIndex)],
-    ['Completeness', presentation.completeness],
-    ['Outlet reference', `${presentation.outletPressureReferencePa} Pa`],
+    ['بیشینه فشار', pressure(presentation.peakRequiredPressurePa)],
+    ['شماره نقطه بیشینه', presentation.peakPointIndex === null ? '—' : String(presentation.peakPointIndex)],
+    ['کامل بودن تحلیل', assessmentStatusFa(presentation.completeness)],
+    ['فشار مرجع خروجی', pressure(presentation.outletPressureReferencePa)],
   ] as const) {
-    const card = document.createElement('div');
-    card.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    card.style.background = TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-    card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    const key = document.createElement('strong'); key.textContent = label;
-    const val = document.createElement('div'); val.textContent = value; val.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm; val.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
+    const card = document.createElement('article');
+    Object.assign(card.style, { padding: '9px 10px', background: TOLUE_DESIGN_TOKENS.color.surfaceMuted, border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`, borderRadius: TOLUE_DESIGN_TOKENS.radius.sm });
+    const key = document.createElement('small'); key.textContent = label; key.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
+    const val = document.createElement('strong'); val.textContent = value; Object.assign(val.style, { display: 'block', marginTop: '3px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, direction: 'rtl' });
     card.append(key, val); summary.appendChild(card);
   }
-  panel.appendChild(summary);
-  renderPressureChart(panel, presentation);
+  body.appendChild(summary);
+  renderPressureChart(body, presentation, options);
 
   const table = document.createElement('div');
-  table.style.display = 'grid';
-  table.style.gap = TOLUE_DESIGN_TOKENS.spacing.sm;
-  table.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg;
+  Object.assign(table.style, { display: 'grid', gap: '7px', marginTop: TOLUE_DESIGN_TOKENS.spacing.lg });
   for (const point of presentation.points) {
+    const selected = Boolean(options.selectedSegmentId && point.segmentId === options.selectedSegmentId);
     const row = document.createElement('article');
-    row.style.padding = TOLUE_DESIGN_TOKENS.spacing.md;
-    row.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-    row.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-    row.style.background = point.status === 'computed' ? TOLUE_DESIGN_TOKENS.color.surface : TOLUE_DESIGN_TOKENS.color.surfaceMuted;
-    const identity = document.createElement('strong'); identity.textContent = `#${point.index} · ${point.segmentId ?? 'INLET'}`;
+    row.dataset.segmentId = point.segmentId ?? '';
+    Object.assign(row.style, {
+      padding: '9px 10px',
+      border: `1px solid ${selected ? TOLUE_DESIGN_TOKENS.color.selection : TOLUE_DESIGN_TOKENS.color.border}`,
+      borderInlineStart: selected ? `4px solid ${TOLUE_DESIGN_TOKENS.color.selection}` : `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,
+      borderRadius: TOLUE_DESIGN_TOKENS.radius.sm,
+      background: point.status === 'computed' ? 'rgba(12,23,30,.76)' : TOLUE_DESIGN_TOKENS.color.surfaceMuted,
+      cursor: point.segmentId && options.onSelectSegment ? 'pointer' : 'default',
+    });
+    if (point.segmentId && options.onSelectSegment) row.addEventListener('click', () => options.onSelectSegment?.(point.segmentId!));
+    const identity = document.createElement('strong'); identity.textContent = `نقطه ${point.index} · ${point.segmentId ?? 'ورودی'}`;
     const values = document.createElement('div');
-    values.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm;
-    values.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
-    values.textContent = `x=${coordinate(point.positionM, 'm')} · z=${coordinate(point.elevationM, 'm')} · cumulative=${pressure(point.cumulativeRequiredPressurePa)} · remaining=${pressure(point.remainingRequiredPressurePa)}`;
+    Object.assign(values.style, { marginTop: '4px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, fontSize: TOLUE_DESIGN_TOKENS.typography.fontSizeXs, direction: 'rtl' });
+    values.textContent = `موقعیت=${coordinate(point.positionM, 'متر')} · ارتفاع=${coordinate(point.elevationM, 'متر')} · فشار تجمعی=${pressure(point.cumulativeRequiredPressurePa)} · فشار باقی‌مانده=${pressure(point.remainingRequiredPressurePa)}`;
     const trace = document.createElement('small');
-    trace.style.display = 'block'; trace.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.sm; trace.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    trace.textContent = `status=${point.status} · method=${point.pressureMethod ?? '—'} · calibration=${point.calibrationId ?? '—'} · provenance=${point.provenanceEntityId ?? '—'}`;
+    Object.assign(trace.style, { display: 'block', marginTop: '4px', color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'rtl' });
+    trace.textContent = `وضعیت: ${assessmentStatusFa(point.status)} · شناسه روش: ${point.pressureMethod ?? '—'} · کالیبراسیون: ${point.calibrationId ?? '—'} · منشأ: ${point.provenanceEntityId ?? '—'}`;
     row.append(identity, values, trace); table.appendChild(row);
   }
-  panel.appendChild(table);
+  body.appendChild(table);
 
   const meta = document.createElement('small');
-  meta.style.display = 'block'; meta.style.marginTop = TOLUE_DESIGN_TOKENS.spacing.lg; meta.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  meta.textContent = `Method: ${presentation.method} · Assumption: ${presentation.assumption}`;
-  panel.appendChild(meta);
+  Object.assign(meta.style, { display: 'block', marginTop: TOLUE_DESIGN_TOKENS.spacing.lg, color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'rtl' });
+  meta.textContent = `شناسه روش: ${presentation.method} · فرض مدل: ${presentation.assumption}`;
+  body.appendChild(meta);
   root.appendChild(panel);
 }

@@ -11,7 +11,9 @@ export type DiagnosticKind =
   | 'STABILITY_UNACCEPTABLE'
   | 'BLOCKAGE_UNACCEPTABLE'
   | 'PUMPABILITY_PROJECT_QUALIFIED'
-  | 'PUMPABILITY_PARTIALLY_QUALIFIED';
+  | 'PUMPABILITY_PARTIALLY_QUALIFIED'
+  | 'PUMPABILITY_SCREENED_ACCEPTABLE'
+  | 'PUMPABILITY_PARTIALLY_SCREENED';
 
 export interface DiagnosticFinding {
   id: string;
@@ -24,7 +26,7 @@ export interface DiagnosticFinding {
   inputSnapshotHash: string;
   ruleId: string;
   ruleVersion: '1.0.0';
-  basis: 'data_completeness' | 'exact_mathematical_relation' | 'project_qualified_evidence';
+  basis: 'data_completeness' | 'exact_mathematical_relation' | 'project_qualified_evidence' | 'engineering_screening';
   validationStatus: EngineeringValidationStatus;
   recommendation: string | null;
 }
@@ -73,11 +75,49 @@ export function diagnoseEngineeringResults(
   }
 
   if (pumpabilityDecision?.status === 'FAIL_STABILITY') {
-    findings.push({ id: 'diagnostic.pumpability.stabilityUnacceptable', kind: 'STABILITY_UNACCEPTABLE', severity: 'critical', title: 'Project-qualified stability evidence is unacceptable', message: 'The supplied in-domain project-qualified stability evidence reports an unacceptable outcome. This is project-specific and is not a universal stability model.', sourceResultIds: ['pumpability.stabilityEvidence', 'pumpability.decisionStatus'], ruleId: 'DX-PUMPABILITY-STABILITY-001', basis: 'project_qualified_evidence', validationStatus: 'candidate', recommendation: 'Review the documented project evidence, material system, target flow, and qualification scope before proceeding.', ...common(center) });
+    const screened = pumpabilityDecision.stabilityBasis === 'ENGINEERING_SCREENING';
+    findings.push({
+      id: 'diagnostic.pumpability.stabilityUnacceptable',
+      kind: 'STABILITY_UNACCEPTABLE',
+      severity: 'critical',
+      title: screened ? 'Static stability engineering screen is unacceptable' : 'Project-qualified stability evidence is unacceptable',
+      message: screened
+        ? 'The Roussel static segregation screen indicates that the supplied suspending-phase yield stress is below the calculated critical value for the supplied aggregate size and density contrast.'
+        : 'The supplied in-domain project-qualified stability evidence reports an unacceptable outcome. This is project-specific and is not a universal stability model.',
+      sourceResultIds: screened
+        ? ['pumpability.stabilityScreening', 'pumpability.stabilityCriticalYieldStress', 'pumpability.decisionStatus']
+        : ['pumpability.stabilityEvidence', 'pumpability.decisionStatus'],
+      ruleId: screened ? 'DX-PUMPABILITY-STABILITY-SCREEN-001' : 'DX-PUMPABILITY-STABILITY-001',
+      basis: screened ? 'engineering_screening' : 'project_qualified_evidence',
+      validationStatus: 'candidate',
+      recommendation: screened
+        ? 'Review suspending-phase rheology, aggregate size/density, mixture stability measurements, and project-qualified evidence before pumping.'
+        : 'Review the documented project evidence, material system, target flow, and qualification scope before proceeding.',
+      ...common(center),
+    });
   }
 
   if (pumpabilityDecision?.status === 'FAIL_BLOCKAGE') {
-    findings.push({ id: 'diagnostic.pumpability.blockageUnacceptable', kind: 'BLOCKAGE_UNACCEPTABLE', severity: 'critical', title: 'Project-qualified blockage evidence is unacceptable', message: 'The supplied in-domain project-qualified blockage evidence reports an unacceptable outcome. This is project-specific and is not a universal blockage model.', sourceResultIds: ['pumpability.blockageEvidence', 'pumpability.decisionStatus'], ruleId: 'DX-PUMPABILITY-BLOCKAGE-001', basis: 'project_qualified_evidence', validationStatus: 'candidate', recommendation: 'Review the documented project evidence, route/material system, target flow, and qualification scope before proceeding.', ...common(center) });
+    const screened = pumpabilityDecision.blockageBasis === 'ENGINEERING_SCREENING';
+    findings.push({
+      id: 'diagnostic.pumpability.blockageUnacceptable',
+      kind: 'BLOCKAGE_UNACCEPTABLE',
+      severity: 'critical',
+      title: screened ? 'Aggregate-to-pipe blockage screen is unacceptable' : 'Project-qualified blockage evidence is unacceptable',
+      message: screened
+        ? 'The nominal maximum aggregate size exceeds the conservative one-third limit of the smallest known straight-pipe inside diameter.'
+        : 'The supplied in-domain project-qualified blockage evidence reports an unacceptable outcome. This is project-specific and is not a universal blockage model.',
+      sourceResultIds: screened
+        ? ['pumpability.blockageScreening', 'pumpability.blockageAggregatePipeRatio', 'pumpability.decisionStatus']
+        : ['pumpability.blockageEvidence', 'pumpability.decisionStatus'],
+      ruleId: screened ? 'DX-PUMPABILITY-BLOCKAGE-SCREEN-001' : 'DX-PUMPABILITY-BLOCKAGE-001',
+      basis: screened ? 'engineering_screening' : 'project_qualified_evidence',
+      validationStatus: 'candidate',
+      recommendation: screened
+        ? 'Review nominal maximum aggregate size and the minimum inside diameter of the complete pumping route, especially reducers, bends, hoses, valves, and boom components.'
+        : 'Review the documented project evidence, route/material system, target flow, and qualification scope before proceeding.',
+      ...common(center),
+    });
   }
 
   if (pumpabilityDecision?.status === 'PROJECT_QUALIFIED_ACCEPTABLE') {
@@ -86,6 +126,38 @@ export function diagnoseEngineeringResults(
 
   if (pumpabilityDecision?.status === 'PARTIALLY_QUALIFIED_ACCEPTABLE') {
     findings.push({ id: 'diagnostic.pumpability.partiallyQualified', kind: 'PUMPABILITY_PARTIALLY_QUALIFIED', severity: 'warning', title: 'Pumpability evidence is only partially qualified', message: 'Pressure is feasible and one project-qualified evidence domain is acceptable, but the other stability/blockage domain is not fully assessed in-domain.', sourceResultIds: ['pumpability.decisionStatus'], ruleId: 'DX-PUMPABILITY-QUALIFIED-002', basis: 'project_qualified_evidence', validationStatus: 'candidate', recommendation: 'Obtain project-qualified evidence for the missing or out-of-domain stability/blockage domain before treating pumpability as fully qualified.', ...common(center) });
+  }
+
+  if (pumpabilityDecision?.status === 'SCREENED_ACCEPTABLE') {
+    findings.push({
+      id: 'diagnostic.pumpability.screenedAcceptable',
+      kind: 'PUMPABILITY_SCREENED_ACCEPTABLE',
+      severity: 'info',
+      title: 'Automatic stability and blockage engineering screens are acceptable',
+      message: 'Pressure is feasible and the available automatic stability/blockage screening checks are acceptable. These screens are preliminary and do not replace project-qualified pumping trials or evidence.',
+      sourceResultIds: ['pumpability.stabilityScreening', 'pumpability.blockageScreening', 'pumpability.decisionStatus'],
+      ruleId: 'DX-PUMPABILITY-SCREEN-001',
+      basis: 'engineering_screening',
+      validationStatus: 'preliminary',
+      recommendation: 'Use project-qualified trial, laboratory, or field evidence when a final project acceptance decision is required.',
+      ...common(center),
+    });
+  }
+
+  if (pumpabilityDecision?.status === 'PARTIALLY_SCREENED_ACCEPTABLE') {
+    findings.push({
+      id: 'diagnostic.pumpability.partiallyScreened',
+      kind: 'PUMPABILITY_PARTIALLY_SCREENED',
+      severity: 'warning',
+      title: 'Automatic pumpability risk screening is incomplete',
+      message: 'Pressure is feasible and one automatic risk domain is acceptable, but the other stability/blockage domain does not have enough screening input data.',
+      sourceResultIds: ['pumpability.decisionStatus'],
+      ruleId: 'DX-PUMPABILITY-SCREEN-002',
+      basis: 'engineering_screening',
+      validationStatus: 'preliminary',
+      recommendation: 'Complete the missing automatic screening inputs and rerun the analysis before relying on the risk screen.',
+      ...common(center),
+    });
   }
 
   return { runId: center.runId, inputSnapshotHash: center.inputSnapshotHash, findings, method: 'tolue-diagnostics-v2' };
