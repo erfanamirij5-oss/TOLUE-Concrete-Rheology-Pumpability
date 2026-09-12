@@ -13,6 +13,10 @@ export function deriveCommercialRunState(
   return 'ready';
 }
 
+export function commercialWorkspaceGridRows(): string {
+  return '54px minmax(220px,1fr) 6px var(--tolue-bottom-height,220px)';
+}
+
 function decorateTreeSelection(tree: HTMLElement): void {
   for (const button of Array.from(tree.querySelectorAll('button'))) {
     if (!(button instanceof HTMLButtonElement)) continue;
@@ -32,6 +36,12 @@ export function installWorkspaceInteractionPolish(root: HTMLElement, sampleLoade
   const header = shell?.querySelector(':scope > header');
   const work = shell?.querySelector(':scope > header + div');
   if (!(shell instanceof HTMLElement) || !(header instanceof HTMLElement) || !(work instanceof HTMLElement)) return;
+
+  // applicationShell starts with three rows. The resizable workspace inserts a dedicated
+  // horizontal grip, so the shell must be switched to four explicit tracks inline.
+  // Keeping the bottom track bound to the CSS variable lets the existing drag/collapse
+  // logic resize the real bottom pane instead of creating an implicit blank grid row.
+  shell.style.gridTemplateRows = commercialWorkspaceGridRows();
 
   const runButton = header.querySelector('button[aria-busy]');
   const statusNode = runButton?.previousElementSibling;
