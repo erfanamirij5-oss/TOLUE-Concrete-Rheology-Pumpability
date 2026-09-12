@@ -121,6 +121,10 @@ function installCommercialWorkspaceChrome(root: HTMLElement, sampleLoaded: boole
       position: 'relative',
       zIndex: '8',
     });
+    const productLabel=header.children.item(1);
+    if(productLabel instanceof HTMLElement) { productLabel.textContent='رئولوژی و پمپ‌پذیری بتن'; productLabel.style.direction='rtl'; }
+    const contextLabel=header.children.item(3);
+    if(contextLabel instanceof HTMLElement && contextLabel.textContent==='Engineering Workspace') contextLabel.textContent='محیط مهندسی';
     if(!header.querySelector('[data-commercial-accent="true"]')){
       const accent = document.createElement('i');
       accent.dataset.commercialAccent = 'true';
@@ -130,10 +134,10 @@ function installCommercialWorkspaceChrome(root: HTMLElement, sampleLoaded: boole
 
     if(!header.querySelector('[data-product-stage="true"]')){
       const stage = document.createElement('span');
-      stage.textContent = 'PRE-PRODUCTION';
+      stage.textContent = 'نسخه پیش‌تولید';
       stage.dataset.productStage = 'true';
       Object.assign(stage.style, {
-        direction:'ltr', fontSize:'10px', fontWeight:'800', letterSpacing:'.09em', padding:'4px 7px',
+        fontSize:'10px', fontWeight:'800', padding:'4px 7px',
         borderRadius:'999px', color:'#91d8f1', background:'rgba(36,152,197,.10)', border:'1px solid rgba(97,183,218,.28)', whiteSpace:'nowrap',
       });
       header.insertBefore(stage, header.lastElementChild);
@@ -191,7 +195,7 @@ function installSampleResetControl(
   reset.type = 'button';
   reset.textContent = 'بازنشانی / پروژه خالی';
   reset.dataset.resetWorkspace = 'true';
-  reset.title = 'تمام داده‌های نمایشی و ورودی‌های فعلی پاک و یک Draft صفر ایجاد می‌شود.';
+  reset.title = 'تمام داده‌های نمایشی و ورودی‌های فعلی پاک و یک پیش‌نویس خالی ایجاد می‌شود.';
   Object.assign(reset.style, {
     font: 'inherit', fontSize: '12px', color: '#dce6eb', background: '#17252f', border: '1px solid #334b5a',
     borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
