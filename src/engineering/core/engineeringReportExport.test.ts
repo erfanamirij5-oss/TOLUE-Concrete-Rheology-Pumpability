@@ -93,7 +93,8 @@ describe('TOLUE engineering report export', () => {
     expect(a.encoding).toBe('utf-8');
     expect(a.method).toBe('tolue-persian-engineering-report-html-v1');
     expect(a.content).toContain('<html lang="fa" dir="rtl">');
-    expect(a.content).toContain('@page { size: A4;');
+    expect(a.content).toContain('@page { size: A4 portrait;');
+    expect(a.content).toContain('margin: 5mm;');
     expect(a.content).toContain('1250000');
     expect(a.content).toContain('fnv1a32:12345678');
     expect(a.content).toContain('هیچ استنتاج، ضریب یا مدل مهندسی جدیدی اعمال نمی‌شود');
