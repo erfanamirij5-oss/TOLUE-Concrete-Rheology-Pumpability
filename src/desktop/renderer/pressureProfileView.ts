@@ -1,6 +1,7 @@
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { appendEngineeringSectionHeader, styleEngineeringSection } from './engineeringPanelStyle';
 import type { PressureProfilePresentation } from './pressureProfilePresentation';
+import { assessmentStatusFa } from './persianPresentation';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -10,7 +11,7 @@ export interface PressureProfileViewOptions {
 }
 
 function pressure(value: number | null): string {
-  return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} MPa`;
+  return value === null ? '—' : `${(value / 1_000_000).toFixed(3)} مگاپاسکال`;
 }
 
 function coordinate(value: number | null, unit: string): string {
@@ -112,16 +113,16 @@ function renderPressureChart(
       circle.addEventListener('click', () => options.onSelectSegment?.(point.segmentId!));
     }
     const title = document.createElementNS(SVG_NS, 'title');
-    title.textContent = `#${point.index} · ${point.segmentId ?? 'INLET'} · ${point.positionM} m · ${pressure(point.remainingRequiredPressurePa)}`;
+    title.textContent = `نقطه ${point.index} · ${point.segmentId ?? 'ورودی'} · ${point.positionM} متر · ${pressure(point.remainingRequiredPressurePa)}`;
     circle.appendChild(title);
     svg.appendChild(circle);
   }
 
   const caption = document.createElement('small');
   caption.textContent = options.selectedSegmentId
-    ? `Segment focus: ${options.selectedSegmentId} · خط نارنجی فقط همان بازه Core-computed را برجسته می‌کند.`
-    : 'محور افقی: موقعیت مسیر (m) · محور عمودی: فشار باقی‌مانده موردنیاز. فقط نقاط computed به هم متصل می‌شوند.';
-  Object.assign(caption.style, { display: 'block', marginTop: TOLUE_DESIGN_TOKENS.spacing.sm, color: options.selectedSegmentId ? TOLUE_DESIGN_TOKENS.color.selection : TOLUE_DESIGN_TOKENS.color.textMuted, direction: options.selectedSegmentId ? 'ltr' : 'rtl' });
+    ? `تمرکز روی قطعه ${options.selectedSegmentId}؛ خط نارنجی فقط همان بازه محاسبه‌شده توسط هسته مهندسی را برجسته می‌کند.`
+    : 'محور افقی: موقعیت مسیر بر حسب متر · محور عمودی: فشار باقی‌مانده موردنیاز. فقط نقاط محاسبه‌شده به هم متصل می‌شوند.';
+  Object.assign(caption.style, { display: 'block', marginTop: TOLUE_DESIGN_TOKENS.spacing.sm, color: options.selectedSegmentId ? TOLUE_DESIGN_TOKENS.color.selection : TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'rtl' });
   wrapper.append(svg, caption);
   panel.appendChild(wrapper);
 }
@@ -135,7 +136,7 @@ export function renderPressureProfileView(
   panel.setAttribute('aria-label', 'پروفایل فشار خط لوله');
   styleEngineeringSection(panel, true);
   Object.assign(panel.style, { marginTop: TOLUE_DESIGN_TOKENS.spacing.lg });
-  appendEngineeringSectionHeader(panel, 'پروفایل فشار مسیر', 'فقط نقاط Engineering Core نمایش داده می‌شوند؛ برای not_computed هیچ interpolation یا صفر جایگزین ساخته نمی‌شود.', 'PRESSURE PROFILE');
+  appendEngineeringSectionHeader(panel, 'پروفایل فشار مسیر', 'فقط نقاط محاسبه‌شده هسته مهندسی نمایش داده می‌شوند؛ برای نقاط محاسبه‌نشده درون‌یابی یا مقدار صفر جایگزین ساخته نمی‌شود.', 'پروفایل فشار');
   const body = document.createElement('div');
   Object.assign(body.style, { padding: '14px' });
   panel.appendChild(body);
@@ -152,15 +153,15 @@ export function renderPressureProfileView(
   const summary = document.createElement('div');
   Object.assign(summary.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(145px,1fr))', gap: '8px' });
   for (const [label, value] of [
-    ['Peak pressure', pressure(presentation.peakRequiredPressurePa)],
-    ['Peak point', presentation.peakPointIndex === null ? '—' : String(presentation.peakPointIndex)],
-    ['Completeness', presentation.completeness.toUpperCase()],
-    ['Outlet reference', pressure(presentation.outletPressureReferencePa)],
+    ['بیشینه فشار', pressure(presentation.peakRequiredPressurePa)],
+    ['شماره نقطه بیشینه', presentation.peakPointIndex === null ? '—' : String(presentation.peakPointIndex)],
+    ['کامل بودن تحلیل', assessmentStatusFa(presentation.completeness)],
+    ['فشار مرجع خروجی', pressure(presentation.outletPressureReferencePa)],
   ] as const) {
     const card = document.createElement('article');
     Object.assign(card.style, { padding: '9px 10px', background: TOLUE_DESIGN_TOKENS.color.surfaceMuted, border: `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`, borderRadius: TOLUE_DESIGN_TOKENS.radius.sm });
     const key = document.createElement('small'); key.textContent = label; key.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-    const val = document.createElement('strong'); val.textContent = value; Object.assign(val.style, { display: 'block', marginTop: '3px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, direction: 'ltr' });
+    const val = document.createElement('strong'); val.textContent = value; Object.assign(val.style, { display: 'block', marginTop: '3px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, direction: 'rtl' });
     card.append(key, val); summary.appendChild(card);
   }
   body.appendChild(summary);
@@ -181,20 +182,20 @@ export function renderPressureProfileView(
       cursor: point.segmentId && options.onSelectSegment ? 'pointer' : 'default',
     });
     if (point.segmentId && options.onSelectSegment) row.addEventListener('click', () => options.onSelectSegment?.(point.segmentId!));
-    const identity = document.createElement('strong'); identity.textContent = `#${point.index} · ${point.segmentId ?? 'INLET'}`; identity.style.direction = 'ltr';
+    const identity = document.createElement('strong'); identity.textContent = `نقطه ${point.index} · ${point.segmentId ?? 'ورودی'}`;
     const values = document.createElement('div');
-    Object.assign(values.style, { marginTop: '4px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, fontSize: TOLUE_DESIGN_TOKENS.typography.fontSizeXs, direction: 'ltr' });
-    values.textContent = `x=${coordinate(point.positionM, 'm')} · z=${coordinate(point.elevationM, 'm')} · cumulative=${pressure(point.cumulativeRequiredPressurePa)} · remaining=${pressure(point.remainingRequiredPressurePa)}`;
+    Object.assign(values.style, { marginTop: '4px', fontFamily: TOLUE_DESIGN_TOKENS.typography.monoFamily, fontSize: TOLUE_DESIGN_TOKENS.typography.fontSizeXs, direction: 'rtl' });
+    values.textContent = `موقعیت=${coordinate(point.positionM, 'متر')} · ارتفاع=${coordinate(point.elevationM, 'متر')} · فشار تجمعی=${pressure(point.cumulativeRequiredPressurePa)} · فشار باقی‌مانده=${pressure(point.remainingRequiredPressurePa)}`;
     const trace = document.createElement('small');
-    Object.assign(trace.style, { display: 'block', marginTop: '4px', color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'ltr' });
-    trace.textContent = `status=${point.status} · method=${point.pressureMethod ?? '—'} · calibration=${point.calibrationId ?? '—'} · provenance=${point.provenanceEntityId ?? '—'}`;
+    Object.assign(trace.style, { display: 'block', marginTop: '4px', color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'rtl' });
+    trace.textContent = `وضعیت: ${assessmentStatusFa(point.status)} · شناسه روش: ${point.pressureMethod ?? '—'} · کالیبراسیون: ${point.calibrationId ?? '—'} · منشأ: ${point.provenanceEntityId ?? '—'}`;
     row.append(identity, values, trace); table.appendChild(row);
   }
   body.appendChild(table);
 
   const meta = document.createElement('small');
-  Object.assign(meta.style, { display: 'block', marginTop: TOLUE_DESIGN_TOKENS.spacing.lg, color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'ltr' });
-  meta.textContent = `Method: ${presentation.method} · Assumption: ${presentation.assumption}`;
+  Object.assign(meta.style, { display: 'block', marginTop: TOLUE_DESIGN_TOKENS.spacing.lg, color: TOLUE_DESIGN_TOKENS.color.textMuted, direction: 'rtl' });
+  meta.textContent = `شناسه روش: ${presentation.method} · فرض مدل: ${presentation.assumption}`;
   body.appendChild(meta);
   root.appendChild(panel);
 }
