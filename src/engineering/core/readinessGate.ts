@@ -44,6 +44,14 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   const projectEvidence=assessPumpabilityEvidenceReadiness(input.pumpabilityEvidence,p.targetFlowRateM3s);
   projectEvidence.findings.forEach((f,i)=>{const field=`pumpabilityEvidence.${f.domain}`;f.severity==='blocking'?block(`readiness.pumpabilityEvidence.${f.domain}.${i}`,field,f.message,f.ruleId):warn(`readiness.pumpabilityEvidence.${f.domain}.${i}`,field,f.message,f.ruleId);});
 
+  if(input.pumpabilityRiskScreening){
+    const screening=input.pumpabilityRiskScreening;
+    if(!finitePositive(screening.nominalMaximumAggregateSizeM))block('readiness.riskScreening.nms.invalid','pumpabilityRiskScreening.nominalMaximumAggregateSizeM','Nominal maximum aggregate size must be finite and > 0 for automatic blockage/stability screening.','RG-RISK-SCREEN-001');
+    if(!finiteNonNegative(screening.suspendingPhaseYieldStressPa))block('readiness.riskScreening.yield.invalid','pumpabilityRiskScreening.suspendingPhaseYieldStressPa','Suspending-phase yield stress must be finite and >= 0 for the Roussel static-stability screen.','RG-RISK-SCREEN-002');
+    if(!finitePositive(screening.suspendingPhaseDensityKgM3))block('readiness.riskScreening.suspendingDensity.invalid','pumpabilityRiskScreening.suspendingPhaseDensityKgM3','Suspending-phase density must be finite and > 0 for the static-stability screen.','RG-RISK-SCREEN-003');
+    if(!finitePositive(screening.coarseAggregateDensityKgM3))block('readiness.riskScreening.aggregateDensity.invalid','pumpabilityRiskScreening.coarseAggregateDensityKgM3','Coarse-aggregate density must be finite and > 0 for the static-stability screen.','RG-RISK-SCREEN-004');
+  }
+
   let usesStraight=false; let usesProjectCalibratedLocalLoss=false;
   if(!Array.isArray(p.segments)||p.segments.length===0)block('readiness.pipeline.empty','pipeline.segments','At least one pipeline segment is required.','RG-ROUTE-001');
   else{
@@ -89,6 +97,10 @@ export function assessEngineeringReadiness(input: SimulationRunInput): Engineeri
   if(usesStraight)governModel('PRESSURE-STRAIGHT-TWOFLUID-BINGHAM-001','pipeline.segments','RG-MODEL-STRAIGHT-VALIDATION-001');
   if(usesProjectCalibratedLocalLoss)governModel('PRESSURE-LOCAL-CAL-001','pipeline.segments','RG-MODEL-LOCAL-CAL-GOVERNANCE-001');
   if(input.pumpCapability)governModel('PUMP-OPERATING-ENVELOPE-001','pumpCapability','RG-MODEL-PUMP-ENVELOPE-GOVERNANCE-001');
+  if(input.pumpabilityRiskScreening){
+    governModel('STABILITY-STATIC-ROUSSEL-001','pumpabilityRiskScreening','RG-MODEL-STABILITY-SCREEN-GOVERNANCE-001');
+    governModel('BLOCKAGE-GEOMETRY-ACI-001','pumpabilityRiskScreening','RG-MODEL-BLOCKAGE-SCREEN-GOVERNANCE-001');
+  }
 
   const blocked=findings.some(f=>f.severity==='blocking');const preliminary=!blocked&&findings.some(f=>f.severity==='warning');
   return{status:blocked?'BLOCKED':preliminary?'PRELIMINARY':'READY',canExecute:!blocked,findings,method:'tolue-engineering-readiness-gate-v2'};
