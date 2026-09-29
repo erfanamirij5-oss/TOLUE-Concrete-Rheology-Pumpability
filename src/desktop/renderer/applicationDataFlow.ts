@@ -49,10 +49,45 @@ export function createSampleEngineeringDraftState(runId: string, createdAtIso: s
     createdAtIso,
     projectMetadata: { name: 'پروژه نمونه TOLUE - پمپاژ بتن', code: 'TOLUE-DEMO-001', location: 'نمونه آموزشی', client: 'کاربر آزمایشی' },
     materials: [
-      { id: 'MAT-CEM-01', kind: 'cement', name: 'سیمان نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
-      { id: 'MAT-FA-01', kind: 'fine_aggregate', name: 'سنگدانه ریز نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
-      { id: 'MAT-CA-01', kind: 'coarse_aggregate', name: 'سنگدانه درشت نمونه ۱۹ میلی‌متر', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
-      { id: 'MAT-ADM-01', kind: 'chemical_admixture', name: 'افزودنی نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY', properties: [] },
+      {
+        id: 'MAT-CEM-01', kind: 'cement', name: 'سیمان نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY',
+        properties: [
+          { key: 'specificGravity', value: 3.15, provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'blaineSpecificSurface', value: 3300, unit: 'cm²/g', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'initialSettingTime', value: 150, unit: 'min', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'finalSettingTime', value: 240, unit: 'min', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'strengthClass', value: '42.5', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+        ],
+      },
+      {
+        id: 'MAT-FA-01', kind: 'fine_aggregate', name: 'سنگدانه ریز نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY',
+        properties: [
+          { key: 'ssdSpecificGravity', value: 2.62, provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'waterAbsorption', value: 1.8, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'moistureContent', value: 3.2, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'finenessModulus', value: 2.75, provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'passing75Micron', value: 2.5, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+        ],
+      },
+      {
+        id: 'MAT-CA-01', kind: 'coarse_aggregate', name: 'سنگدانه درشت نمونه ۱۹ میلی‌متر', source: 'داده نمایشی', standardReference: 'DEMO ONLY',
+        properties: [
+          { key: 'ssdSpecificGravity', value: 2.68, provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'waterAbsorption', value: 0.8, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'moistureContent', value: 0.5, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'nominalMaximumSize', value: 19, unit: 'mm', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'losAngelesAbrasion', value: 22, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+        ],
+      },
+      {
+        id: 'MAT-ADM-01', kind: 'chemical_admixture', name: 'افزودنی نمونه', source: 'داده نمایشی', standardReference: 'DEMO ONLY',
+        properties: [
+          { key: 'density', value: 1.08, unit: 'kg/L', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'solidContent', value: 30, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'pH', value: 6.5, provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+          { key: 'recommendedDosage', value: 0.8, unit: '%', provenanceEntityId: 'TOLUE-DEMO-PRESET' },
+        ],
+      },
     ],
     pipeline: {
       targetFlowRateM3s: 0.01,
