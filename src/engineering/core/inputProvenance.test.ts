@@ -58,6 +58,11 @@ function documented(): SimulationInputProvenance {
   };
 }
 
+function requiredBulk(input: SimulationInputProvenance): EngineeringInputProvenanceRecord {
+  if (!input.bulkRheology) throw new Error('TEST-BULK-RHEOLOGY-MISSING');
+  return input.bulkRheology;
+}
+
 describe('TOLUE input provenance v3', () => {
   it('returns DOCUMENTED for structurally complete lineage without claiming physical verification', () => {
     const result = assessInputEvidence(documented());
@@ -68,9 +73,7 @@ describe('TOLUE input provenance v3', () => {
 
   it('assesses project-calibrated local-loss evidence as a first-class provenance record', () => {
     const input = documented();
-    input.localLossCalibrations = {
-      'project-elbow-evidence-001': localLossRecord('project-elbow-evidence-001'),
-    };
+    input.localLossCalibrations = { 'project-elbow-evidence-001': localLossRecord('project-elbow-evidence-001') };
     const result = assessInputEvidence(input);
     expect(result.status).toBe('DOCUMENTED');
     expect(result.findings).toEqual([]);
@@ -78,9 +81,7 @@ describe('TOLUE input provenance v3', () => {
 
   it('blocks a local-loss provenance map key that does not match evidence.entityId', () => {
     const input = documented();
-    input.localLossCalibrations = {
-      'project-elbow-evidence-001': localLossRecord('different-entity'),
-    };
+    input.localLossCalibrations = { 'project-elbow-evidence-001': localLossRecord('different-entity') };
     const result = assessInputEvidence(input);
     expect(result.status).toBe('BLOCKED');
     expect(result.findings.some(f => f.ruleId === 'PROV-LOCAL-002')).toBe(true);
@@ -100,8 +101,9 @@ describe('TOLUE input provenance v3', () => {
 
   it('does not call a measurement documented when uncertainty is absent', () => {
     const input = documented();
-    const { uncertainty: _omitted, ...evidenceWithoutUncertainty } = input.bulkRheology.evidence;
-    input.bulkRheology.evidence = evidenceWithoutUncertainty;
+    const bulk = requiredBulk(input);
+    const { uncertainty: _omitted, ...evidenceWithoutUncertainty } = bulk.evidence;
+    bulk.evidence = evidenceWithoutUncertainty;
     const result = assessInputEvidence(input);
     expect(result.status).toBe('PRELIMINARY');
     expect(result.findings.some(f => f.ruleId === 'PROV-MEAS-003')).toBe(true);
@@ -109,7 +111,7 @@ describe('TOLUE input provenance v3', () => {
 
   it('blocks broken entity-to-activity lineage', () => {
     const input = documented();
-    input.bulkRheology.evidence.generatedByActivityId = 'missing-activity';
+    requiredBulk(input).evidence.generatedByActivityId = 'missing-activity';
     const result = assessInputEvidence(input);
     expect(result.status).toBe('BLOCKED');
     expect(result.findings.some(f => f.ruleId === 'PROV-LINEAGE-003')).toBe(true);
@@ -117,7 +119,7 @@ describe('TOLUE input provenance v3', () => {
 
   it('blocks activities that reference unknown agents', () => {
     const input = documented();
-    input.bulkRheology.activities[0]!.agentIds = ['UNKNOWN'];
+    requiredBulk(input).activities[0]!.agentIds = ['UNKNOWN'];
     const result = assessInputEvidence(input);
     expect(result.status).toBe('BLOCKED');
     expect(result.findings.some(f => f.ruleId === 'PROV-AGENT-001')).toBe(true);
@@ -125,7 +127,7 @@ describe('TOLUE input provenance v3', () => {
 
   it('blocks malformed activity timestamps', () => {
     const input = documented();
-    input.bulkRheology.activities[0]!.startedAtIso = 'not-a-date';
+    requiredBulk(input).activities[0]!.startedAtIso = 'not-a-date';
     const result = assessInputEvidence(input);
     expect(result.status).toBe('BLOCKED');
     expect(result.findings.some(f => f.ruleId === 'PROV-TIME-001')).toBe(true);

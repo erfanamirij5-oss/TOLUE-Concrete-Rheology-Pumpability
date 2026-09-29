@@ -2,10 +2,7 @@ import type { EngineeringEvidenceStatus, EngineeringValidationStatus } from '../
 import type { PumpabilityDecisionStatus, PressureFeasibilityStatus } from '../../engineering/core/pumpabilityDecision';
 import type { TolueStatusTone } from './designSystem';
 
-export interface ResultStatusUx {
-  readonly label: string;
-  readonly tone: TolueStatusTone;
-}
+export interface ResultStatusUx { readonly label: string; readonly tone: TolueStatusTone; }
 
 export function validationStatusUx(status: EngineeringValidationStatus): Readonly<ResultStatusUx> {
   switch (status) {
@@ -30,7 +27,9 @@ export function evidenceStatusUx(status: EngineeringEvidenceStatus): Readonly<Re
 export function pumpabilityDecisionUx(status: PumpabilityDecisionStatus): Readonly<ResultStatusUx> {
   switch (status) {
     case 'PROJECT_QUALIFIED_ACCEPTABLE': return Object.freeze({ label: 'قابل قبول با شواهد پروژه‌ای', tone: 'nominal' });
+    case 'SCREENED_ACCEPTABLE': return Object.freeze({ label: 'قابل قبول در غربالگری مهندسی', tone: 'nominal' });
     case 'PARTIALLY_QUALIFIED_ACCEPTABLE': return Object.freeze({ label: 'قابل قبول با شواهد جزئی', tone: 'warning' });
+    case 'PARTIALLY_SCREENED_ACCEPTABLE': return Object.freeze({ label: 'غربالگری مهندسی ناقص', tone: 'warning' });
     case 'PRESSURE_ONLY_ACCEPTABLE': return Object.freeze({ label: 'فقط از نظر فشار قابل قبول', tone: 'warning' });
     case 'FAIL_PRESSURE': return Object.freeze({ label: 'رد به دلیل فشار', tone: 'critical' });
     case 'FAIL_STABILITY': return Object.freeze({ label: 'رد به دلیل پایداری', tone: 'critical' });

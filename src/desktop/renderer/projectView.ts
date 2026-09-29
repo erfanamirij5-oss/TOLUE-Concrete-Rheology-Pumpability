@@ -1,67 +1,48 @@
+import type { SimulationRunInput } from '../../engineering/core/simulationRun';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
-import { createTextField } from './inputField';
+import { confirmStarterDraftInputs, hasStarterDraftPlaceholder } from './draftIntegrity';
+import { appendEngineeringSectionHeader, styleEngineeringButton, styleEngineeringField, styleEngineeringSection } from './engineeringPanelStyle';
+import { updateProjectMetadataDraft, type ProjectMetadataField } from './projectMaterialDraft';
 
-export const PROJECT_METADATA_FIELDS = Object.freeze([
-  { id: 'project-name', label: 'نام پروژه', placeholder: 'نام پروژه', required: true, maxLength: 120, helperText: 'برای شناسایی گزارش‌ها و تاریخچه تحلیل استفاده می‌شود.' },
-  { id: 'project-code', label: 'کد پروژه', placeholder: 'کد یا شناسه داخلی', maxLength: 80 },
-  { id: 'project-location', label: 'محل پروژه', placeholder: 'شهر / کارگاه / موقعیت پروژه', maxLength: 160 },
-  { id: 'project-client', label: 'کارفرما', placeholder: 'نام کارفرما یا سازمان', maxLength: 160 },
-] as const);
+export interface ProjectViewActions { readonly updateInput: (input: Readonly<SimulationRunInput>) => void; }
 
-/** Presentation-only project metadata. No engineering validation or inference occurs here. */
-export function renderProjectView(target: HTMLElement): void {
+export const PROJECT_METADATA_FIELDS: readonly { id: string; field: ProjectMetadataField; label: string; placeholder: string; maxLength: number; required?: boolean }[] = Object.freeze([
+  { id: 'project-name', field: 'name', label: 'نام پروژه', placeholder: 'نام پروژه', maxLength: 120, required: true },
+  { id: 'project-code', field: 'code', label: 'کد پروژه', placeholder: 'کد یا شناسه داخلی', maxLength: 80 },
+  { id: 'project-location', field: 'location', label: 'محل پروژه', placeholder: 'شهر / کارگاه / موقعیت پروژه', maxLength: 160 },
+  { id: 'project-client', field: 'client', label: 'کارفرما', placeholder: 'نام کارفرما یا سازمان', maxLength: 160 },
+]);
+
+function appendDraftIntegrityControl(card: HTMLElement, engineeringInput: Readonly<SimulationRunInput>, actions: Readonly<ProjectViewActions>): void {
+  const placeholderActive = hasStarterDraftPlaceholder(engineeringInput);
+  const box = document.createElement('section');
+  box.setAttribute('aria-label', 'کنترل صحت پیش‌نویس اولیه');
+  styleEngineeringSection(box, true);
+  Object.assign(box.style,{display:'grid',gap:TOLUE_DESIGN_TOKENS.spacing.sm,padding:TOLUE_DESIGN_TOKENS.spacing.md,borderColor:placeholderActive?TOLUE_DESIGN_TOKENS.color.statusWarning:TOLUE_DESIGN_TOKENS.color.borderStrong,background:placeholderActive?'linear-gradient(180deg,rgba(240,180,79,.08),rgba(17,26,34,.96))':'linear-gradient(180deg,rgba(85,197,138,.06),rgba(17,26,34,.96))'});
+  const heading = document.createElement('div');Object.assign(heading.style,{display:'flex',alignItems:'center',gap:'8px'});
+  const statusDot=document.createElement('span');Object.assign(statusDot.style,{width:'8px',height:'8px',borderRadius:'50%',background:placeholderActive?TOLUE_DESIGN_TOKENS.color.statusWarning:TOLUE_DESIGN_TOKENS.color.statusNominal,boxShadow:`0 0 12px ${placeholderActive?TOLUE_DESIGN_TOKENS.color.statusWarning:TOLUE_DESIGN_TOKENS.color.statusNominal}`});
+  const headingText=document.createElement('strong');headingText.textContent=placeholderActive?'قفل پیش‌نویس اولیه فعال است':'پیش‌نویس اولیه تأیید شده است';heading.append(statusDot,headingText);box.appendChild(heading);
+  const text = document.createElement('p'); Object.assign(text.style,{margin:'0',color:TOLUE_DESIGN_TOKENS.color.textMuted,fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeSm,lineHeight:'1.8'});
+  text.textContent = placeholderActive ? 'مقادیر اولیه فقط برای فعال بودن ویرایشگرها هستند و تا تأیید صریح شما تحلیل مهندسی مسدود می‌ماند. تغییر یک یا چند عدد به‌تنهایی این قفل را باز نمی‌کند.' : 'نشانگر مقادیر اولیه از این اجرا حذف شده است. سایر کنترل‌های آمادگی، منشأ داده، هندسه، پمپ و لایه روانکار همچنان مستقل اعمال می‌شوند.'; box.appendChild(text);
+  if (!placeholderActive) { const state = document.createElement('small'); state.textContent = 'وضعیت صحت داده: مقادیر اولیه صریحاً تأیید شده‌اند'; state.style.color = TOLUE_DESIGN_TOKENS.color.statusNominal; box.appendChild(state); card.appendChild(box); return; }
+  const acknowledgement = document.createElement('label'); Object.assign(acknowledgement.style,{display:'flex',alignItems:'flex-start',gap:TOLUE_DESIGN_TOKENS.spacing.sm,padding:'8px 0'});
+  const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.dataset.draftIntegrityAcknowledgement = 'true';
+  const labelText = document.createElement('span'); labelText.textContent = 'تأیید می‌کنم مقادیر اولیه را بررسی کرده‌ام و هر مقدار مهندسی مورد استفاده، عمداً با داده پروژه جایگزین یا توسط من تأیید شده است.'; acknowledgement.append(checkbox, labelText);
+  const confirm = document.createElement('button'); confirm.type = 'button'; confirm.textContent = 'تأیید داده‌های واقعی و باز کردن قفل اولیه'; confirm.disabled = true; styleEngineeringButton(confirm,true);
+  const feedback = document.createElement('small'); feedback.setAttribute('aria-live', 'polite'); feedback.style.minHeight = '1.2em'; feedback.style.color = TOLUE_DESIGN_TOKENS.color.statusCritical;
+  checkbox.addEventListener('change', () => { confirm.disabled = !checkbox.checked; });
+  confirm.addEventListener('click', () => { try { const next = confirmStarterDraftInputs(engineeringInput, checkbox.checked); feedback.textContent = ''; actions.updateInput(next); } catch { feedback.textContent = 'تأیید داده‌های اولیه انجام نشد.'; } });
+  box.append(acknowledgement, confirm, feedback); card.appendChild(box);
+}
+
+export function renderProjectView(target: HTMLElement, engineeringInput?: Readonly<SimulationRunInput> | null, actions?: Readonly<ProjectViewActions>): void {
   target.replaceChildren();
-
-  const card = document.createElement('section');
-  card.setAttribute('aria-label', 'مشخصات پروژه');
-  card.style.display = 'grid';
-  card.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
-  card.style.gap = TOLUE_DESIGN_TOKENS.spacing.lg;
-  card.style.padding = TOLUE_DESIGN_TOKENS.spacing.lg;
-  card.style.background = TOLUE_DESIGN_TOKENS.color.surface;
-  card.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  card.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.md;
-
-  const controls = PROJECT_METADATA_FIELDS.map(field => createTextField(field));
-  for (const control of controls) card.appendChild(control.wrapper);
-
-  const actions = document.createElement('div');
-  actions.style.gridColumn = '1 / -1';
-  actions.style.display = 'flex';
-  actions.style.alignItems = 'center';
-  actions.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-
-  const validateButton = document.createElement('button');
-  validateButton.type = 'button';
-  validateButton.textContent = 'بررسی اطلاعات پروژه';
-  validateButton.style.fontFamily = 'inherit';
-  validateButton.style.padding = `${TOLUE_DESIGN_TOKENS.spacing.sm} ${TOLUE_DESIGN_TOKENS.spacing.lg}`;
-  validateButton.style.borderRadius = TOLUE_DESIGN_TOKENS.radius.sm;
-  validateButton.style.border = `1px solid ${TOLUE_DESIGN_TOKENS.color.border}`;
-  validateButton.style.cursor = 'pointer';
-
-  const validationStatus = document.createElement('span');
-  validationStatus.setAttribute('aria-live', 'polite');
-  validationStatus.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
-  validationStatus.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-
-  validateButton.addEventListener('click', () => {
-    const valid = controls.map(control => control.validate()).every(Boolean);
-    validationStatus.textContent = valid ? 'اطلاعات پروژه آماده است.' : 'موارد مشخص‌شده را اصلاح کنید.';
-    validationStatus.style.color = valid ? TOLUE_DESIGN_TOKENS.color.statusNominal : TOLUE_DESIGN_TOKENS.color.statusCritical;
-    if (!valid) controls.find(control => control.input.getAttribute('aria-invalid') === 'true')?.input.focus();
-  });
-  actions.append(validateButton, validationStatus);
-  card.appendChild(actions);
-
-  const note = document.createElement('p');
-  note.textContent = 'این بررسی فقط کیفیت ورود متادیتای پروژه را کنترل می‌کند و هیچ نتیجه یا تصمیم مهندسی در Renderer تولید نمی‌کند.';
-  note.style.gridColumn = '1 / -1';
-  note.style.margin = '0';
-  note.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
-  note.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
-  note.style.lineHeight = TOLUE_DESIGN_TOKENS.typography.lineHeight;
-  card.appendChild(note);
-
-  target.appendChild(card);
+  const card=document.createElement('section');styleEngineeringSection(card,true);card.setAttribute('aria-label','مشخصات پروژه');
+  appendEngineeringSectionHeader(card,'مشخصات پروژه','هویت، محل و کارفرمای پروژه در تصویر ورودی همان اجرا ذخیره می‌شوند.','پروژه');
+  const body=document.createElement('div');Object.assign(body.style,{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:TOLUE_DESIGN_TOKENS.spacing.md,padding:TOLUE_DESIGN_TOKENS.spacing.md});
+  const meta=engineeringInput?.projectMetadata;
+  for(const spec of PROJECT_METADATA_FIELDS){const label=document.createElement('label');const caption=document.createElement('span');caption.textContent=spec.label;const input=document.createElement('input');input.id=spec.id;input.type='text';input.maxLength=spec.maxLength;input.placeholder=spec.placeholder;input.value=String(meta?.[spec.field]??'');input.disabled=!engineeringInput||!actions;styleEngineeringField(label,input,caption);const feedback=document.createElement('small');feedback.style.minHeight='1.2em';feedback.style.color=TOLUE_DESIGN_TOKENS.color.statusCritical;input.addEventListener('change',()=>{if(!engineeringInput||!actions)return;if(spec.required&&!input.value.trim()){input.setAttribute('aria-invalid','true');feedback.textContent='نام پروژه الزامی است.';return;}input.setAttribute('aria-invalid','false');feedback.textContent='';actions.updateInput(updateProjectMetadataDraft(engineeringInput,spec.field,input.value));});label.append(caption,input,feedback);body.appendChild(label);}
+  if(engineeringInput&&actions)appendDraftIntegrityControl(body,engineeringInput,actions);
+  const note=document.createElement('div');Object.assign(note.style,{display:'flex',alignItems:'center',gap:'8px',padding:'9px 11px',border:`1px solid ${TOLUE_DESIGN_TOKENS.color.border}`,borderRadius:TOLUE_DESIGN_TOKENS.radius.sm,background:TOLUE_DESIGN_TOKENS.color.surfaceMuted,color:TOLUE_DESIGN_TOKENS.color.textMuted,fontSize:TOLUE_DESIGN_TOKENS.typography.fontSizeXs});const dot=document.createElement('span');Object.assign(dot.style,{width:'7px',height:'7px',borderRadius:'50%',background:engineeringInput?TOLUE_DESIGN_TOKENS.color.info:TOLUE_DESIGN_TOKENS.color.statusUnknown});const noteText=document.createElement('span');noteText.textContent=engineeringInput?'تغییر مشخصات پروژه، نتایج قبلی را قدیمی می‌کند و برای نتیجه جدید باید تحلیل دوباره اجرا شود.':'پیش‌نویس مهندسی فعال نیست.';note.append(dot,noteText);body.appendChild(note);
+  card.appendChild(body);target.appendChild(card);
 }

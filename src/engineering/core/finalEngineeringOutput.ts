@@ -22,7 +22,7 @@ export interface FinalEngineeringDecisionSummary {
   pressureFeasibility: PumpabilityDecisionResult['pressureFeasibility'];
   stability: PumpabilityDecisionResult['stability'];
   blockageRisk: PumpabilityDecisionResult['blockageRisk'];
-  qualificationScope: 'project_qualified' | 'partially_qualified' | 'pressure_only' | 'failed' | 'insufficient_data';
+  qualificationScope: 'project_qualified' | 'screened' | 'partially_qualified' | 'partially_screened' | 'pressure_only' | 'failed' | 'insufficient_data';
 }
 
 export interface FinalEngineeringTraceability {
@@ -59,7 +59,9 @@ function unique(values: string[]): string[] {
 
 function qualificationScope(status: PumpabilityDecisionResult['status']): FinalEngineeringDecisionSummary['qualificationScope'] {
   if (status === 'PROJECT_QUALIFIED_ACCEPTABLE') return 'project_qualified';
+  if (status === 'SCREENED_ACCEPTABLE') return 'screened';
   if (status === 'PARTIALLY_QUALIFIED_ACCEPTABLE') return 'partially_qualified';
+  if (status === 'PARTIALLY_SCREENED_ACCEPTABLE') return 'partially_screened';
   if (status === 'PRESSURE_ONLY_ACCEPTABLE') return 'pressure_only';
   if (status === 'INSUFFICIENT_DATA') return 'insufficient_data';
   return 'failed';
@@ -71,6 +73,12 @@ const KEY_RESULT_IDS = [
   'pump.availablePressure',
   'pump.pressureMargin',
   'pump.pressureUtilization',
+  'pumpability.stabilityScreening',
+  'pumpability.stabilityCriticalYieldStress',
+  'pumpability.stabilityScreeningRatio',
+  'pumpability.blockageScreening',
+  'pumpability.blockageAggregatePipeRatio',
+  'pumpability.blockageMinimumPipeDiameter',
   'pumpability.stabilityEvidence',
   'pumpability.blockageEvidence',
   'pumpability.decisionStatus',
@@ -95,10 +103,7 @@ export function buildFinalEngineeringOutput(
     throw new Error('inputSnapshotHash mismatch between final engineering output sources');
   }
 
-  const selectedResults = KEY_RESULT_IDS
-    .map(id => center.results.find(result => result.id === id))
-    .filter((result): result is EngineeringResult => result !== undefined);
-
+  const selectedResults = KEY_RESULT_IDS.map(id => center.results.find(result => result.id === id)).filter((result): result is EngineeringResult => result !== undefined);
   const keyResults: FinalEngineeringKeyResult[] = selectedResults.map(result => ({
     id: result.id,
     label: result.label,
@@ -114,10 +119,7 @@ export function buildFinalEngineeringOutput(
 
   const provenanceEntityIds = unique(center.results.flatMap(result => result.provenanceEntityIds ?? []));
   const calibrationIds = unique(center.results.flatMap(result => result.calibrationIds ?? []));
-  const limitations = unique([
-    ...decision.limitations,
-    ...center.results.flatMap(result => result.limitations),
-  ]);
+  const limitations = unique([...decision.limitations, ...center.results.flatMap(result => result.limitations)]);
 
   return {
     runId: run.runId,
@@ -139,13 +141,7 @@ export function buildFinalEngineeringOutput(
       runId: run.runId,
       engineVersion: run.engineVersion,
       inputSnapshotHash: center.inputSnapshotHash,
-      sourceMethodIds: unique([
-        ...run.methods,
-        decision.method,
-        center.method,
-        diagnostics.method,
-        ...decision.sourceMethodIds,
-      ]),
+      sourceMethodIds: unique([...run.methods, decision.method, center.method, diagnostics.method, ...decision.sourceMethodIds]),
       resultIds: center.results.map(result => result.id),
       provenanceEntityIds,
       calibrationIds,

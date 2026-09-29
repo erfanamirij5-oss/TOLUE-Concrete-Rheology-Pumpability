@@ -6,11 +6,14 @@ const pumpSource = readFileSync(new URL('./pumpView.ts', import.meta.url), 'utf8
 const shellSource = readFileSync(new URL('./applicationShell.ts', import.meta.url), 'utf8');
 
 describe('pipeline and pump input UX wiring', () => {
-  it('renders editable pipeline and pump input workspaces from the session input', () => {
+  it('renders editable pipeline and pump workspaces inside the persistent engineering inspector', () => {
     expect(pipelineSource).toContain("aria-label','ورودی‌های مسیر'");
-    expect(pumpSource).toContain("aria-label','ورودی‌های قابلیت پمپ'");
-    expect(shellSource).toContain('renderPipelineView(content');
-    expect(shellSource).toContain('renderPumpView(content');
+    expect(pumpSource).toContain("setAttribute('aria-label'");
+    expect(pumpSource).toContain('ورودی‌های قابلیت پمپ');
+    expect(shellSource).toContain("inspectorMode==='pipeline'");
+    expect(shellSource).toContain('renderPipelineView(inspectorBody');
+    expect(shellSource).toContain("inspectorMode==='pump'");
+    expect(shellSource).toContain('renderPumpView(inspectorBody');
     expect(shellSource).toContain('updateInput:updateSessionInput');
   });
 

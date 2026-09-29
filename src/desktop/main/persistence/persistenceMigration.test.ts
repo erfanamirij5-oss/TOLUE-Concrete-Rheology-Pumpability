@@ -14,36 +14,47 @@ describe('persistence migration foundation', () => {
       '2026-09-09T00:00:00.000Z',
     );
 
-    expect(applyMigrationAtomically).toHaveBeenCalledTimes(1);
-    expect(applyMigrationAtomically).toHaveBeenCalledWith(
-      TOLUE_PERSISTENCE_MIGRATIONS[0],
-      '2026-09-09T00:00:00.000Z',
-    );
+    expect(applyMigrationAtomically).toHaveBeenCalledTimes(2);
+    expect(applyMigrationAtomically).toHaveBeenNthCalledWith(1, TOLUE_PERSISTENCE_MIGRATIONS[0], '2026-09-09T00:00:00.000Z');
+    expect(applyMigrationAtomically).toHaveBeenNthCalledWith(2, TOLUE_PERSISTENCE_MIGRATIONS[1], '2026-09-09T00:00:00.000Z');
     expect(result).toEqual({
       fromVersion: 0,
-      toVersion: 1,
-      appliedVersions: [1],
+      toVersion: 2,
+      appliedVersions: [1, 2],
       method: 'tolue-persistence-migration-v2',
     });
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.isFrozen(result.appliedVersions)).toBe(true);
   });
 
-  it('is a no-op when the store is already on the current schema', () => {
+  it('upgrades an existing v1 database only with the verification package migration', () => {
     const applyMigrationAtomically = vi.fn();
     const result = migratePersistenceSchema(
       { readSchemaVersion: () => 1, applyMigrationAtomically },
       '2026-09-09T00:00:00.000Z',
     );
-    expect(applyMigrationAtomically).not.toHaveBeenCalled();
+    expect(applyMigrationAtomically).toHaveBeenCalledTimes(1);
+    expect(applyMigrationAtomically).toHaveBeenCalledWith(TOLUE_PERSISTENCE_MIGRATIONS[1], '2026-09-09T00:00:00.000Z');
     expect(result.fromVersion).toBe(1);
-    expect(result.toVersion).toBe(1);
+    expect(result.toVersion).toBe(2);
+    expect(result.appliedVersions).toEqual([2]);
+  });
+
+  it('is a no-op when the store is already on the current schema', () => {
+    const applyMigrationAtomically = vi.fn();
+    const result = migratePersistenceSchema(
+      { readSchemaVersion: () => 2, applyMigrationAtomically },
+      '2026-09-09T00:00:00.000Z',
+    );
+    expect(applyMigrationAtomically).not.toHaveBeenCalled();
+    expect(result.fromVersion).toBe(2);
+    expect(result.toVersion).toBe(2);
     expect(result.appliedVersions).toEqual([]);
   });
 
   it('fails closed for an unknown future schema version', () => {
     expect(() => migratePersistenceSchema(
-      { readSchemaVersion: () => 2, applyMigrationAtomically: vi.fn() },
+      { readSchemaVersion: () => 3, applyMigrationAtomically: vi.fn() },
       '2026-09-09T00:00:00.000Z',
     )).toThrow('PERSISTENCE-MIGRATION-FUTURE-001');
   });

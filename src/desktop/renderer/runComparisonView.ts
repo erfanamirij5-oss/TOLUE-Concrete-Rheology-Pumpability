@@ -1,8 +1,9 @@
 import type { EngineeringRunComparisonResult } from '../../engineering/core/engineeringRunComparison';
 import { TOLUE_DESIGN_TOKENS } from './designSystem';
 import { comparisonDeltaLabel, comparisonRunStatusLabel, RUN_COMPARISON_INTERPRETATION_LABEL, RUN_COMPARISON_METHOD_LABEL } from './runComparisonUx';
+import { assessmentStatusFa, unitFa } from './persianPresentation';
 
-const value = (v: number | string | null, unit = ''): string => v === null ? '—' : `${typeof v === 'number' ? v.toPrecision(7) : v}${unit ? ` ${unit}` : ''}`;
+const value = (v: number | string | null, unit = ''): string => v === null ? '—' : `${typeof v === 'number' ? v.toPrecision(7) : assessmentStatusFa(v)}${unit ? ` ${unitFa(unit) ?? unit}` : ''}`;
 
 function runCard(label: string, run: Readonly<EngineeringRunComparisonResult['baseline']>): HTMLElement {
   const card = document.createElement('article');
@@ -13,11 +14,11 @@ function runCard(label: string, run: Readonly<EngineeringRunComparisonResult['ba
   const heading = document.createElement('strong');
   heading.textContent = `${label}: ${run.runId}`;
   const meta = document.createElement('p');
-  meta.textContent = `${comparisonRunStatusLabel(run)} · Engine ${run.engineVersion}`;
+  meta.textContent = `${comparisonRunStatusLabel(run)} · نسخه هسته ${run.engineVersion}`;
   meta.style.margin = `${TOLUE_DESIGN_TOKENS.spacing.xs} 0 0`;
   meta.style.color = TOLUE_DESIGN_TOKENS.color.textMuted;
   const trace = document.createElement('code');
-  trace.textContent = run.inputSnapshotHash ?? 'BLOCKED';
+  trace.textContent = run.inputSnapshotHash ?? 'مسدودشده';
   trace.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
   trace.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
   card.append(heading, meta, trace);
@@ -38,7 +39,7 @@ export function renderRunComparisonView(root: HTMLElement, comparison: Readonly<
   identity.style.display = 'grid';
   identity.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
   identity.style.gap = TOLUE_DESIGN_TOKENS.spacing.md;
-  identity.append(runCard('مبنا', comparison.baseline), runCard('کاندید', comparison.candidate));
+  identity.append(runCard('مبنا', comparison.baseline), runCard('مقایسه‌ای', comparison.candidate));
   root.appendChild(identity);
 
   const method = document.createElement('p');
@@ -53,7 +54,7 @@ export function renderRunComparisonView(root: HTMLElement, comparison: Readonly<
   table.style.width = '100%';
   table.style.borderCollapse = 'collapse';
   const head = document.createElement('tr');
-  for (const text of ['پارامتر', 'مبنا', 'کاندید', 'Δ کاندید − مبنا']) { const th = document.createElement('th'); th.textContent = text; th.style.textAlign = 'right'; th.style.padding = TOLUE_DESIGN_TOKENS.spacing.sm; head.appendChild(th); }
+  for (const text of ['پارامتر', 'مبنا', 'مقایسه‌ای', 'تغییر نسبت به مبنا']) { const th = document.createElement('th'); th.textContent = text; th.style.textAlign = 'right'; th.style.padding = TOLUE_DESIGN_TOKENS.spacing.sm; head.appendChild(th); }
   table.appendChild(head);
 
   const scalars = [
@@ -87,7 +88,7 @@ export function renderRunComparisonView(root: HTMLElement, comparison: Readonly<
   const summary = document.createElement('summary');
   summary.textContent = 'جزئیات روش و ردیابی مقایسه';
   const traceText = document.createElement('p');
-  traceText.textContent = `Method: ${comparison.method} · Interpretation: ${comparison.interpretationClaim}`;
+  traceText.textContent = `شناسه روش: ${comparison.method} · ادعای تفسیری: ${comparison.interpretationClaim}`;
   traceText.style.fontFamily = TOLUE_DESIGN_TOKENS.typography.monoFamily;
   traceText.style.fontSize = TOLUE_DESIGN_TOKENS.typography.fontSizeSm;
   traceability.append(summary, traceText);

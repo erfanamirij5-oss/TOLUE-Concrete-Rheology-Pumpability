@@ -13,6 +13,7 @@ function keys() {
   return {
     ...pair,
     privatePem: pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    publicPem,
     fingerprint: createHash('sha256').update(publicPem).digest('hex'),
   };
 }
@@ -24,19 +25,22 @@ const input = Object.freeze({
   validUntilIso: '2027-09-10T00:00:00.000Z',
 });
 
-test('produces the exact strict tolue-license-v1 envelope accepted by the Rheology runtime', () => {
+test('produces the strict self-contained tolue-license-v2 envelope', () => {
   const key = keys();
   const issued = issueLicense(input, key.privatePem, key.fingerprint);
-  assert.deepEqual(Object.keys(issued.envelope), ['schemaVersion', 'entitlement', 'signatureBase64']);
+  assert.deepEqual(Object.keys(issued.envelope), ['schemaVersion', 'keyId', 'publicKeyPem', 'entitlement', 'signatureBase64']);
+  assert.equal(issued.envelope.schemaVersion, 'tolue-license-v2');
+  assert.equal(issued.envelope.publicKeyPem, key.publicPem);
   assert.deepEqual(Object.keys(issued.envelope.entitlement), ['licenseId', 'productId', 'machineId', 'validFromIso', 'validUntilIso']);
   assert.equal(issued.envelope.entitlement.productId, 'tolue-concrete-rheology-pumpability');
   assert.equal(verifyLicenseEnvelope(issued.envelope, key.publicKey), true);
 });
 
-test('stays aligned with the checked-in customer runtime contract', () => {
+test('stays aligned with the checked-in customer runtime v2 contract', () => {
   const runtime = readFileSync(new URL('../../src/desktop/main/licensing/licenseEnvelope.ts', import.meta.url), 'utf8');
   assert.match(runtime, /productId: 'tolue-concrete-rheology-pumpability'/);
-  assert.match(runtime, /schemaVersion: 'tolue-license-v1'/);
+  assert.match(runtime, /schemaVersion: 'tolue-license-v2'/);
+  assert.match(runtime, /tolue-prod-2026-03/);
   const fields = ['licenseId', 'productId', 'machineId', 'validFromIso', 'validUntilIso'];
   const canonicalBlock = runtime.slice(runtime.indexOf('export function canonicalLicensePayload'), runtime.indexOf('export function verifySignedLicenseEnvelope'));
   for (let index = 1; index < fields.length; index += 1) {

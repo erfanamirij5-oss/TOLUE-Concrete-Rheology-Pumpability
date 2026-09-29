@@ -77,9 +77,10 @@ function qualifiedEvidence(evidenceId: string, provenanceEntityId: string) {
 }
 
 describe('executeEngineeringAnalysis readiness integration', () => {
-  it('executes READY input through every downstream stage with one identity and hash', () => {
+  it('executes PRELIMINARY input through every downstream stage with one identity and hash', () => {
     const result = executeEngineeringAnalysis(fixture());
-    expect(result.readiness.status).toBe('READY');
+    expect(result.readiness.status).toBe('PRELIMINARY');
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
     expect(result.executionStatus).toBe('EXECUTED');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed analysis');
 
@@ -111,7 +112,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.diagnostics.method).toBe('tolue-diagnostics-v2');
     expect(result.finalOutput.method).toBe('tolue-final-engineering-output-v1');
     expect(result.reportExport.method).toBe('tolue-engineering-report-export-bundle-v2');
-    expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v2');
+    expect(result.visualization3d.method).toBe('tolue-3d-visualization-contract-v3');
     expect(result.method).toBe('tolue-engineering-analysis-orchestrator-v6');
   });
 
@@ -140,7 +141,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.stabilityEvidence')).toBe(true);
     expect(result.finalOutput.keyResults.some(r => r.id === 'pumpability.blockageEvidence')).toBe(true);
     expect(result.finalOutput.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
-    expect(result.finalOutput.traceability.sourceMethodIds).toContain('tolue-pumpability-decision-v2');
+    expect(result.finalOutput.traceability.sourceMethodIds).toContain('tolue-pumpability-decision-v3');
     expect(result.reportExport.report.decision.overallStatus).toBe('PROJECT_QUALIFIED_ACCEPTABLE');
     expect(result.reportExport.report.decision.overallStatusFa).toContain('پروژه');
     expect(result.reportExport.report.traceability.provenanceEntityIds).toEqual(expect.arrayContaining(['PROV-STAB-001', 'PROV-BLOCK-001']));
@@ -154,11 +155,12 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.visualization3d.physicalSimulationClaim).toBe(false);
   });
 
-  it('executes a hydraulically complete run when pump pressure is insufficient and emits a critical diagnostic', () => {
+  it('executes a hydraulically complete preliminary run when pump pressure is insufficient and emits a critical diagnostic', () => {
     const input = fixture();
     input.pumpCapability = { provenance: 'manufacturer_rated_point', capabilityCurve: [{ flowRateM3s: 0.001, availableConcretePressurePa: 1_000 }] };
     const result = executeEngineeringAnalysis(input);
-    expect(result.readiness.status).toBe('READY');
+    expect(result.readiness.status).toBe('PRELIMINARY');
+    expect(result.readiness.findings.some(f => f.ruleId === 'RG-MODEL-STRAIGHT-VALIDATION-001')).toBe(true);
     expect(result.executionStatus).toBe('EXECUTED');
     expect(result.completeness).toBe('complete');
     if (result.executionStatus !== 'EXECUTED') throw new Error('expected executed pump-fail analysis');
@@ -185,7 +187,7 @@ describe('executeEngineeringAnalysis readiness integration', () => {
     expect(result.visualization3d).toBeNull();
   });
 
-  it('is deterministic for identical READY and BLOCKED inputs', () => {
+  it('is deterministic for identical PRELIMINARY and BLOCKED inputs', () => {
     expect(executeEngineeringAnalysis(fixture())).toEqual(executeEngineeringAnalysis(fixture()));
     const blocked = fixture();
     blocked.pipeline.segments.push({ id: 'V1', kind: 'valve', elevationChangeM: 0 });

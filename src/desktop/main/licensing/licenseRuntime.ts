@@ -59,7 +59,7 @@ export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInp
   const trustedTimePath = join(userDataPath, TRUSTED_TIME_FILE_NAME);
   const publicKeyPath = join(resourcesPath, PUBLIC_KEY_RESOURCE);
   const publicKeyringPath = join(resourcesPath, PUBLIC_KEYRING_RESOURCE);
-  let signedEnvelope: unknown;
+  let signedEnvelope: unknown = null;
   let publicKeyPem = '';
   let resolvedKeyId: string | null = null;
   let keyring: ReturnType<typeof parseLicensePublicKeyring> = null;
@@ -105,7 +105,7 @@ export function evaluatePackagedLicenseRuntime(input: Readonly<LicenseRuntimeInp
   const reader = input.machineGuidReader ?? windowsRegistryMachineGuidReader;
   const machineId = deriveMachineId(reader);
   const clock = evaluateLicenseClockGuard(userDataPath, effectiveNowIso);
-  const gate = clock.accepted && publicKeyPem.trim()
+  const gate = clock.accepted && signedEnvelope !== null
     ? evaluateLicenseStartupGate({ signedEnvelope, publicKeyPem, machineId, nowIso: effectiveNowIso })
     : rejectedGate();
 

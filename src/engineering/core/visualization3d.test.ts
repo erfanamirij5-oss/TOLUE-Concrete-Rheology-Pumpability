@@ -40,6 +40,21 @@ describe('3D engineering visualization data contract', () => {
     expect(data.segments[0]!.pipeRadiusM).toBe(0.0625);
     expect(data.segments[0]!.flowRateM3s.value).toBe(0.001);
     expect(data.segments[0]!.hydraulicStatus).toBe('computed');
+    expect(data.spatialValidation.status).toBe('not_available');
+  });
+
+  it('propagates validated spatial geometry when supplied by the engineering input', () => {
+    const input: SimulationRunInput = structuredClone(base);
+    input.runId = 'run-3d-spatial-001';
+    input.pipeline.segments = [{
+      id: 'S1', kind: 'straight', lengthM: Math.sqrt(104), pipeRadiusM: 0.0625, elevationChangeM: 2,
+      spatial: { startPoint: { xM: 0, yM: 0, zM: 0 }, endPoint: { xM: 10, yM: 0, zM: 2 } },
+    }];
+    const data = build(input);
+    expect(data.spatialValidation.status).toBe('valid');
+    expect(data.segments[0]!.spatialStartPoint).toEqual({ xM: 0, yM: 0, zM: 0 });
+    expect(data.segments[0]!.spatialEndPoint).toEqual({ xM: 10, yM: 0, zM: 2 });
+    expect(data.method).toBe('tolue-3d-visualization-contract-v3');
   });
 
   it('preserves unsupported local hydraulic loss as not_computed', () => {

@@ -27,7 +27,7 @@ const bundle = {
 const pdfRequest = {
   runId: 'run-1', engineVersion: 'v1', inputSnapshotHash: 'hash-1', fileName: 'TOLUE-Engineering-Report-run-1.pdf', html: '<html></html>',
   mediaType: 'application/pdf' as const, sourceMediaType: 'text/html' as const,
-  page: { format: 'A4' as const, landscape: false as const, printBackground: true as const, preferCssPageSize: true as const, displayHeaderFooter: false as const, marginsMm: { top: 14, right: 14, bottom: 14, left: 14 } },
+  page: { format: 'A4' as const, landscape: false as const, printBackground: true as const, preferCssPageSize: true as const, displayHeaderFooter: false as const, marginsMm: { top: 5, right: 5, bottom: 5, left: 5 } },
   rendererBoundary: 'privileged_desktop_main_process' as const,
   scientificClaim: 'presentation_only_no_new_engineering_inference' as const,
   method: 'tolue-engineering-pdf-export-request-v1' as const,
@@ -41,8 +41,12 @@ describe('report export presentation boundary', () => {
     expect(presentation.htmlMediaType).toBe('text/html');
     expect(presentation.jsonMediaType).toBe('application/json');
     expect(presentation.pdfRequest.rendererBoundary).toBe('privileged_desktop_main_process');
-    expect(presentation.pdfRequest.page.marginsMm).toEqual({ top: 14, right: 14, bottom: 14, left: 14 });
+    expect(presentation.pdfRequest.page.marginsMm).toEqual({ top: 5, right: 5, bottom: 5, left: 5 });
+    expect(presentation.htmlRequest).toMatchObject({ format: 'html', mediaType: 'text/html', content: '<html></html>', fileName: 'TOLUE-Engineering-Report-run-1.html' });
+    expect(presentation.jsonRequest).toMatchObject({ format: 'json', mediaType: 'application/json', content: '{}', fileName: 'TOLUE-Engineering-Report-run-1.json' });
     expect(Object.isFrozen(presentation.pdfRequest.page.marginsMm)).toBe(true);
+    expect(Object.isFrozen(presentation.htmlRequest)).toBe(true);
+    expect(Object.isFrozen(presentation.jsonRequest)).toBe(true);
   });
 
   it('fails closed when report bundle and PDF request identity differ', () => {
